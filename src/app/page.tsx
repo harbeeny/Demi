@@ -127,7 +127,7 @@ export default function Home() {
               <h2 className="mt-0.5 text-xl font-semibold tracking-tight">Let&apos;s find your rhythm</h2>
             </div>
             <div className="flex items-center gap-2 rounded-full bg-[#e9f3e7] px-3 py-2 text-xs font-semibold text-[#397041]">
-              <span className="h-2 w-2 rounded-full bg-[#4fa75b]" /> Coach is here
+              <span className="h-2 w-2 animate-pulse rounded-full bg-[#4fa75b]" /> Coach is here
             </div>
           </header>
 
