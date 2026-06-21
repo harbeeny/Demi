@@ -185,20 +185,15 @@ export default function Home() {
                 ))}
               </div>
             )}
-            <form onSubmit={handleSubmit} className="relative flex items-end gap-3 rounded-full border border-[#d6e1d3] bg-white p-2 pl-4 shadow-sm focus-within:border-[#7ea282] focus-within:ring-4 focus-within:ring-[#dcebd8]">
+            <form onSubmit={handleSubmit} className="flex items-end gap-3 rounded-full border border-[#d6e1d3] bg-white p-2 pl-4 shadow-sm focus-within:border-[#7ea282] focus-within:ring-4 focus-within:ring-[#dcebd8]">
               <textarea
                 value={input}
                 onChange={(event) => setInput(event.target.value)}
                 onKeyDown={handleKeyDown}
                 placeholder="Ask Demi something"
                 rows={1}
-                className="max-h-28 min-h-14 flex-1 resize-none bg-transparent py-2 pb-5 text-[15px] leading-6 outline-none placeholder:text-[#91a093]"
+                className="max-h-28 min-h-11 flex-1 resize-none bg-transparent py-2 text-[15px] leading-6 outline-none placeholder:text-[#91a093]"
               />
-              {!input && (
-                <span className="pointer-events-none absolute bottom-2 left-5 text-[10px] font-medium text-[#91a093]">
-                  Enter sends · Shift + Enter adds a line
-                </span>
-              )}
               <button
                 type="submit"
                 disabled={!input.trim() || isSending}
@@ -208,7 +203,8 @@ export default function Home() {
                 ↑
               </button>
             </form>
-            <p className="mt-3 text-center text-xs leading-5 text-[#829084]">Demi offers general wellness guidance, not medical advice.</p>
+            <p className="mt-2 text-center text-xs leading-5 text-[#829084]">Press Enter to send. Use Shift + Enter for a new line.</p>
+            <p className="mt-1 text-center text-xs leading-5 text-[#829084]">Demi offers general wellness guidance, not medical advice.</p>
           </div>
         </section>
       </div>
