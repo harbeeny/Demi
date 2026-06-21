@@ -178,11 +178,11 @@ export default function Home() {
                 ))}
               </div>
             )}
-            <form onSubmit={handleSubmit} className="flex items-end gap-3 rounded-2xl border border-[#d6e1d3] bg-white p-2 pl-4 shadow-sm focus-within:border-[#7ea282] focus-within:ring-4 focus-within:ring-[#dcebd8]">
+            <form onSubmit={handleSubmit} className="flex items-end gap-3 rounded-full border border-[#d6e1d3] bg-white p-2 pl-4 shadow-sm focus-within:border-[#7ea282] focus-within:ring-4 focus-within:ring-[#dcebd8]">
               <textarea
                 value={input}
                 onChange={(event) => setInput(event.target.value)}
-                placeholder="Tell Demi what you’re working toward..."
+                placeholder="Ask Demi something"
                 rows={1}
                 className="max-h-28 min-h-11 flex-1 resize-none bg-transparent py-2 text-[15px] leading-6 outline-none placeholder:text-[#91a093]"
               />
