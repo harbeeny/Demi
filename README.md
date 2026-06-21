@@ -30,3 +30,11 @@ The initial assistant behavior and coaching guardrails live in
 `src/lib/trainer.ts`. The chat endpoint is intentionally provider-agnostic for
 now; the next milestone is connecting that system prompt and conversation state
 to a model and Supabase.
+
+## Supabase
+
+This app is linked to the Demi Supabase project. Local connection values live in
+`.env.local` (which is deliberately ignored by Git); copy `.env.example` when
+setting up another environment. The browser client factory is in
+`src/lib/supabase/client.ts`, ready for the upcoming auth, profile, and chat
+history features.
