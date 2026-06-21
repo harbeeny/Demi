@@ -189,7 +189,7 @@ export default function Home() {
               <button
                 type="submit"
                 disabled={!input.trim() || isSending}
-                className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-[#264b32] text-lg text-white transition hover:bg-[#183924] disabled:cursor-not-allowed disabled:bg-[#b8c7b9]"
+                className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-[#264b32] text-lg text-white transition hover:bg-[#183924] disabled:cursor-not-allowed disabled:bg-[#b8c7b9]"
                 aria-label="Send message"
               >
                 ↑
