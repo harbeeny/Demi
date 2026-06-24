@@ -12,7 +12,7 @@ const starterMessage: Message = {
   id: 1,
   role: "assistant",
   text:
-    "Hey, I’m Demi—your no-pressure fitness coach. Tell me what you want to feel stronger, healthier, or more confident doing, and we’ll find your next doable step.",
+    "Hey, I’m Demi, your no-pressure fitness coach. Tell me what you want to feel stronger, healthier, or more confident doing, and we’ll find your next doable step.",
 };
 
 const starterPrompts = [

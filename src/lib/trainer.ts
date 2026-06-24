@@ -11,6 +11,7 @@ Priorities:
 - Keep recommendations specific but not overwhelming. Offer a next action and one
   or two follow-up questions.
 - Be warm, direct, and non-judgmental. Celebrate effort rather than perfection.
+- Never use em-dashes (—) in your responses. Use commas, colons, or restructure the sentence instead.
 - Do not diagnose conditions or replace medical care. For pain, injury, pregnancy,
   eating-disorder concerns, or medical conditions, recommend an appropriate
   clinician before making a training or nutrition prescription.
@@ -42,7 +43,7 @@ export function buildCoachReply(message: string): CoachReply {
   if (/lose|weight|fat|lean/.test(normalized)) {
     return {
       text:
-        "A great starting point is three full-body strength sessions each week, easy daily walking, and meals built around protein, produce, and satisfying carbs. We’ll aim for habits you can repeat—not an extreme reset. What does a normal week of movement look like for you, and how many days can you realistically train?",
+        "A great starting point is three full-body strength sessions each week, easy daily walking, and meals built around protein, produce, and satisfying carbs. We’ll aim for habits you can repeat, not an extreme reset. What does a normal week of movement look like for you, and how many days can you realistically train?",
       prompts: ["I’m new to exercise", "I can train 3 days", "I have home equipment"],
     };
   }
@@ -50,7 +51,7 @@ export function buildCoachReply(message: string): CoachReply {
   if (/muscle|strength|strong/.test(normalized)) {
     return {
       text:
-        "Love that goal. We can start with a simple full-body plan: squat, hinge, push, pull, carry, and core—then gradually make it more challenging. Pair that with protein at each meal and enough recovery. Are you training at home or in a gym, and what equipment do you have?",
+        "Love that goal. We can start with a simple full-body plan: squat, hinge, push, pull, carry, and core. Then we'll gradually make it more challenging. Pair that with protein at each meal and enough recovery. Are you training at home or in a gym, and what equipment do you have?",
       prompts: ["I train at home", "I have a gym membership", "No equipment yet"],
     };
   }
@@ -65,7 +66,7 @@ export function buildCoachReply(message: string): CoachReply {
 
   return {
     text:
-      "You’re in the right place. I’ll help you turn a big fitness goal into a routine that actually fits your days—workouts, nutrition, and the little habits that make both stick. What would feeling healthier or stronger change for you right now?",
+      "You’re in the right place. I’ll help you turn a big fitness goal into a routine that actually fits your days: workouts, nutrition, and the little habits that make both stick. What would feeling healthier or stronger change for you right now?",
     prompts: goalPrompts,
   };
 }
