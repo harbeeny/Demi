@@ -30,16 +30,25 @@ export async function middleware(request: NextRequest) {
     data: { user },
   } = await supabase.auth.getUser();
 
-  const isProtected = PROTECTED_PATHS.some((p) => request.nextUrl.pathname.startsWith(p));
+  const path = request.nextUrl.pathname;
+
+  const isProtected = PROTECTED_PATHS.some((p) => path.startsWith(p));
   if (isProtected && !user) {
     const loginUrl = request.nextUrl.clone();
     loginUrl.pathname = "/login";
     return NextResponse.redirect(loginUrl);
   }
 
+  // Signed-in users don't belong on the marketing chatbot or login page.
+  if (user && (path === "/" || path === "/login")) {
+    const appUrl = request.nextUrl.clone();
+    appUrl.pathname = "/today";
+    return NextResponse.redirect(appUrl);
+  }
+
   return response;
 }
 
 export const config = {
-  matcher: ["/today/:path*", "/onboarding/:path*", "/login", "/api/plan"],
+  matcher: ["/", "/today/:path*", "/onboarding/:path*", "/login", "/api/plan"],
 };
