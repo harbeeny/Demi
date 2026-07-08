@@ -55,9 +55,9 @@ export function targets(profile: ProfileInput): MacroTargets {
   if (flooredBySafety) kcal = floor;
 
   const kcalReasoning = minorMaintenanceApplied
-    ? `Because you're under 18, your target stays at maintenance (${expenditure.value} kcal) — growing bodies shouldn't run deficits without clinical supervision.`
+    ? `Because you're under 18, your target stays at maintenance (${expenditure.value} kcal). Growing bodies shouldn't run deficits without clinical supervision.`
     : flooredBySafety
-      ? `Your goal implied ${expenditure.value + dailyDelta} kcal, but we hold the line at ${floor} kcal — going lower isn't safe or sustainable.`
+      ? `Your goal implied ${expenditure.value + dailyDelta} kcal, but we hold the line at ${floor} kcal. Going lower isn't safe or sustainable.`
       : direction === 0
         ? `Your goal is ${profile.goal === "maintain" ? "maintenance" : "overall health"}, so you eat right at your daily burn of ${kcal} kcal.`
         : `A ${rate} kg/week ${direction < 0 ? "loss" : "gain"} works out to ${Math.abs(dailyDelta)} kcal ${direction < 0 ? "below" : "above"} your ${expenditure.value} kcal daily burn.`;
@@ -96,7 +96,7 @@ export function targets(profile: ProfileInput): MacroTargets {
       reasoning: {
         rule: "fat_floor_max_of_bodyweight_or_pct_kcal",
         inputs: { fatFromBodyweight: Math.round(fatFromBodyweight), fatFromKcal: Math.round(fatFromKcal) },
-        explanation: `${fatG} g of fat keeps hormones and energy steady — we never cut fat below this floor.`,
+        explanation: `${fatG} g of fat keeps hormones and energy steady. We never cut fat below this floor.`,
       },
     },
     carbsG: {
@@ -104,7 +104,7 @@ export function targets(profile: ProfileInput): MacroTargets {
       reasoning: {
         rule: "carbs_fill_remainder",
         inputs: { kcal, proteinKcal: proteinG * 4, fatKcal: fatG * 9 },
-        explanation: `After protein and fat, the remaining ${carbsG * 4} kcal go to carbs (${carbsG} g) — your main fuel for training and daily life.`,
+        explanation: `After protein and fat, the remaining ${carbsG * 4} kcal go to carbs (${carbsG} g), your main fuel for training and daily life.`,
       },
     },
     fiberG: {

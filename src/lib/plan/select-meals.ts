@@ -4,7 +4,7 @@ import type { SlotTarget } from "@/lib/nutrition";
 export type Meal = Database["public"]["Tables"]["meals"]["Row"];
 
 export interface SelectionPrefs {
-  dietaryPrefs: string[]; // e.g. ["vegetarian"] — meal must carry every pref tag
+  dietaryPrefs: string[]; // e.g. ["vegetarian"]; meal must carry every pref tag
   allergies: string[]; // substring-matched against name + tags, meal excluded on hit
   dislikes: string[]; // substring-matched against name, meal excluded on hit
   budget: "low" | "medium" | "high";
@@ -86,7 +86,7 @@ export function selectMeals(
 ): SelectedMeal[] {
   const eligible = allMeals.filter((m) => isEligible(m, prefs));
   if (eligible.length === 0) {
-    throw new Error("No meals match your preferences — loosen a filter or add meals to the database.");
+    throw new Error("No meals match your preferences. Loosen a filter or add meals to the database.");
   }
 
   const usedToday = new Set<string>();

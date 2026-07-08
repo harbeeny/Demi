@@ -38,14 +38,19 @@ export function TodayView({ hasPlan, daySummary, meals, targets }: Props) {
   async function callPlanApi(init: RequestInit, busyKey: string) {
     setBusy(busyKey);
     setError("");
-    const res = await fetch("/api/plan", init);
-    if (!res.ok) {
-      const body = (await res.json().catch(() => ({}))) as { error?: string };
-      setError(body.error ?? "Something went wrong.");
-    } else {
-      router.refresh();
+    try {
+      const res = await fetch("/api/plan", init);
+      if (!res.ok) {
+        const body = (await res.json().catch(() => ({}))) as { error?: string };
+        setError(body.error ?? "Something went wrong.");
+      } else {
+        router.refresh();
+      }
+    } catch {
+      setError("Network hiccup. Try again.");
+    } finally {
+      setBusy(null);
     }
-    setBusy(null);
   }
 
   const generate = (regenerate: boolean) =>
