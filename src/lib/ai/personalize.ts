@@ -90,7 +90,14 @@ export async function personalize(
       maxTokens: 1024,
     });
 
-    const parsed = JSON.parse(raw) as { daySummary?: unknown; meals?: unknown };
+    // Models sometimes wrap JSON in ```json fences despite instructions.
+    // Parse the outermost object rather than trusting the raw string.
+    const start = raw.indexOf("{");
+    const end = raw.lastIndexOf("}");
+    if (start === -1 || end <= start) {
+      throw new Error("personalize: no JSON object in LLM response");
+    }
+    const parsed = JSON.parse(raw.slice(start, end + 1)) as { daySummary?: unknown; meals?: unknown };
     if (typeof parsed.daySummary !== "string" || !Array.isArray(parsed.meals)) {
       throw new Error("personalize: malformed LLM response shape");
     }
@@ -112,14 +119,15 @@ export async function personalize(
 
     return {
       daySummary: parsed.daySummary,
-      // Preserve OUR ordering — the LLM explains, it does not reorder.
+      // Preserve OUR ordering; the LLM explains, it does not reorder.
       meals: selected.map((s) => ({
         mealId: s.meal.id,
         why: explanations.get(s.meal.id) || deterministicFallback([s], targets).meals[0].why,
       })),
       fallbackUsed: false,
     };
-  } catch {
+  } catch (err) {
+    console.error("personalize: falling back to deterministic copy:", err);
     return deterministicFallback(selected, targets);
   }
 }
