@@ -3,6 +3,7 @@ import "server-only";
 import type { SelectedMeal } from "@/lib/plan/select-meals";
 import type { MacroTargets, ProfileInput } from "@/lib/nutrition";
 import { getAIProvider } from "./anthropic";
+import { numbersAreGrounded } from "./validate";
 
 export interface PersonalizedPlan {
   daySummary: string;
@@ -22,8 +23,9 @@ Your job is ONLY to:
 2. For each meal, write ONE short sentence explaining why this meal, at this time, for this person.
 
 Hard rules:
-- You may NOT change, add, remove, or reorder meals.
+- You may NOT change, add, remove, or reorder meals, and you may NOT mention foods that are not in the list.
 - You may NOT state any calorie or macro numbers other than those given.
+- Never frame eating as restriction, punishment, or something to be earned. Never praise eating less, skipping meals, or faster weight loss.
 - Never use em-dashes in your writing.
 - No medical claims. Warm, direct, non-judgmental tone.
 
@@ -110,15 +112,20 @@ export async function personalize(
       throw new Error("personalize: LLM returned meal ids outside the selected set");
     }
 
+    // SAFETY: any number the model wrote must exist in what we sent it.
+    const inputText = JSON.stringify(payload);
     const explanations = new Map(
       (parsed.meals as Array<{ mealId: string; why?: unknown }>).map((m) => [
         m.mealId,
-        typeof m.why === "string" ? m.why : "",
+        typeof m.why === "string" && numbersAreGrounded(m.why, inputText) ? m.why : "",
       ]),
     );
+    const daySummary = numbersAreGrounded(parsed.daySummary, inputText)
+      ? parsed.daySummary
+      : deterministicFallback(selected, targets).daySummary;
 
     return {
-      daySummary: parsed.daySummary,
+      daySummary,
       // Preserve OUR ordering; the LLM explains, it does not reorder.
       meals: selected.map((s) => ({
         mealId: s.meal.id,

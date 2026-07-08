@@ -98,6 +98,46 @@ describe("targets", () => {
     expect(t.kcal.reasoning.rule).toBe("safety_floor");
   });
 
+  test("SAFETY: loss rate is capped at 1% bodyweight per week", () => {
+    const t = targets({ ...baseProfile, goalRate: 1.0 }); // 80kg -> max 0.8 kg/wk
+    expect(t.rateCappedBySafety).toBe(true);
+    expect(t.kcal.reasoning.rule).toBe("rate_capped_goal_delta");
+    // delta = round(0.8 * 7700 / 7) = 880, TDEE 2759
+    expect(t.kcal.value).toBe(2759 - 880);
+    // an in-bounds rate is untouched
+    expect(targets(baseProfile).rateCappedBySafety).toBe(false);
+  });
+
+  test("SAFETY: floor never drops below 0.8 x BMR even above the sex floor", () => {
+    const big: ProfileInput = {
+      ...baseProfile,
+      weightKg: 100,
+      heightCm: 190,
+      age: 20,
+      activityLevel: "sedentary",
+      goalRate: 1.0,
+    };
+    const t = targets(big);
+    // BMR = 2093, floor = max(1500, round(2093*0.8)=1674) = 1674
+    expect(t.kcal.value).toBeGreaterThanOrEqual(1674);
+    expect(t.flooredBySafety).toBe(true);
+  });
+
+  test("SAFETY: underweight fat-loss goals become maintenance with supportive copy", () => {
+    const underweight: ProfileInput = {
+      ...baseProfile,
+      weightKg: 55, // BMI 17.0 at 180cm
+    };
+    const t = targets(underweight);
+    expect(t.underweightMaintenanceApplied).toBe(true);
+    expect(t.kcal.reasoning.rule).toBe("underweight_maintenance");
+    // sits at TDEE, no deficit
+    const maintenance = targets({ ...underweight, goal: "maintain", goalRate: null });
+    expect(t.kcal.value).toBe(maintenance.kcal.value);
+    // copy is supportive, not restrictive
+    expect(t.kcal.reasoning.explanation).toContain("fueling well");
+  });
+
   test("SAFETY: minors get maintenance regardless of goal", () => {
     const minor = targets({ ...baseProfile, age: 16 });
     const maintenance = targets({ ...baseProfile, age: 16, goal: "maintain", goalRate: null });
