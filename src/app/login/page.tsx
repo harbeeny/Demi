@@ -8,6 +8,7 @@ import { createClient } from "@/lib/supabase/client";
 function LoginForm() {
   const [email, setEmail] = useState("");
   const [status, setStatus] = useState<"idle" | "sending" | "sent" | "error">("idle");
+  const [errorMessage, setErrorMessage] = useState("");
   const params = useSearchParams();
   const linkError = params.get("error");
 
@@ -15,6 +16,7 @@ function LoginForm() {
     event.preventDefault();
     if (!email.trim() || status === "sending") return;
     setStatus("sending");
+    setErrorMessage("");
 
     const supabase = createClient();
     const { error } = await supabase.auth.signInWithOtp({
@@ -22,7 +24,20 @@ function LoginForm() {
       options: { emailRedirectTo: `${window.location.origin}/auth/confirm` },
     });
 
-    setStatus(error ? "error" : "sent");
+    if (error) {
+      const rateLimited =
+        error.status === 429 ||
+        ("code" in error && error.code === "over_email_send_rate_limit") ||
+        /rate limit/i.test(error.message);
+      setErrorMessage(
+        rateLimited
+          ? "Email limit reached. Supabase only sends a couple of sign-in emails per hour. Wait a bit, or check your inbox for an earlier link."
+          : "Something went wrong. Try again.",
+      );
+      setStatus("error");
+    } else {
+      setStatus("sent");
+    }
   }
 
   return (
@@ -63,7 +78,9 @@ function LoginForm() {
             </button>
             {(status === "error" || linkError) && (
               <p className="text-sm text-red-700">
-                {linkError ? "That link expired or was invalid. Request a new one." : "Something went wrong. Try again."}
+                {status === "error"
+                  ? errorMessage
+                  : "That link expired or was invalid. Request a new one."}
               </p>
             )}
           </form>
