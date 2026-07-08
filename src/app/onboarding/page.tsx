@@ -5,15 +5,19 @@ import { useRouter } from "next/navigation";
 
 import { createClient } from "@/lib/supabase/client";
 import { targets, type ProfileInput } from "@/lib/nutrition";
+import { ftInToCm, lbPerWeekToKgPerWeek, lbsToKg } from "@/lib/units";
+import { WheelPicker } from "@/components/onboarding/WheelPicker";
 import type { ActivityLevel, Budget, CookingSkill, Goal, Sex } from "@/lib/supabase/types";
 
 type Answers = {
   sex: Sex | null;
   age: string;
-  heightCm: string;
-  weightKg: string;
+  heightFt: number;
+  heightIn: number;
+  weightLbs: number;
   goal: Goal | null;
-  goalRate: number | null;
+  /** stored in lb/week for display; converted to kg/week on save */
+  goalRateLb: number | null;
   activityLevel: ActivityLevel | null;
   mealsPerDay: number;
   eatingWindowStart: number;
@@ -30,10 +34,11 @@ type Answers = {
 const INITIAL: Answers = {
   sex: null,
   age: "",
-  heightCm: "",
-  weightKg: "",
+  heightFt: 5,
+  heightIn: 8,
+  weightLbs: 165,
   goal: null,
-  goalRate: null,
+  goalRateLb: null,
   activityLevel: null,
   mealsPerDay: 3,
   eatingWindowStart: 8,
@@ -65,6 +70,11 @@ const ACTIVITY: Array<{ value: ActivityLevel; label: string; hint: string }> = [
 const DIET_OPTIONS = ["vegetarian", "vegan", "pescatarian", "gluten_free"];
 const WEEKDAYS = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"];
 
+const FEET_OPTIONS = [3, 4, 5, 6, 7];
+const INCH_OPTIONS = Array.from({ length: 12 }, (_, i) => i);
+/** 80-400 lbs in 1 lb steps */
+const WEIGHT_OPTIONS = Array.from({ length: 321 }, (_, i) => i + 80);
+
 function splitList(text: string): string[] {
   return text
     .split(",")
@@ -92,14 +102,7 @@ export default function OnboardingPage() {
         const n = Number(answers.age);
         return Number.isInteger(n) && n >= 13 && n <= 120;
       }
-      case 2: {
-        const n = Number(answers.heightCm);
-        return n >= 100 && n <= 250;
-      }
-      case 3: {
-        const n = Number(answers.weightKg);
-        return n >= 30 && n <= 300;
-      }
+      // 2 (height) and 3 (weight) are wheel-constrained, always valid
       case 4: return answers.goal !== null;
       case 5: return answers.activityLevel !== null;
       default: return true; // remaining steps are optional / have defaults
@@ -111,10 +114,10 @@ export default function OnboardingPage() {
     return {
       sex: answers.sex,
       age: Number(answers.age),
-      heightCm: Number(answers.heightCm),
-      weightKg: Number(answers.weightKg),
+      heightCm: ftInToCm(answers.heightFt, answers.heightIn),
+      weightKg: lbsToKg(answers.weightLbs),
       goal: answers.goal,
-      goalRate: answers.goalRate,
+      goalRate: answers.goalRateLb === null ? null : lbPerWeekToKgPerWeek(answers.goalRateLb),
       activityLevel: answers.activityLevel,
       mealsPerDay: answers.mealsPerDay,
       eatingWindowStart: answers.eatingWindowStart,
@@ -127,7 +130,7 @@ export default function OnboardingPage() {
   const results = useMemo(() => {
     if (step !== TOTAL_QUESTIONS || !profile) return null;
     try {
-      return targets(profile);
+      return targets(profile, { displayUnits: "us" });
     } catch {
       return null;
     }
@@ -216,16 +219,37 @@ export default function OnboardingPage() {
         );
       case 2:
         return (
-          <Question title="How tall are you?" hint="In centimeters (100-250).">
-            <input type="number" inputMode="decimal" className={numberInput} placeholder="e.g. 178"
-              value={answers.heightCm} onChange={(e) => set("heightCm", e.target.value)} />
+          <Question title="How tall are you?" hint="Scroll the wheels to your height.">
+            <div className="flex items-center justify-center gap-6 rounded-2xl bg-white py-2 shadow-sm">
+              <WheelPicker
+                values={FEET_OPTIONS}
+                value={answers.heightFt}
+                onChange={(v) => set("heightFt", v)}
+                label="ft"
+                ariaLabel="Height, feet"
+              />
+              <WheelPicker
+                values={INCH_OPTIONS}
+                value={answers.heightIn}
+                onChange={(v) => set("heightIn", v)}
+                label="in"
+                ariaLabel="Height, inches"
+              />
+            </div>
           </Question>
         );
       case 3:
         return (
-          <Question title="What do you weigh right now?" hint="In kilograms (30-300). A morning weigh-in is most consistent.">
-            <input type="number" inputMode="decimal" className={numberInput} placeholder="e.g. 82"
-              value={answers.weightKg} onChange={(e) => set("weightKg", e.target.value)} />
+          <Question title="What do you weigh right now?" hint="A morning weigh-in is most consistent.">
+            <div className="flex items-center justify-center rounded-2xl bg-white py-2 shadow-sm">
+              <WheelPicker
+                values={WEIGHT_OPTIONS}
+                value={answers.weightLbs}
+                onChange={(v) => set("weightLbs", v)}
+                label="lbs"
+                ariaLabel="Weight in pounds"
+              />
+            </div>
           </Question>
         );
       case 4:
@@ -233,7 +257,7 @@ export default function OnboardingPage() {
           <Question title="What's the goal?" hint="You can change this anytime.">
             {GOALS.map((g) => (
               <button key={g.value} className={choiceButton(answers.goal === g.value)}
-                onClick={() => { set("goal", g.value); set("goalRate", null); }}>
+                onClick={() => { set("goal", g.value); set("goalRateLb", null); }}>
                 <span className="font-medium">{g.label}</span>
                 <span className={`block text-sm ${answers.goal === g.value ? "text-white/70" : "text-[#829084]"}`}>{g.hint}</span>
               </button>
@@ -242,9 +266,9 @@ export default function OnboardingPage() {
               <div className="pt-2">
                 <p className="mb-2 text-sm text-[#829084]">How fast? (optional, default is the safe middle)</p>
                 <div className="flex gap-2">
-                  {(answers.goal === "lose_fat" ? [0.25, 0.5, 0.75] : [0.125, 0.25, 0.5]).map((r) => (
-                    <button key={r} className={chip(answers.goalRate === r)} onClick={() => set("goalRate", r)}>
-                      {r} kg/wk
+                  {(answers.goal === "lose_fat" ? [0.5, 1, 1.5] : [0.25, 0.5, 1]).map((r) => (
+                    <button key={r} className={chip(answers.goalRateLb === r)} onClick={() => set("goalRateLb", r)}>
+                      {r} lb/wk
                     </button>
                   ))}
                 </div>

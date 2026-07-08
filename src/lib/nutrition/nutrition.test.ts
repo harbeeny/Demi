@@ -167,6 +167,18 @@ describe("targets", () => {
     expect(t.fiberG.value).toBe(Math.round((t.kcal.value / 1000) * 14));
   });
 
+  test("us display units convert copy but never the math", () => {
+    const metric = targets(baseProfile);
+    const us = targets(baseProfile, { displayUnits: "us" });
+    // identical numbers
+    expect(us.kcal.value).toBe(metric.kcal.value);
+    expect(us.proteinG.value).toBe(metric.proteinG.value);
+    // converted copy: 0.5 kg/week -> 1.1 lb/week, 2 g/kg -> 0.9 g/lb
+    expect(us.kcal.reasoning.explanation).toContain("1.1 lb/week");
+    expect(us.proteinG.reasoning.explanation).toContain("0.9 g per lb");
+    expect(metric.kcal.reasoning.explanation).toContain("0.5 kg/week");
+  });
+
   test("every macro carries reasoning", () => {
     const t = targets(baseProfile);
     for (const macro of [t.kcal, t.proteinG, t.fatG, t.carbsG, t.fiberG]) {

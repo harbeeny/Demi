@@ -63,7 +63,7 @@ export async function generatePlan(
   recentlyUsedIds: string[] = [],
 ): Promise<GeneratedPlan> {
   const profile = profileFromRow(row);
-  const dayTargets = targets(profile);
+  const dayTargets = targets(profile, { displayUnits: "us" });
   const slotTargets = distribute(dayTargets, profile, today);
   const selected = selectMeals(allMeals, slotTargets, prefsFromRow(row), recentlyUsedIds);
   const rationale = await personalize(selected, dayTargets, profile);

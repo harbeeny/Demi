@@ -47,8 +47,22 @@ export const UNDERWEIGHT_BMI = 18.5;
  * 5. SAFETY: BMI under 18.5 with a fat-loss goal gets maintenance
  * 6. SAFETY: calorie floor = max(sex floor, 0.8 x BMR)
  * 7. Protein anchored to bodyweight, fat floor, carbs fill, fiber scaled to kcal
+ *
+ * Math is always metric. `displayUnits: "us"` only changes explanation copy
+ * (kg/week becomes lb/week).
  */
-export function targets(profile: ProfileInput): MacroTargets {
+export interface TargetOptions {
+  displayUnits?: "metric" | "us";
+}
+
+const LBS_PER_KG_DISPLAY = 2.20462;
+
+export function targets(profile: ProfileInput, options: TargetOptions = {}): MacroTargets {
+  const us = options.displayUnits === "us";
+  const rateLabel = (kgPerWeek: number) =>
+    us
+      ? `${Number((kgPerWeek * LBS_PER_KG_DISPLAY).toFixed(1))} lb/week`
+      : `${kgPerWeek} kg/week`;
   const basal = bmr(profile.sex, profile.age, profile.heightCm, profile.weightKg);
   const expenditure = tdee(basal.value, profile.activityLevel);
 
@@ -86,8 +100,8 @@ export function targets(profile: ProfileInput): MacroTargets {
         : direction === 0
           ? `Your goal is ${profile.goal === "maintain" ? "maintenance" : "overall health"}, so you eat right at your daily burn of ${kcal} kcal.`
           : rateCappedBySafety
-            ? `We slowed your pace to ${rate} kg/week (about 1% of your bodyweight). Faster than that tends to cost muscle and rebound, so this is ${Math.abs(dailyDelta)} kcal below your ${expenditure.value} kcal daily burn.`
-            : `A ${rate} kg/week ${direction < 0 ? "loss" : "gain"} works out to ${Math.abs(dailyDelta)} kcal ${direction < 0 ? "below" : "above"} your ${expenditure.value} kcal daily burn.`;
+            ? `We slowed your pace to ${rateLabel(rate)} (about 1% of your bodyweight). Faster than that tends to cost muscle and rebound, so this is ${Math.abs(dailyDelta)} kcal below your ${expenditure.value} kcal daily burn.`
+            : `A ${rateLabel(rate)} ${direction < 0 ? "loss" : "gain"} works out to ${Math.abs(dailyDelta)} kcal ${direction < 0 ? "below" : "above"} your ${expenditure.value} kcal daily burn.`;
 
   const proteinPerKg = PROTEIN_G_PER_KG[profile.goal];
   const proteinG = Math.round(proteinPerKg * profile.weightKg);
@@ -132,7 +146,7 @@ export function targets(profile: ProfileInput): MacroTargets {
       reasoning: {
         rule: "protein_per_kg_bodyweight",
         inputs: { weightKg: profile.weightKg, gPerKg: proteinPerKg, goal: profile.goal },
-        explanation: `${proteinPerKg} g per kg of bodyweight (${proteinG} g) ${profile.goal === "lose_fat" ? "protects your muscle while you lose fat" : profile.goal === "build_muscle" ? "gives your muscles material to grow" : "keeps you strong and satisfied"}.`,
+        explanation: `${us ? `${Number((proteinPerKg / LBS_PER_KG_DISPLAY).toFixed(1))} g per lb` : `${proteinPerKg} g per kg`} of bodyweight (${proteinG} g) ${profile.goal === "lose_fat" ? "protects your muscle while you lose fat" : profile.goal === "build_muscle" ? "gives your muscles material to grow" : "keeps you strong and satisfied"}.`,
       },
     },
     fatG: {
