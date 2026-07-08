@@ -2,7 +2,9 @@ import { describe, expect, test } from "bun:test";
 
 import {
   cmToFtIn,
+  formatFtIn,
   ftInToCm,
+  inchesToCm,
   kgPerWeekToLbPerWeek,
   kgToLbs,
   lbPerWeekToKgPerWeek,
@@ -34,6 +36,12 @@ describe("height conversions", () => {
 
   test("exact foot boundaries do not gain an inch", () => {
     expect(cmToFtIn(ftInToCm(6, 0))).toEqual({ feet: 6, inches: 0 });
+  });
+
+  test("total inches convert and format correctly", () => {
+    expect(inchesToCm(71)).toBe(180.3);
+    expect(formatFtIn(71)).toBe(`5'11"`);
+    expect(formatFtIn(72)).toBe(`6'0"`);
   });
 });
 
