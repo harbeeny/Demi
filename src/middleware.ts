@@ -46,6 +46,14 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(appUrl);
   }
 
+  // Signed-out visitors go straight to sign-in. The chatbot landing page
+  // stays in the codebase but is no longer the front door.
+  if (!user && path === "/") {
+    const loginUrl = request.nextUrl.clone();
+    loginUrl.pathname = "/login";
+    return NextResponse.redirect(loginUrl);
+  }
+
   return response;
 }
 
