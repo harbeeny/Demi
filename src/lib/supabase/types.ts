@@ -15,12 +15,20 @@ export type Goal =
 
 export type Sex = "male" | "female" | "other";
 
+export type Budget = "low" | "medium" | "high";
+
+export type CookingSkill = "minimal" | "basic" | "confident";
+
 export type MealSlot = "breakfast" | "lunch" | "dinner" | "snack";
 
 export interface MealPlanEntry {
   meal_id: string;
   slot: MealSlot;
   servings: number;
+  /** hour of day as decimal, e.g. 12.5 = 12:30 */
+  time_hour?: number;
+  /** one-line LLM (or fallback) explanation for this meal */
+  why?: string;
 }
 
 export interface Database {
@@ -42,6 +50,7 @@ export interface Database {
           created_at?: string;
           onboarding_complete?: boolean;
         };
+        Relationships: [];
       };
       onboarding_answers: {
         Row: {
@@ -52,10 +61,18 @@ export interface Database {
           height_cm: number;
           weight_kg: number;
           goal: Goal;
+          goal_rate: number | null;
           activity_level: ActivityLevel;
           dietary_prefs: string[];
           allergies: string[];
+          dislikes: string[];
+          budget: Budget;
+          cooking_skill: CookingSkill;
           meals_per_day: number;
+          eating_window_start: number;
+          eating_window_end: number;
+          training_days: string[];
+          training_time: string | null;
           created_at: string;
         };
         Insert: {
@@ -66,10 +83,18 @@ export interface Database {
           height_cm: number;
           weight_kg: number;
           goal: Goal;
+          goal_rate?: number | null;
           activity_level: ActivityLevel;
           dietary_prefs?: string[];
           allergies?: string[];
+          dislikes?: string[];
+          budget?: Budget;
+          cooking_skill?: CookingSkill;
           meals_per_day?: number;
+          eating_window_start?: number;
+          eating_window_end?: number;
+          training_days?: string[];
+          training_time?: string | null;
           created_at?: string;
         };
         Update: {
@@ -80,12 +105,48 @@ export interface Database {
           height_cm?: number;
           weight_kg?: number;
           goal?: Goal;
+          goal_rate?: number | null;
           activity_level?: ActivityLevel;
           dietary_prefs?: string[];
           allergies?: string[];
+          dislikes?: string[];
+          budget?: Budget;
+          cooking_skill?: CookingSkill;
           meals_per_day?: number;
+          eating_window_start?: number;
+          eating_window_end?: number;
+          training_days?: string[];
+          training_time?: string | null;
           created_at?: string;
         };
+        Relationships: [];
+      };
+      plan_events: {
+        Row: {
+          id: string;
+          user_id: string;
+          plan_id: string;
+          event: "regenerated" | "swapped";
+          meal_slot: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          user_id: string;
+          plan_id: string;
+          event: "regenerated" | "swapped";
+          meal_slot?: string | null;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          user_id?: string;
+          plan_id?: string;
+          event?: "regenerated" | "swapped";
+          meal_slot?: string | null;
+          created_at?: string;
+        };
+        Relationships: [];
       };
       meals: {
         Row: {
@@ -121,6 +182,7 @@ export interface Database {
           tags?: string[];
           source?: string;
         };
+        Relationships: [];
       };
       meal_plans: {
         Row: {
@@ -147,6 +209,7 @@ export interface Database {
           llm_rationale?: string;
           meals?: MealPlanEntry[];
         };
+        Relationships: [];
       };
       daily_logs: {
         Row: {
@@ -179,10 +242,12 @@ export interface Database {
           total_fat_g?: number;
           created_at?: string;
         };
+        Relationships: [];
       };
     };
-    Views: Record<string, never>;
-    Functions: Record<string, never>;
-    Enums: Record<string, never>;
+    Views: { [_ in never]: never };
+    Functions: { [_ in never]: never };
+    Enums: { [_ in never]: never };
+    CompositeTypes: { [_ in never]: never };
   };
 }
