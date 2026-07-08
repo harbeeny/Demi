@@ -73,6 +73,12 @@ const HEIGHT_OPTIONS = Array.from({ length: 43 }, (_, i) => i + 48);
 /** 80-400 lbs in 1 lb steps */
 const WEIGHT_OPTIONS = Array.from({ length: 321 }, (_, i) => i + 80);
 
+/** 8 -> "8:00 am", 20 -> "8:00 pm" */
+function hourLabel(h: number): string {
+  const h12 = h % 12 === 0 ? 12 : h % 12;
+  return `${h12}:00 ${h >= 12 ? "pm" : "am"}`;
+}
+
 function splitList(text: string): string[] {
   return text
     .split(",")
@@ -298,7 +304,7 @@ export default function OnboardingPage() {
                 value={answers.eatingWindowStart}
                 onChange={(e) => set("eatingWindowStart", Number(e.target.value))}>
                 {Array.from({ length: 12 }, (_, i) => i + 5).map((h) => (
-                  <option key={h} value={h}>{h}:00</option>
+                  <option key={h} value={h}>{hourLabel(h)}</option>
                 ))}
               </select>
               <label className="text-sm">Last meal</label>
@@ -306,7 +312,7 @@ export default function OnboardingPage() {
                 value={answers.eatingWindowEnd}
                 onChange={(e) => set("eatingWindowEnd", Number(e.target.value))}>
                 {Array.from({ length: 8 }, (_, i) => i + 16).map((h) => (
-                  <option key={h} value={h}>{h}:00</option>
+                  <option key={h} value={h}>{hourLabel(h)}</option>
                 ))}
               </select>
             </div>
