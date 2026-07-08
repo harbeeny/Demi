@@ -5,15 +5,14 @@ import { useRouter } from "next/navigation";
 
 import { createClient } from "@/lib/supabase/client";
 import { targets, type ProfileInput } from "@/lib/nutrition";
-import { ftInToCm, lbPerWeekToKgPerWeek, lbsToKg } from "@/lib/units";
+import { formatFtIn, inchesToCm, lbPerWeekToKgPerWeek, lbsToKg } from "@/lib/units";
 import { WheelPicker } from "@/components/onboarding/WheelPicker";
 import type { ActivityLevel, Budget, CookingSkill, Goal, Sex } from "@/lib/supabase/types";
 
 type Answers = {
   sex: Sex | null;
   age: string;
-  heightFt: number;
-  heightIn: number;
+  heightInches: number;
   weightLbs: number;
   goal: Goal | null;
   /** stored in lb/week for display; converted to kg/week on save */
@@ -34,8 +33,7 @@ type Answers = {
 const INITIAL: Answers = {
   sex: null,
   age: "",
-  heightFt: 5,
-  heightIn: 8,
+  heightInches: 68, // 5'8"
   weightLbs: 165,
   goal: null,
   goalRateLb: null,
@@ -70,8 +68,8 @@ const ACTIVITY: Array<{ value: ActivityLevel; label: string; hint: string }> = [
 const DIET_OPTIONS = ["vegetarian", "vegan", "pescatarian", "gluten_free"];
 const WEEKDAYS = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"];
 
-const FEET_OPTIONS = [3, 4, 5, 6, 7];
-const INCH_OPTIONS = Array.from({ length: 12 }, (_, i) => i);
+/** 4'0" to 7'6" in 1 inch steps */
+const HEIGHT_OPTIONS = Array.from({ length: 43 }, (_, i) => i + 48);
 /** 80-400 lbs in 1 lb steps */
 const WEIGHT_OPTIONS = Array.from({ length: 321 }, (_, i) => i + 80);
 
@@ -114,7 +112,7 @@ export default function OnboardingPage() {
     return {
       sex: answers.sex,
       age: Number(answers.age),
-      heightCm: ftInToCm(answers.heightFt, answers.heightIn),
+      heightCm: inchesToCm(answers.heightInches),
       weightKg: lbsToKg(answers.weightLbs),
       goal: answers.goal,
       goalRate: answers.goalRateLb === null ? null : lbPerWeekToKgPerWeek(answers.goalRateLb),
@@ -219,35 +217,31 @@ export default function OnboardingPage() {
         );
       case 2:
         return (
-          <Question title="How tall are you?" hint="Scroll the wheels to your height.">
-            <div className="flex items-center justify-center gap-6 rounded-2xl bg-white py-2 shadow-sm">
+          <Question title="How tall are you?" hint="Scroll the wheel; each tick is one inch.">
+            <div className="flex items-center justify-center rounded-2xl bg-white py-2 shadow-sm">
               <WheelPicker
-                values={FEET_OPTIONS}
-                value={answers.heightFt}
-                onChange={(v) => set("heightFt", v)}
-                label="ft"
-                ariaLabel="Height, feet"
-              />
-              <WheelPicker
-                values={INCH_OPTIONS}
-                value={answers.heightIn}
-                onChange={(v) => set("heightIn", v)}
-                label="in"
-                ariaLabel="Height, inches"
+                key="height"
+                values={HEIGHT_OPTIONS}
+                value={answers.heightInches}
+                onChange={(v) => set("heightInches", v)}
+                ariaLabel="Height in feet and inches"
+                format={formatFtIn}
               />
             </div>
           </Question>
         );
       case 3:
         return (
-          <Question title="What do you weigh right now?" hint="A morning weigh-in is most consistent.">
-            <div className="flex items-center justify-center rounded-2xl bg-white py-2 shadow-sm">
+          <Question title="What do you weigh right now?" hint="Slide left or right. A morning weigh-in is most consistent.">
+            <div className="rounded-2xl bg-white py-3 shadow-sm">
               <WheelPicker
+                key="weight"
                 values={WEIGHT_OPTIONS}
                 value={answers.weightLbs}
                 onChange={(v) => set("weightLbs", v)}
                 label="lbs"
                 ariaLabel="Weight in pounds"
+                orientation="horizontal"
               />
             </div>
           </Question>
