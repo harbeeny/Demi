@@ -180,21 +180,21 @@ export default function OnboardingPage() {
   }
 
   const choiceButton = (selected: boolean) =>
-    `w-full rounded-2xl border px-4 py-3 text-left transition ${
+    `press w-full rounded-2xl border px-4 py-3 text-left ${
       selected
         ? "border-[#2c3a2e] bg-[#2c3a2e] text-white"
         : "border-[#dce3d7] bg-white text-[#2c3a2e] hover:border-[#8aa06f]"
     }`;
 
   const chip = (selected: boolean) =>
-    `rounded-full border px-4 py-2 text-sm transition ${
+    `press rounded-full border px-4 py-2 text-sm ${
       selected
         ? "border-[#2c3a2e] bg-[#2c3a2e] text-white"
-        : "border-[#dce3d7] bg-white text-[#2c3a2e]"
+        : "border-[#dce3d7] bg-white text-[#2c3a2e] hover:border-[#8aa06f]"
     }`;
 
   const numberInput =
-    "w-full rounded-2xl border border-[#dce3d7] bg-white px-4 py-3 text-lg text-[#2c3a2e] outline-none focus:border-[#8aa06f]";
+    "w-full rounded-2xl border border-[#dce3d7] bg-white px-4 py-3 text-lg text-[#2c3a2e] outline-none transition-[border-color,box-shadow] duration-150 focus:border-[#8aa06f] focus:shadow-[0_0_0_3px_rgba(138,160,111,0.15)]";
 
   function renderStep() {
     switch (step) {
@@ -413,20 +413,21 @@ export default function OnboardingPage() {
 
   return (
     <main className="mx-auto flex min-h-dvh max-w-md flex-col bg-[#f4f6f2] px-6 py-8">
-      {/* Progress bar */}
+      {/* Progress bar: width only, strong ease-out (emil-design-eng) */}
       <div className="mb-8 h-1.5 w-full overflow-hidden rounded-full bg-[#dce3d7]">
         <div
-          className="h-full rounded-full bg-[#2c3a2e] transition-all duration-300"
+          className="h-full rounded-full bg-[#2c3a2e] transition-[width] duration-300 [transition-timing-function:var(--ease-out)]"
           style={{ width: `${(Math.min(step, TOTAL_QUESTIONS) / TOTAL_QUESTIONS) * 100}%` }}
         />
       </div>
 
-      <div className="flex-1">{renderStep()}</div>
+      {/* keyed by step so each question enters with the step-in animation */}
+      <div key={step} className="step-in flex-1">{renderStep()}</div>
 
       <div className="mt-8 flex gap-3">
         {step > 0 && (
           <button
-            className="rounded-2xl border border-[#dce3d7] bg-white px-5 py-3 text-[#2c3a2e]"
+            className="press rounded-2xl border border-[#dce3d7] bg-white px-5 py-3 text-[#2c3a2e] hover:border-[#8aa06f]"
             onClick={() => setStep((s) => s - 1)}
           >
             Back
@@ -434,7 +435,7 @@ export default function OnboardingPage() {
         )}
         {step < TOTAL_QUESTIONS ? (
           <button
-            className="flex-1 rounded-2xl bg-[#2c3a2e] px-5 py-3 font-medium text-white disabled:opacity-40"
+            className="press flex-1 rounded-2xl bg-[#2c3a2e] px-5 py-3 font-medium text-white disabled:opacity-40"
             disabled={!stepValid}
             onClick={() => setStep((s) => s + 1)}
           >
@@ -442,7 +443,7 @@ export default function OnboardingPage() {
           </button>
         ) : (
           <button
-            className="flex-1 rounded-2xl bg-[#2c3a2e] px-5 py-3 font-medium text-white disabled:opacity-60"
+            className="press flex-1 rounded-2xl bg-[#2c3a2e] px-5 py-3 font-medium text-white disabled:opacity-60"
             disabled={!results || saving}
             onClick={finish}
           >

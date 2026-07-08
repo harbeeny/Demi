@@ -112,9 +112,9 @@ function LoginForm() {
   }
 
   const inputClass =
-    "w-full rounded-2xl border border-[#dce3d7] bg-white px-4 py-3 text-[#2c3a2e] outline-none focus:border-[#8aa06f]";
+    "w-full rounded-2xl border border-[#dce3d7] bg-white px-4 py-3 text-[#2c3a2e] outline-none transition-[border-color,box-shadow] duration-150 focus:border-[#8aa06f] focus:shadow-[0_0_0_3px_rgba(138,160,111,0.15)]";
   const buttonClass =
-    "w-full rounded-2xl bg-[#2c3a2e] px-4 py-3 font-medium text-white disabled:opacity-60";
+    "press w-full rounded-2xl bg-[#2c3a2e] px-4 py-3 font-medium text-white disabled:opacity-60";
 
   return (
     <main className="flex min-h-dvh items-center justify-center bg-[#f4f6f2] px-6">
@@ -155,7 +155,7 @@ function LoginForm() {
               type="button"
               disabled={busy}
               onClick={skipSignIn}
-              className="mt-4 w-full rounded-2xl border border-[#dce3d7] bg-white px-4 py-3 font-medium text-[#2c3a2e] disabled:opacity-60"
+              className="press mt-4 w-full rounded-2xl border border-[#dce3d7] bg-white px-4 py-3 font-medium text-[#2c3a2e] hover:border-[#8aa06f] disabled:opacity-60"
             >
               Skip sign-in for now
             </button>

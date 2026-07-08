@@ -3,6 +3,11 @@
 :root {
   --background: #f5f7f3;
   --foreground: #16201a;
+
+  /* Strong custom easings; built-in CSS easings are too weak (emil-design-eng) */
+  --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+  --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
+  --ease-drawer: cubic-bezier(0.32, 0.72, 0, 1);
 }
 
 @theme inline {
@@ -25,4 +30,41 @@ body {
 ::selection {
   background: #cce5c9;
   color: #16201a;
+}
+
+/*
+ * Tactile press feedback (emil-design-eng): buttons must feel responsive.
+ * Specific properties only, never `transition: all`.
+ */
+.press {
+  transition: transform 150ms var(--ease-out), background-color 150ms ease, border-color 150ms ease, opacity 150ms ease;
+}
+.press:active {
+  transform: scale(0.97);
+}
+
+/* Wizard step content enters fast with ease-out; frequent action, so subtle and short. */
+@keyframes step-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+.step-in {
+  animation: step-in 180ms var(--ease-out) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .press,
+  .step-in {
+    animation: none;
+    transition: none;
+  }
+  .press:active {
+    transform: none;
+  }
 }
