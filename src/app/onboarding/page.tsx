@@ -70,7 +70,7 @@ const WEEKDAYS = ["monday", "tuesday", "wednesday", "thursday", "friday", "satur
 
 /** Display labels only; stored values stay low/medium/high for meal tags. */
 const BUDGET_LABELS: Record<Budget, string> = {
-  low: "$20-50 / week",
+  low: "$20-50",
   medium: "$50-100",
   high: "$100+",
 };
@@ -356,7 +356,7 @@ export default function OnboardingPage() {
       case 8:
         return (
           <Question title="Budget and kitchen comfort?" hint="So the plan fits your wallet and your patience.">
-            <p className="text-sm font-medium text-[#2c3a2e]">Grocery budget</p>
+            <p className="text-sm font-medium text-[#2c3a2e]">Grocery budget / week</p>
             <div className="flex flex-wrap gap-2">
               {(["low", "medium", "high"] as const).map((b) => (
                 <button key={b} className={chip(answers.budget === b)} onClick={() => set("budget", b)}>
