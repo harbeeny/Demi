@@ -1,219 +1,268 @@
-"use client";
+/**
+ * Landing page. Server component, no client state.
+ * Design read: consumer wellness landing, preserve brand (Forest palette:
+ * deep green + bone + lime). Dials: VARIANCE 6 / MOTION 4 / DENSITY 3.
+ * The hero visual is a real component preview (mini Today screen), not a
+ * fake screenshot: same ring SVG and card markup the product renders.
+ */
 
-import { FormEvent, KeyboardEvent, useRef, useState } from "react";
-
-type Message = {
-  id: number;
-  role: "assistant" | "user";
-  text: string;
-};
-
-const starterMessage: Message = {
-  id: 1,
-  role: "assistant",
-  text:
-    "Hey, I’m Demi, your no-pressure fitness coach. Tell me what you want to feel stronger, healthier, or more confident doing, and we’ll find your next doable step.",
-};
-
-const starterPrompts = [
-  "I want to start working out",
-  "Help me eat better",
-  "I want more energy",
+const SAMPLE_RINGS = [
+  { label: "kcal", value: 1470, target: 2240, color: "#2c3a2e" },
+  { label: "protein", value: 106, target: 164, color: "#7a9a4e" },
+  { label: "carbs", value: 160, target: 248, color: "#c9a44c" },
+  { label: "fat", value: 40, target: 66, color: "#a4785c" },
 ];
 
-export default function Home() {
-  const [messages, setMessages] = useState<Message[]>([starterMessage]);
-  const [input, setInput] = useState("");
-  const [suggestions, setSuggestions] = useState(starterPrompts);
-  const [isSending, setIsSending] = useState(false);
-  const nextId = useRef(2);
+const SAMPLE_MEALS = [
+  {
+    slot: "BREAKFAST · 8:00 AM",
+    name: "Protein smoothie",
+    macros: "390 kcal · P 32g",
+    why: "Quick protein and carbs to fuel your morning.",
+  },
+  {
+    slot: "LUNCH · 2:00 PM",
+    name: "Chicken and rice",
+    macros: "520 kcal · P 38g",
+    why: "Steady energy that keeps you satisfied through the afternoon.",
+  },
+];
 
-  async function sendMessage(rawMessage: string) {
-    const message = rawMessage.trim();
-    if (!message || isSending) return;
+const STEPS = [
+  {
+    title: "Answer ten questions",
+    body: "Height, weight, goal, schedule, and what you like to eat. Two minutes on your phone.",
+  },
+  {
+    title: "Get your numbers",
+    body: "Calories and macros computed from your body and goal, with the reasoning shown next to every figure.",
+  },
+  {
+    title: "Eat with a why",
+    body: "A daily plan of real meals that fit your targets, each with one line explaining why it earns its place.",
+  },
+];
 
-    setInput("");
-    setSuggestions([]);
-    setIsSending(true);
-    setMessages((current) => [
-      ...current,
-      { id: nextId.current++, role: "user", text: message },
-    ]);
+const GUARDRAILS = [
+  {
+    title: "Calorie floors, enforced in code",
+    body: "Targets never drop below 1,200 or 1,500 kcal, and never below 80% of your measured metabolism.",
+    tone: "dark" as const,
+  },
+  {
+    title: "No crash pace",
+    body: "Suggested loss is capped at 1% of bodyweight per week. Faster tends to cost muscle and rebound.",
+    tone: "light" as const,
+  },
+  {
+    title: "The AI cannot invent numbers",
+    body: "Every calorie and macro comes from a verified food database. The model only picks and explains.",
+    tone: "lime" as const,
+  },
+  {
+    title: "Supportive by design",
+    body: "No streaks for eating less, no restriction framing, and a real resource if food ever feels stressful.",
+    tone: "light" as const,
+  },
+];
 
-    try {
-      const response = await fetch("/api/chat", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ message }),
-      });
-      const data = (await response.json()) as {
-        text?: string;
-        prompts?: string[];
-        error?: string;
-      };
-
-      const replyText = data.text;
-      if (!response.ok || !replyText) throw new Error(data.error || "Something went wrong.");
-
-      setMessages((current) => [
-        ...current,
-        { id: nextId.current++, role: "assistant", text: replyText },
-      ]);
-      setSuggestions(data.prompts ?? []);
-    } catch {
-      setMessages((current) => [
-        ...current,
-        {
-          id: nextId.current++,
-          role: "assistant",
-          text:
-            "I hit a small snag. Try sending that again, and we’ll get your next step sorted.",
-        },
-      ]);
-    } finally {
-      setIsSending(false);
-    }
-  }
-
-  function handleSubmit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    void sendMessage(input);
-  }
-
-  function handleKeyDown(event: KeyboardEvent<HTMLTextAreaElement>) {
-    if (event.key === "Enter" && !event.shiftKey) {
-      event.preventDefault();
-      void sendMessage(input);
-    }
-  }
-
+function PreviewRing({ label, value, target, color }: (typeof SAMPLE_RINGS)[number]) {
+  const r = 17;
+  const c = 2 * Math.PI * r;
+  const pct = Math.min(1, value / target);
   return (
-    <main className="min-h-screen bg-[#f5f7f3] px-4 py-5 text-[#16201a] sm:px-8 sm:py-8">
-      <div className="mx-auto grid min-h-[calc(100vh-2.5rem)] max-w-6xl overflow-hidden rounded-[2rem] border border-[#dfe7dc] bg-[#fbfcfa] shadow-[0_24px_70px_rgba(48,72,49,0.12)] lg:grid-cols-[0.82fr_1.18fr]">
-        <aside className="relative overflow-hidden bg-[#1e3d2a] p-7 text-[#f5f4e9] sm:p-10">
-          <div className="absolute -right-20 top-20 h-56 w-56 rounded-full border-[28px] border-[#54715a] opacity-60" />
-          <div className="absolute -bottom-16 -left-10 h-52 w-52 rounded-full bg-[#d8ee9a] opacity-90" />
+    <div className="flex flex-col items-center">
+      <svg width="44" height="44" viewBox="0 0 44 44" aria-hidden>
+        <circle cx="22" cy="22" r={r} fill="none" stroke="#eef1ea" strokeWidth="4" />
+        <circle
+          cx="22" cy="22" r={r} fill="none"
+          stroke={color} strokeWidth="4" strokeLinecap="round"
+          strokeDasharray={c} strokeDashoffset={c * (1 - pct)}
+          transform="rotate(-90 22 22)"
+        />
+        <text x="22" y="25" textAnchor="middle" fontSize="9" fontWeight="600" fill="#2c3a2e">
+          {value}
+        </text>
+      </svg>
+      <span className="mt-0.5 text-[8px] text-[#829084]">{label}</span>
+    </div>
+  );
+}
 
-          <div className="relative flex h-full flex-col">
-            <div className="flex items-center gap-3">
-              <div className="grid h-10 w-10 place-items-center rounded-2xl bg-[#d8ee9a] text-lg font-black text-[#183924]">D</div>
-              <span className="text-xl font-semibold tracking-tight">Demi</span>
-              <span className="ml-auto rounded-full border border-[#5b7861] px-3 py-1 text-xs font-medium text-[#dce9d7]">Beta</span>
+export default function LandingPage() {
+  return (
+    <div className="bg-[#f4f6f2] text-[#2c3a2e]">
+      {/* Nav: single line, 64px */}
+      <header className="mx-auto flex h-16 max-w-6xl items-center justify-between px-6">
+        <div className="flex items-center gap-2.5">
+          <span className="grid h-9 w-9 place-items-center rounded-full bg-[#d8ee9a] font-semibold text-[#1e3d2a]">
+            D
+          </span>
+          <span className="text-lg font-semibold tracking-tight">Demi</span>
+        </div>
+        <a
+          href="/login"
+          className="press rounded-full border border-[#dce3d7] bg-white px-4 py-2 text-sm font-medium hover:border-[#8aa06f]"
+        >
+          Sign in
+        </a>
+      </header>
+
+      {/* Hero: asymmetric split, copy left, real component preview right */}
+      <section className="mx-auto grid max-w-6xl items-center gap-12 px-6 pb-20 pt-12 md:grid-cols-[7fr_5fr] md:pt-20">
+        <div>
+          <h1
+            className="rise-in text-4xl font-semibold leading-[1.05] tracking-tighter md:text-6xl"
+            style={{ "--rise-index": 0 } as React.CSSProperties}
+          >
+            Meals planned around your numbers.
+          </h1>
+          <p
+            className="rise-in mt-5 max-w-[46ch] text-base leading-relaxed text-[#5d6b5f] md:text-lg"
+            style={{ "--rise-index": 1 } as React.CSSProperties}
+          >
+            Demi computes your calories and macros, picks real meals that fit, and explains why each one earns its place.
+          </p>
+          <div
+            className="rise-in mt-8 flex items-center gap-4"
+            style={{ "--rise-index": 2 } as React.CSSProperties}
+          >
+            <a
+              href="/login"
+              className="press rounded-full bg-[#1e3d2a] px-7 py-3.5 font-medium text-white"
+            >
+              Get started
+            </a>
+            <a
+              href="#how"
+              className="press rounded-full px-4 py-3.5 font-medium text-[#3c4a3e] underline-offset-4 hover:underline"
+            >
+              How it works
+            </a>
+          </div>
+        </div>
+
+        {/* Real component preview: the product's actual ring + card markup, sample data */}
+        <div
+          className="rise-in mx-auto w-full max-w-[320px]"
+          style={{ "--rise-index": 3 } as React.CSSProperties}
+        >
+          <div className="rounded-[2rem] border border-[#dce3d7] bg-white p-4 shadow-[0_24px_60px_rgba(44,58,46,0.12)]">
+            <p className="px-1 text-xs font-medium text-[#829084]">Today · sample day</p>
+            <div className="mt-3 grid grid-cols-4 gap-1 rounded-2xl bg-[#f4f6f2] p-3">
+              {SAMPLE_RINGS.map((ring) => (
+                <PreviewRing key={ring.label} {...ring} />
+              ))}
             </div>
-
-            <div className="mt-14 max-w-md lg:mt-24">
-              <p className="mb-4 text-sm font-semibold uppercase tracking-[0.18em] text-[#d8ee9a]">Your starting point</p>
-              <h1 className="text-4xl font-semibold leading-[1.06] tracking-[-0.04em] sm:text-5xl">
-                Build a routine that feels like yours.
-              </h1>
-              <p className="mt-6 max-w-sm text-base leading-7 text-[#d4e0d2]">
-                Smart training and straightforward nutrition guidance, one conversation at a time.
-              </p>
-              <a
-                href="/login"
-                className="press mt-8 inline-block rounded-2xl bg-[#d8ee9a] px-6 py-3 font-semibold text-[#183924] hover:bg-[#e4f5b0]"
-              >
-                Get started
-              </a>
-            </div>
-
-            <div className="mt-12 grid gap-3 sm:grid-cols-3 lg:mt-auto lg:grid-cols-1">
-              {[
-                ["01", "Start small", "Find a first week you can repeat."],
-                ["02", "Eat with ease", "Build meals that support your goals."],
-                ["03", "Keep going", "Adjust as your life and strength change."],
-              ].map(([number, title, detail]) => (
-                <div key={number} className="rounded-2xl border border-[#4c6b53] bg-[#244630]/80 p-4 backdrop-blur">
-                  <p className="text-xs font-bold tracking-[0.16em] text-[#d8ee9a]">{number}</p>
-                  <p className="mt-2 font-semibold">{title}</p>
-                  <p className="mt-1 text-sm leading-5 text-[#c9d9c8]">{detail}</p>
+            <div className="mt-3 space-y-2.5">
+              {SAMPLE_MEALS.map((meal) => (
+                <div key={meal.slot} className="rounded-2xl border border-[#eef1ea] p-3">
+                  <p className="text-[9px] font-medium uppercase tracking-wide text-[#829084]">
+                    {meal.slot}
+                  </p>
+                  <p className="mt-0.5 text-sm font-medium">{meal.name}</p>
+                  <p className="mt-0.5 text-[10px] text-[#5d6b5f]">{meal.macros}</p>
+                  <p className="mt-1 text-[11px] leading-4 text-[#5d6b5f]">{meal.why}</p>
                 </div>
               ))}
             </div>
           </div>
-        </aside>
+        </div>
+      </section>
 
-        <section className="flex min-h-[620px] flex-col bg-[#fbfcfa]">
-          <header className="flex items-center justify-between border-b border-[#e6ece3] px-6 py-5 sm:px-8">
-            <div>
-              <p className="text-sm font-medium text-[#66806c]">Conversation</p>
-              <h2 className="mt-0.5 text-xl font-semibold tracking-tight">Let&apos;s find your rhythm</h2>
-            </div>
-            <div className="flex items-center gap-2 rounded-full bg-[#e9f3e7] px-3 py-2 text-xs font-semibold text-[#397041]">
-              <span className="h-2 w-2 animate-pulse rounded-full bg-[#4fa75b]" /> Coach is here
-            </div>
-          </header>
-
-          <div className="flex-1 space-y-5 overflow-y-auto px-6 py-7 sm:px-8">
-            {messages.map((message) => (
-              <div
-                key={message.id}
-                className={`flex gap-3 ${message.role === "user" ? "justify-end" : "justify-start"}`}
-              >
-                {message.role === "assistant" && (
-                  <div className="grid h-8 w-8 shrink-0 place-items-center rounded-xl bg-[#d8ee9a] text-xs font-black text-[#183924]">D</div>
-                )}
-                <p
-                  className={`max-w-[82%] rounded-2xl px-4 py-3 text-[15px] leading-6 shadow-sm ${
-                    message.role === "assistant"
-                      ? "rounded-tl-sm bg-white text-[#26352a] ring-1 ring-[#e5ebe2]"
-                      : "rounded-tr-sm bg-[#264b32] text-white"
-                  }`}
-                >
-                  {message.text}
-                </p>
+      {/* How it works: numbered vertical rail, asymmetric columns */}
+      <section id="how" className="border-t border-[#e3e9df] bg-white">
+        <div className="mx-auto max-w-6xl px-6 py-20 md:py-28">
+          <h2 className="text-3xl font-semibold tracking-tighter md:text-4xl">
+            From ten answers to tonight&apos;s dinner
+          </h2>
+          <div className="mt-12 space-y-10 md:mt-16">
+            {STEPS.map((step, i) => (
+              <div key={step.title} className="grid gap-2 md:grid-cols-[1fr_2fr_2fr] md:gap-8">
+                <span className="text-5xl font-semibold tracking-tighter text-[#c9d6c2] md:text-6xl">
+                  {i + 1}
+                </span>
+                <h3 className="text-xl font-semibold tracking-tight md:pt-3">{step.title}</h3>
+                <p className="max-w-[52ch] leading-relaxed text-[#5d6b5f] md:pt-3">{step.body}</p>
               </div>
             ))}
-            {isSending && (
-              <div className="flex gap-3">
-                <div className="grid h-8 w-8 place-items-center rounded-xl bg-[#d8ee9a] text-xs font-black text-[#183924]">D</div>
-                <div className="flex items-center gap-1 rounded-2xl rounded-tl-sm bg-white px-4 py-4 ring-1 ring-[#e5ebe2]">
-                  <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-[#77917d]" />
-                  <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-[#77917d] [animation-delay:120ms]" />
-                  <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-[#77917d] [animation-delay:240ms]" />
-                </div>
-              </div>
-            )}
           </div>
+        </div>
+      </section>
 
-          <div className="border-t border-[#e6ece3] px-6 py-5 sm:px-8">
-            {suggestions.length > 0 && (
-              <div className="mb-4 flex flex-wrap gap-2">
-                {suggestions.map((suggestion) => (
-                  <button
-                    key={suggestion}
-                    type="button"
-                    onClick={() => void sendMessage(suggestion)}
-                    className="rounded-full border border-[#d6e4d2] bg-[#f7faf5] px-3 py-2 text-sm font-medium text-[#36563e] transition hover:border-[#9fbd9f] hover:bg-[#e9f3e7]"
-                  >
-                    {suggestion}
-                  </button>
-                ))}
-              </div>
-            )}
-            <form onSubmit={handleSubmit} className="flex items-end gap-3 rounded-full border border-[#d6e1d3] bg-white p-2 pl-4 shadow-sm focus-within:border-[#7ea282] focus-within:ring-4 focus-within:ring-[#dcebd8]">
-              <textarea
-                value={input}
-                onChange={(event) => setInput(event.target.value)}
-                onKeyDown={handleKeyDown}
-                placeholder="Ask Demi something"
-                rows={1}
-                className="max-h-28 min-h-11 flex-1 resize-none bg-transparent py-2 text-[15px] leading-6 outline-none placeholder:text-[#91a093]"
-              />
-              <button
-                type="submit"
-                disabled={!input.trim() || isSending}
-                className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-[#264b32] text-lg text-white transition hover:bg-[#183924] disabled:cursor-not-allowed disabled:bg-[#b8c7b9]"
-                aria-label="Send message"
+      {/* Statement band: the one deliberate theme block on the page */}
+      <section className="bg-[#1e3d2a] text-[#f5f4e9]">
+        <div className="mx-auto max-w-6xl px-6 py-20 md:py-28">
+          <h2 className="max-w-[16ch] text-3xl font-semibold leading-[1.1] tracking-tighter md:text-5xl">
+            Every number has a why.
+          </h2>
+          <p className="mt-5 max-w-[52ch] leading-relaxed text-[#c9d9c8]">
+            Nothing in your plan is a black box. Tap any figure and Demi shows the rule behind it.
+          </p>
+          <figure className="mt-10 max-w-xl rounded-2xl border border-[#4c6b53] bg-[#244630] p-5">
+            <p className="text-sm leading-6 text-[#e9efdd]">
+              A 1 lb/week loss works out to 495 kcal below your 2,703 kcal daily burn.
+            </p>
+            <figcaption className="mt-2 text-xs text-[#8fae95]">
+              Example reasoning from a sample profile
+            </figcaption>
+          </figure>
+        </div>
+      </section>
+
+      {/* Guardrails: 4-cell bento, varied cell backgrounds */}
+      <section className="mx-auto max-w-6xl px-6 py-20 md:py-28">
+        <h2 className="text-3xl font-semibold tracking-tighter md:text-4xl">
+          Built to keep you safe, not hooked
+        </h2>
+        <p className="mt-4 max-w-[52ch] leading-relaxed text-[#5d6b5f]">
+          The guardrails are code, not promises. They run on the server where neither a clever prompt nor a bad day can switch them off.
+        </p>
+        <div className="mt-12 grid gap-4 md:grid-cols-2">
+          {GUARDRAILS.map((g) => (
+            <div
+              key={g.title}
+              className={
+                g.tone === "dark"
+                  ? "rounded-2xl bg-[#1e3d2a] p-7 text-[#f5f4e9]"
+                  : g.tone === "lime"
+                    ? "rounded-2xl bg-[#e4efc4] p-7"
+                    : "rounded-2xl border border-[#dce3d7] bg-white p-7"
+              }
+            >
+              <h3 className="text-lg font-semibold tracking-tight">{g.title}</h3>
+              <p
+                className={`mt-2 leading-relaxed ${
+                  g.tone === "dark" ? "text-[#c9d9c8]" : "text-[#5d6b5f]"
+                }`}
               >
-                ↑
-              </button>
-            </form>
-            <p className="mt-2 text-center text-xs leading-5 text-[#829084]">Press Enter to send. Use Shift + Enter for a new line.</p>
-            <p className="mt-1 text-center text-xs leading-5 text-[#829084]">Demi offers general wellness guidance, not medical advice.</p>
+                {g.body}
+              </p>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      {/* Closer + footer */}
+      <section className="border-t border-[#e3e9df] bg-white">
+        <div className="mx-auto max-w-6xl px-6 py-20 text-center md:py-24">
+          <h2 className="mx-auto max-w-[20ch] text-3xl font-semibold tracking-tighter md:text-4xl">
+            Know what to eat tonight.
+          </h2>
+          <a
+            href="/login"
+            className="press mt-8 inline-block rounded-full bg-[#1e3d2a] px-8 py-4 font-medium text-white"
+          >
+            Get started
+          </a>
+        </div>
+        <footer className="border-t border-[#e3e9df]">
+          <div className="mx-auto flex max-w-6xl flex-col items-center justify-between gap-3 px-6 py-8 text-sm text-[#829084] md:flex-row">
+            <span>Demi</span>
+            <span>General wellness guidance, not medical advice.</span>
           </div>
-        </section>
-      </div>
-    </main>
+        </footer>
+      </section>
+    </div>
   );
 }
