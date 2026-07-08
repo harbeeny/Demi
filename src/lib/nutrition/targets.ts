@@ -31,36 +31,63 @@ const FAT_FLOOR_G_PER_KG = 0.8;
 const FAT_FLOOR_PCT_KCAL = 0.2;
 const FIBER_G_PER_1000_KCAL = 14;
 
+/** SAFETY.md: suggested loss never exceeds ~1% of bodyweight per week. */
+export const MAX_LOSS_RATE_PCT_BW = 0.01;
+/** SAFETY.md: targets never drop below this fraction of BMR. */
+export const BMR_FLOOR_FRACTION = 0.8;
+/** SAFETY.md: below this BMI, fat-loss goals become maintenance. */
+export const UNDERWEIGHT_BMI = 18.5;
+
 /**
  * Full daily targets from a profile. Applies, in order:
  * 1. BMR -> TDEE
  * 2. Goal rate -> kcal delta (deficit for lose_fat, surplus for build_muscle)
- * 3. SAFETY: minors get maintenance regardless of goal
- * 4. SAFETY: calorie floor per sex
- * 5. Protein anchored to bodyweight, fat floor, carbs fill, fiber scaled to kcal
+ * 3. SAFETY: loss rate capped at 1% bodyweight per week
+ * 4. SAFETY: minors get maintenance regardless of goal
+ * 5. SAFETY: BMI under 18.5 with a fat-loss goal gets maintenance
+ * 6. SAFETY: calorie floor = max(sex floor, 0.8 x BMR)
+ * 7. Protein anchored to bodyweight, fat floor, carbs fill, fiber scaled to kcal
  */
 export function targets(profile: ProfileInput): MacroTargets {
   const basal = bmr(profile.sex, profile.age, profile.heightCm, profile.weightKg);
   const expenditure = tdee(basal.value, profile.activityLevel);
 
-  const rate = profile.goalRate ?? DEFAULT_GOAL_RATES[profile.goal];
+  // SAFETY: no more than ~1% of bodyweight per week of suggested loss.
+  const requestedRate = profile.goalRate ?? DEFAULT_GOAL_RATES[profile.goal];
+  const maxLossRate = MAX_LOSS_RATE_PCT_BW * profile.weightKg;
+  const rateCappedBySafety = profile.goal === "lose_fat" && requestedRate > maxLossRate;
+  const rate = rateCappedBySafety ? Number(maxLossRate.toFixed(2)) : requestedRate;
+
   const direction = profile.goal === "lose_fat" ? -1 : profile.goal === "build_muscle" ? 1 : 0;
   const dailyDelta = Math.round((rate * KCAL_PER_KG_TISSUE) / 7) * direction;
 
   const minorMaintenanceApplied = profile.age < 18;
-  let kcal = minorMaintenanceApplied ? expenditure.value : expenditure.value + dailyDelta;
 
-  const floor = CALORIE_FLOORS[profile.sex];
+  // SAFETY: an already-underweight body should not be steered into a deficit.
+  const heightM = profile.heightCm / 100;
+  const bmi = profile.weightKg / (heightM * heightM);
+  const underweightMaintenanceApplied =
+    !minorMaintenanceApplied && profile.goal === "lose_fat" && bmi < UNDERWEIGHT_BMI;
+
+  const atMaintenance = minorMaintenanceApplied || underweightMaintenanceApplied;
+  let kcal = atMaintenance ? expenditure.value : expenditure.value + dailyDelta;
+
+  // SAFETY: never below the sex floor, and never below 80% of BMR.
+  const floor = Math.max(CALORIE_FLOORS[profile.sex], Math.round(basal.value * BMR_FLOOR_FRACTION));
   const flooredBySafety = kcal < floor;
   if (flooredBySafety) kcal = floor;
 
   const kcalReasoning = minorMaintenanceApplied
     ? `Because you're under 18, your target stays at maintenance (${expenditure.value} kcal). Growing bodies shouldn't run deficits without clinical supervision.`
-    : flooredBySafety
-      ? `Your goal implied ${expenditure.value + dailyDelta} kcal, but we hold the line at ${floor} kcal. Going lower isn't safe or sustainable.`
-      : direction === 0
-        ? `Your goal is ${profile.goal === "maintain" ? "maintenance" : "overall health"}, so you eat right at your daily burn of ${kcal} kcal.`
-        : `A ${rate} kg/week ${direction < 0 ? "loss" : "gain"} works out to ${Math.abs(dailyDelta)} kcal ${direction < 0 ? "below" : "above"} your ${expenditure.value} kcal daily burn.`;
+    : underweightMaintenanceApplied
+      ? `Your current weight is already at the low end of the healthy range, so we're holding you at maintenance (${expenditure.value} kcal). Feeling stronger comes from fueling well, not eating less.`
+      : flooredBySafety
+        ? `Your goal implied ${expenditure.value + dailyDelta} kcal, but we hold the line at ${floor} kcal. Going lower isn't safe or sustainable.`
+        : direction === 0
+          ? `Your goal is ${profile.goal === "maintain" ? "maintenance" : "overall health"}, so you eat right at your daily burn of ${kcal} kcal.`
+          : rateCappedBySafety
+            ? `We slowed your pace to ${rate} kg/week (about 1% of your bodyweight). Faster than that tends to cost muscle and rebound, so this is ${Math.abs(dailyDelta)} kcal below your ${expenditure.value} kcal daily burn.`
+            : `A ${rate} kg/week ${direction < 0 ? "loss" : "gain"} works out to ${Math.abs(dailyDelta)} kcal ${direction < 0 ? "below" : "above"} your ${expenditure.value} kcal daily burn.`;
 
   const proteinPerKg = PROTEIN_G_PER_KG[profile.goal];
   const proteinG = Math.round(proteinPerKg * profile.weightKg);
@@ -78,8 +105,25 @@ export function targets(profile: ProfileInput): MacroTargets {
     kcal: {
       value: kcal,
       reasoning: {
-        rule: minorMaintenanceApplied ? "minor_maintenance" : flooredBySafety ? "safety_floor" : "goal_rate_delta",
-        inputs: { bmr: basal.value, tdee: expenditure.value, rate, dailyDelta, floor, goal: profile.goal },
+        rule: minorMaintenanceApplied
+          ? "minor_maintenance"
+          : underweightMaintenanceApplied
+            ? "underweight_maintenance"
+            : flooredBySafety
+              ? "safety_floor"
+              : rateCappedBySafety
+                ? "rate_capped_goal_delta"
+                : "goal_rate_delta",
+        inputs: {
+          bmr: basal.value,
+          tdee: expenditure.value,
+          requestedRate,
+          rate,
+          dailyDelta,
+          floor,
+          bmi: Number(bmi.toFixed(1)),
+          goal: profile.goal,
+        },
         explanation: kcalReasoning,
       },
     },
@@ -117,5 +161,7 @@ export function targets(profile: ProfileInput): MacroTargets {
     },
     flooredBySafety,
     minorMaintenanceApplied,
+    rateCappedBySafety,
+    underweightMaintenanceApplied,
   };
 }

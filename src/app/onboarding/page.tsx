@@ -373,6 +373,16 @@ export default function OnboardingPage() {
                     We raised your target to a safe minimum. Slower progress, but sustainable.
                   </p>
                 )}
+                {results.rateCappedBySafety && (
+                  <p className="rounded-2xl bg-amber-50 p-4 text-sm text-amber-900">
+                    We slowed your pace to about 1% of bodyweight per week. Faster loss tends to cost muscle and rebound.
+                  </p>
+                )}
+                {results.underweightMaintenanceApplied && (
+                  <p className="rounded-2xl bg-[#e9efdd] p-4 text-sm leading-6 text-[#3c4a3e]">
+                    Based on your height and weight, we set your plan to maintenance instead of a deficit; fueling well is the strongest move from here. If food or body image ever feels stressful, support helps: the NEDA helpline (1-800-931-2237) is free and confidential.
+                  </p>
+                )}
               </div>
             ) : (
               <p className="mt-5 text-sm text-red-700">Something&apos;s off with your inputs. Go back and check them.</p>

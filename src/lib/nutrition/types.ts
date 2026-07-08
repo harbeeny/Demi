@@ -43,6 +43,10 @@ export interface MacroTargets {
   flooredBySafety: boolean;
   /** true when age < 18 forced maintenance */
   minorMaintenanceApplied: boolean;
+  /** true when the requested loss rate exceeded 1% bodyweight/week and was slowed */
+  rateCappedBySafety: boolean;
+  /** true when BMI < 18.5 converted a fat-loss goal to maintenance */
+  underweightMaintenanceApplied: boolean;
 }
 
 export interface SlotTarget {

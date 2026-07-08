@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { buildCoachReply } from "@/lib/trainer";
+import { containsDisorderedEatingSignal, SUPPORTIVE_RESPONSE } from "@/lib/ai/safety-filter";
 
 export async function POST(request: Request) {
   const body = (await request.json()) as { message?: unknown };
@@ -15,6 +16,11 @@ export async function POST(request: Request) {
       { error: "Keep your message under 1,000 characters for now." },
       { status: 400 },
     );
+  }
+
+  // SAFETY: screen before any coaching logic runs.
+  if (containsDisorderedEatingSignal(message)) {
+    return NextResponse.json(SUPPORTIVE_RESPONSE);
   }
 
   // This stays deliberately provider-agnostic for the first milestone. When a
