@@ -105,7 +105,7 @@ function LoginForm() {
           <>
             <h1 className="text-xl font-semibold text-[#2c3a2e]">Sign in with a code</h1>
             <p className="mt-1 text-sm text-[#829084]">
-              No password. We email you a 6-digit code and you're in.
+              No password. We email you a 6-digit code and you&apos;re in.
             </p>
             <form onSubmit={sendCode} className="mt-6 space-y-3">
               <input
