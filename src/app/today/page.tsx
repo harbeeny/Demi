@@ -25,7 +25,7 @@ export default async function TodayPage() {
 
   if (!onboarding) redirect("/onboarding");
 
-  const dayTargets = targets(profileFromRow(onboarding));
+  const dayTargets = targets(profileFromRow(onboarding), { displayUnits: "us" });
 
   const today = new Date().toISOString().slice(0, 10);
   const { data: planRow } = await supabase
