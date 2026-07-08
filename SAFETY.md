@@ -44,12 +44,12 @@ The system prompt must never be overridden by user input. If a user attempts a p
 
 ## Implementation Checklist
 
-- [ ] `lib/nutrition/targets.ts` enforces calorie floors with a thrown error
-- [ ] `/api/plan` re-validates targets server-side before persisting
-- [ ] `lib/ai/safety-filter.ts` screens user input for eating-disorder keywords
-- [ ] System prompt always includes clinician-referral language
-- [ ] Age < 18 defaults to maintenance target
-- [ ] UI never displays a plan below the calorie floor
+- [x] `lib/nutrition/targets.ts` enforces calorie floors (raises to the floor, flags `flooredBySafety`)
+- [x] `/api/plan` recomputes targets server-side from the stored profile on every request — clients can never supply their own numbers
+- [ ] `lib/ai/safety-filter.ts` screens user input for eating-disorder keywords (needed when free-text chat is wired to the LLM)
+- [x] System prompt always includes clinician-referral language (`lib/trainer.ts`); the plan-personalization prompt forbids the LLM from changing meals or inventing numbers (`lib/ai/personalize.ts`)
+- [x] Age < 18 defaults to maintenance target (`minorMaintenanceApplied`)
+- [x] UI never displays a plan below the calorie floor (all displayed targets flow from `targets()`)
 - [ ] `SAFETY.md` is reviewed whenever the system prompt or nutrition math changes
 
 ## Liability Disclaimer (display in UI)
