@@ -29,6 +29,31 @@ function LoginForm() {
       : "Couldn't send the code. Try again.";
   }
 
+  // Temporary bypass while email delivery is being set up: creates a real
+  // anonymous session so RLS works end to end. Remove once email OTP is the
+  // only path, or keep and link the email later via supabase.auth.updateUser.
+  async function skipSignIn() {
+    if (busy) return;
+    setBusy(true);
+    setErrorMessage("");
+
+    const supabase = createClient();
+    const { error } = await supabase.auth.signInAnonymously();
+
+    if (error) {
+      setErrorMessage(
+        /anonymous/i.test(error.message)
+          ? "Anonymous sign-in is disabled. Enable it in Supabase: Authentication -> Sign In / Providers -> Anonymous."
+          : "Couldn't start a guest session. Try again.",
+      );
+      setBusy(false);
+      return;
+    }
+
+    router.push("/onboarding");
+    router.refresh();
+  }
+
   async function sendCode(event?: FormEvent) {
     event?.preventDefault();
     if (!email.trim() || busy) return;
@@ -121,6 +146,22 @@ function LoginForm() {
                 {busy ? "Sending..." : "Email me a code"}
               </button>
             </form>
+            <div className="mt-4 flex items-center gap-3 text-xs text-[#829084]">
+              <span className="h-px flex-1 bg-[#dce3d7]" />
+              or
+              <span className="h-px flex-1 bg-[#dce3d7]" />
+            </div>
+            <button
+              type="button"
+              disabled={busy}
+              onClick={skipSignIn}
+              className="mt-4 w-full rounded-2xl border border-[#dce3d7] bg-white px-4 py-3 font-medium text-[#2c3a2e] disabled:opacity-60"
+            >
+              Skip sign-in for now
+            </button>
+            <p className="mt-2 text-center text-xs text-[#829084]">
+              Temporary guest session while email delivery is being set up.
+            </p>
           </>
         ) : (
           <>
