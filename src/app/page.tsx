@@ -111,7 +111,7 @@ export default function Home() {
               </p>
               <a
                 href="/login"
-                className="mt-8 inline-block rounded-2xl bg-[#d8ee9a] px-6 py-3 font-semibold text-[#183924] transition hover:bg-[#e4f5b0]"
+                className="press mt-8 inline-block rounded-2xl bg-[#d8ee9a] px-6 py-3 font-semibold text-[#183924] hover:bg-[#e4f5b0]"
               >
                 Get started
               </a>

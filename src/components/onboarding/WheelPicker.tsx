@@ -113,7 +113,7 @@ export function WheelPicker({
           const el = scrollRef.current;
           el && writePos(el, values.indexOf(v) * step, true);
         }}
-        className={`flex shrink-0 items-center justify-center transition-all duration-100 ${
+        className={`flex shrink-0 items-center justify-center transition-[transform,color,font-size] duration-100 ${
           selected ? "scale-110 text-2xl font-semibold text-[#2c3a2e]" : "text-lg text-[#9aa89c]"
         }`}
         style={horizontal ? { width: ITEM_WIDTH, height: 56 } : { height: ITEM_SIZE, width: 88 }}

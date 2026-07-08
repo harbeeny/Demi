@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 
 export interface TodayMeal {
@@ -96,7 +96,7 @@ export function TodayView({ hasPlan, daySummary, meals, targets }: Props) {
           <button
             onClick={() => generate(true)}
             disabled={busy !== null}
-            className="rounded-full border border-[#dce3d7] bg-white px-4 py-2 text-sm text-[#2c3a2e] disabled:opacity-50"
+            className="press rounded-full border border-[#dce3d7] bg-white px-4 py-2 text-sm text-[#2c3a2e] hover:border-[#8aa06f] disabled:opacity-50"
           >
             {busy === "generate" ? "Working..." : "Regenerate"}
           </button>
@@ -111,7 +111,7 @@ export function TodayView({ hasPlan, daySummary, meals, targets }: Props) {
           <button
             onClick={() => generate(false)}
             disabled={busy !== null}
-            className="mt-4 rounded-2xl bg-[#2c3a2e] px-6 py-3 font-medium text-white disabled:opacity-60"
+            className="press mt-4 rounded-2xl bg-[#2c3a2e] px-6 py-3 font-medium text-white disabled:opacity-60"
           >
             {busy === "generate" ? "Building your day..." : "Build today's plan"}
           </button>
@@ -184,6 +184,14 @@ function MacroRing({
   const r = 26;
   const c = 2 * Math.PI * r;
 
+  // Rings draw in on first view: decorative, once per visit, so animation
+  // is allowed (emil-design-eng frequency rule). Starts empty, fills to pct.
+  const [drawn, setDrawn] = useState(false);
+  useEffect(() => {
+    const raf = requestAnimationFrame(() => setDrawn(true));
+    return () => cancelAnimationFrame(raf);
+  }, []);
+
   return (
     <div className="flex flex-col items-center">
       <svg width="68" height="68" viewBox="0 0 68 68" role="img" aria-label={`${label}: ${Math.round(value)} of ${target}${unit}`}>
@@ -191,8 +199,10 @@ function MacroRing({
         <circle
           cx="34" cy="34" r={r} fill="none"
           stroke={color} strokeWidth="6" strokeLinecap="round"
-          strokeDasharray={c} strokeDashoffset={c * (1 - pct)}
+          strokeDasharray={c}
+          strokeDashoffset={drawn ? c * (1 - pct) : c}
           transform="rotate(-90 34 34)"
+          style={{ transition: "stroke-dashoffset 600ms var(--ease-out)" }}
         />
         <text x="34" y="38" textAnchor="middle" fontSize="13" fontWeight="600" fill="#2c3a2e">
           {Math.round(value)}
