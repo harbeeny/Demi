@@ -68,10 +68,30 @@ const ACTIVITY: Array<{ value: ActivityLevel; label: string; hint: string }> = [
 const DIET_OPTIONS = ["vegetarian", "vegan", "pescatarian", "gluten_free"];
 const WEEKDAYS = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"];
 
+/** Display labels only; stored values stay low/medium/high for meal tags. */
+const BUDGET_LABELS: Record<Budget, string> = {
+  low: "$20-50",
+  medium: "$50-100",
+  high: "$100+",
+};
+
+/** Display labels only; stored values stay minimal/basic/confident. */
+const SKILL_LABELS: Record<CookingSkill, string> = {
+  minimal: "Beginner",
+  basic: "Intermediate",
+  confident: "Adventurous",
+};
+
 /** 4'0" to 7'6" in 1 inch steps */
 const HEIGHT_OPTIONS = Array.from({ length: 43 }, (_, i) => i + 48);
 /** 80-400 lbs in 1 lb steps */
 const WEIGHT_OPTIONS = Array.from({ length: 321 }, (_, i) => i + 80);
+
+/** 8 -> "8:00 am", 20 -> "8:00 pm" */
+function hourLabel(h: number): string {
+  const h12 = h % 12 === 0 ? 12 : h % 12;
+  return `${h12}:00 ${h >= 12 ? "pm" : "am"}`;
+}
 
 function splitList(text: string): string[] {
   return text
@@ -298,7 +318,7 @@ export default function OnboardingPage() {
                 value={answers.eatingWindowStart}
                 onChange={(e) => set("eatingWindowStart", Number(e.target.value))}>
                 {Array.from({ length: 12 }, (_, i) => i + 5).map((h) => (
-                  <option key={h} value={h}>{h}:00</option>
+                  <option key={h} value={h}>{hourLabel(h)}</option>
                 ))}
               </select>
               <label className="text-sm">Last meal</label>
@@ -306,7 +326,7 @@ export default function OnboardingPage() {
                 value={answers.eatingWindowEnd}
                 onChange={(e) => set("eatingWindowEnd", Number(e.target.value))}>
                 {Array.from({ length: 8 }, (_, i) => i + 16).map((h) => (
-                  <option key={h} value={h}>{h}:00</option>
+                  <option key={h} value={h}>{hourLabel(h)}</option>
                 ))}
               </select>
             </div>
@@ -336,16 +356,20 @@ export default function OnboardingPage() {
       case 8:
         return (
           <Question title="Budget and kitchen comfort?" hint="So the plan fits your wallet and your patience.">
-            <p className="text-sm font-medium text-[#2c3a2e]">Grocery budget</p>
-            <div className="flex gap-2">
+            <p className="text-sm font-medium text-[#2c3a2e]">Grocery budget / week</p>
+            <div className="flex flex-wrap gap-2">
               {(["low", "medium", "high"] as const).map((b) => (
-                <button key={b} className={chip(answers.budget === b)} onClick={() => set("budget", b)}>{b}</button>
+                <button key={b} className={chip(answers.budget === b)} onClick={() => set("budget", b)}>
+                  {BUDGET_LABELS[b]}
+                </button>
               ))}
             </div>
             <p className="mt-4 text-sm font-medium text-[#2c3a2e]">Cooking</p>
-            <div className="flex gap-2">
+            <div className="flex flex-wrap gap-2">
               {(["minimal", "basic", "confident"] as const).map((c) => (
-                <button key={c} className={chip(answers.cookingSkill === c)} onClick={() => set("cookingSkill", c)}>{c}</button>
+                <button key={c} className={chip(answers.cookingSkill === c)} onClick={() => set("cookingSkill", c)}>
+                  {SKILL_LABELS[c]}
+                </button>
               ))}
             </div>
           </Question>
