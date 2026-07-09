@@ -3,6 +3,8 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 
+import { createClient } from "@/lib/supabase/client";
+
 export interface TodayMeal {
   slotIndex: number;
   slot: string;
@@ -63,6 +65,19 @@ export function TodayView({ hasPlan, daySummary, meals, targets }: Props) {
       "generate",
     );
 
+  async function signOut() {
+    setBusy("signout");
+    setError("");
+    try {
+      await createClient().auth.signOut();
+      router.push("/");
+      router.refresh();
+    } catch {
+      setError("Couldn't sign out. Try again.");
+      setBusy(null);
+    }
+  }
+
   const swap = (slotIndex: number) =>
     callPlanApi(
       {
@@ -92,15 +107,24 @@ export function TodayView({ hasPlan, daySummary, meals, targets }: Props) {
             </p>
           </div>
         </div>
-        {hasPlan && (
+        <div className="flex items-center gap-2">
+          {hasPlan && (
+            <button
+              onClick={() => generate(true)}
+              disabled={busy !== null}
+              className="press rounded-full border border-[#dce3d7] bg-white px-4 py-2 text-sm text-[#2c3a2e] hover:border-[#8aa06f] disabled:opacity-50"
+            >
+              {busy === "generate" ? "Working..." : "Regenerate"}
+            </button>
+          )}
           <button
-            onClick={() => generate(true)}
+            onClick={signOut}
             disabled={busy !== null}
-            className="press rounded-full border border-[#dce3d7] bg-white px-4 py-2 text-sm text-[#2c3a2e] hover:border-[#8aa06f] disabled:opacity-50"
+            className="press rounded-full px-3 py-2 text-sm text-[#829084] hover:text-[#2c3a2e] disabled:opacity-50"
           >
-            {busy === "generate" ? "Working..." : "Regenerate"}
+            {busy === "signout" ? "Signing out..." : "Sign out"}
           </button>
-        )}
+        </div>
       </header>
 
       {error && <p className="mb-4 rounded-2xl bg-red-50 p-3 text-sm text-red-800">{error}</p>}
