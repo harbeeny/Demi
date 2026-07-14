@@ -47,3 +47,7 @@ next-env.d.ts
 .claude/memory.db
 .claude/proven-config.json
 .claude/.proven-config-version
+
+# capacitor
+.capacitor-build-stash/
+assets/generated/

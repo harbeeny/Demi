@@ -21,6 +21,14 @@ body {
   background: var(--background);
   color: var(--foreground);
   font-family: var(--font-geist-sans), system-ui, sans-serif;
+  /* Keep content clear of the notch and home indicator in the native shell;
+     these resolve to 0 in ordinary browsers. */
+  padding-top: env(safe-area-inset-top);
+  padding-bottom: env(safe-area-inset-bottom);
+  padding-left: env(safe-area-inset-left);
+  padding-right: env(safe-area-inset-right);
+  /* No rubber-band bounce behind the app shell in the WebView. */
+  overscroll-behavior-y: none;
 }
 
 * {
