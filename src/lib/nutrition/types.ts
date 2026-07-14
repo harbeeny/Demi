@@ -31,6 +31,8 @@ export interface ProfileInput {
   trainingDays: string[];
   /** "HH:MM" 24h, or null if the user doesn't train at a set time */
   trainingTime: string | null;
+  /** accepted adaptive correction to estimated TDEE, kcal/day; null/absent = none */
+  tdeeCorrection?: number | null;
 }
 
 export interface MacroTargets {
@@ -39,6 +41,8 @@ export interface MacroTargets {
   fatG: Reasoned<number>;
   carbsG: Reasoned<number>;
   fiberG: Reasoned<number>;
+  /** present only when a non-zero adaptive correction was applied */
+  tdeeCorrection: Reasoned<number> | null;
   /** true when the safety floor overrode the requested deficit */
   flooredBySafety: boolean;
   /** true when age < 18 forced maintenance */
