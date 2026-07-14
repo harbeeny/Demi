@@ -66,17 +66,12 @@ To activate once enrolled:
 1. Apple Developer portal → **Keys** → create a key with
    **Apple Push Notifications service (APNs)** enabled. Download the `.p8`
    (one download only), note the **Key ID** and your **Team ID**.
-2. Set the function secrets (p8 is base64-encoded to survive newline
-   mangling):
-   ```sh
-   supabase secrets set --project-ref syeoyutnlukrmijuumyt \
-     APNS_TEAM_ID=<team id> \
-     APNS_KEY_ID=<key id> \
-     APNS_P8="$(base64 -i AuthKey_XXXX.p8)" \
-     BUNDLE_ID=com.hbeeny.demi \
-     APNS_HOST=api.sandbox.push.apple.com \
-     CRON_SECRET="$(openssl rand -hex 32)"
-   ```
+2. Store the config. The function reads env vars first and falls back to
+   Supabase Vault (via the service-role-only `public.get_push_secret()` rpc),
+   so either works:
+   - **Vault** (no CLI needed, SQL editor): `select vault.create_secret('<value>', 'push_apns_team_id');` and likewise for `push_apns_key_id`, `push_apns_p8` (base64 of the .p8 file), `push_bundle_id`, `push_apns_host`, `push_cron_secret`.
+   - **Env secrets** (Supabase CLI): `supabase secrets set --project-ref syeoyutnlukrmijuumyt APNS_TEAM_ID=... APNS_KEY_ID=... APNS_P8="$(base64 -i AuthKey_XXXX.p8)" BUNDLE_ID=com.hbeeny.demi APNS_HOST=api.sandbox.push.apple.com CRON_SECRET="$(openssl rand -hex 32)"`
+
    `APNS_HOST`: `api.sandbox.push.apple.com` for Xcode-run development
    builds; **TestFlight builds use the production environment**, so switch to
    `api.push.apple.com` when testing via TestFlight.

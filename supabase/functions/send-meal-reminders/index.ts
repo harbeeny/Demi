@@ -7,6 +7,27 @@
 
 import { createClient } from "npm:@supabase/supabase-js@2";
 
+// Config resolves from env vars when set, else from Supabase Vault via the
+// service-role-only public.get_push_secret() rpc (PostgREST does not expose
+// the vault schema directly). Vault names are the lowercased env names with
+// a push_ prefix, e.g. APNS_TEAM_ID -> push_apns_team_id.
+type Db = ReturnType<typeof createClient>;
+const configCache = new Map<string, string>();
+
+async function getConfig(db: Db, envName: string): Promise<string | undefined> {
+  const fromEnv = Deno.env.get(envName);
+  if (fromEnv) return fromEnv;
+  if (configCache.has(envName)) return configCache.get(envName);
+  const { data } = await db.rpc("get_push_secret", {
+    secret_name: `push_${envName.toLowerCase()}`,
+  });
+  if (typeof data === "string" && data.length > 0) {
+    configCache.set(envName, data);
+    return data;
+  }
+  return undefined;
+}
+
 interface MealPlanEntry {
   meal_id: string;
   slot: string;
@@ -30,11 +51,19 @@ function pemToPkcs8(pem: string): Uint8Array {
   return Uint8Array.from(atob(body), (c) => c.charCodeAt(0));
 }
 
-async function apnsJwt(): Promise<string> {
+interface ApnsConfig {
+  teamId: string;
+  keyId: string;
+  p8: string;
+  bundleId: string;
+  host: string;
+}
+
+async function apnsJwt(cfg: ApnsConfig): Promise<string> {
   if (cachedJwt && Date.now() - cachedJwt.at < 45 * 60_000) return cachedJwt.jwt;
 
-  // APNS_P8 is the .p8 file content, base64-encoded to survive secret storage.
-  const pem = atob(Deno.env.get("APNS_P8")!);
+  // p8 is the key file content, base64-encoded to survive secret storage.
+  const pem = atob(cfg.p8);
   const key = await crypto.subtle.importKey(
     "pkcs8",
     pemToPkcs8(pem),
@@ -43,9 +72,9 @@ async function apnsJwt(): Promise<string> {
     ["sign"],
   );
 
-  const header = base64url(JSON.stringify({ alg: "ES256", kid: Deno.env.get("APNS_KEY_ID") }));
+  const header = base64url(JSON.stringify({ alg: "ES256", kid: cfg.keyId }));
   const payload = base64url(
-    JSON.stringify({ iss: Deno.env.get("APNS_TEAM_ID"), iat: Math.floor(Date.now() / 1000) }),
+    JSON.stringify({ iss: cfg.teamId, iat: Math.floor(Date.now() / 1000) }),
   );
   const signingInput = `${header}.${payload}`;
   const sig = await crypto.subtle.sign(
@@ -58,12 +87,12 @@ async function apnsJwt(): Promise<string> {
   return cachedJwt.jwt;
 }
 
-async function sendApns(token: string, title: string, body: string): Promise<number> {
-  const res = await fetch(`https://${Deno.env.get("APNS_HOST")}/3/device/${token}`, {
+async function sendApns(cfg: ApnsConfig, token: string, title: string, body: string): Promise<number> {
+  const res = await fetch(`https://${cfg.host}/3/device/${token}`, {
     method: "POST",
     headers: {
-      authorization: `bearer ${await apnsJwt()}`,
-      "apns-topic": Deno.env.get("BUNDLE_ID")!,
+      authorization: `bearer ${await apnsJwt(cfg)}`,
+      "apns-topic": cfg.bundleId,
       "apns-push-type": "alert",
       "apns-priority": "10",
     },
@@ -76,14 +105,28 @@ async function sendApns(token: string, title: string, body: string): Promise<num
 // ---------- main ----------
 
 Deno.serve(async (req) => {
-  if (req.headers.get("x-cron-secret") !== Deno.env.get("CRON_SECRET")) {
-    return new Response("forbidden", { status: 403 });
-  }
-
   const db = createClient(
     Deno.env.get("SUPABASE_URL")!,
     Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
   );
+
+  const cronSecret = await getConfig(db, "CRON_SECRET");
+  const provided = req.headers.get("x-cron-secret");
+  if (!cronSecret || !provided || provided !== cronSecret) {
+    return new Response("forbidden", { status: 403 });
+  }
+
+  const [teamId, keyId, p8, bundleId, host] = await Promise.all([
+    getConfig(db, "APNS_TEAM_ID"),
+    getConfig(db, "APNS_KEY_ID"),
+    getConfig(db, "APNS_P8"),
+    getConfig(db, "BUNDLE_ID"),
+    getConfig(db, "APNS_HOST"),
+  ]);
+  if (!teamId || !keyId || !p8 || !bundleId || !host) {
+    return new Response(JSON.stringify({ error: "push config incomplete" }), { status: 500 });
+  }
+  const cfg: ApnsConfig = { teamId, keyId, p8, bundleId, host };
 
   const now = new Date();
   const today = now.toISOString().slice(0, 10);
@@ -125,7 +168,7 @@ Deno.serve(async (req) => {
 
   async function deliver(userId: string, title: string, body: string) {
     for (const token of tokensByUser.get(userId) ?? []) {
-      const status = await sendApns(token, title, body);
+      const status = await sendApns(cfg, token, title, body);
       if (status === 200) sent++;
       if (status === 410 || status === 400) {
         await db.from("device_tokens").delete().eq("token", token);
