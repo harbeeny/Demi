@@ -8,10 +8,11 @@ import { sumLogged } from "@/lib/log/remaining";
 import { rollupTotals } from "@/lib/log/rollup";
 import { containsDisorderedEatingSignal, SUPPORTIVE_RESPONSE } from "@/lib/ai/safety-filter";
 import type { MealPlanEntry, MealSlot } from "@/lib/supabase/types";
+import { preflight, withCors } from "@/lib/plan/cors";
 
 /** Close out the day: planned vs actual plus a short reflection. */
-export async function POST(request: Request) {
-  const ctx = await loadContext();
+async function post(request: Request): Promise<Response> {
+  const ctx = await loadContext(request);
   if ("error" in ctx) return ctx.error;
   const { supabase, user, onboarding, meals } = ctx;
 
@@ -126,3 +127,6 @@ export async function POST(request: Request) {
     fallbackUsed: reflection.fallbackUsed,
   });
 }
+
+export const POST = withCors(post);
+export const OPTIONS = preflight("POST, OPTIONS");

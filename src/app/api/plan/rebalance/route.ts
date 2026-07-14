@@ -7,10 +7,11 @@ import { distribute, targets } from "@/lib/nutrition";
 import { remainingBudget, sumLogged } from "@/lib/log/remaining";
 import { rebalanceSlotTargets } from "@/lib/log/rebalance";
 import type { MealPlanEntry } from "@/lib/supabase/types";
+import { preflight, withCors } from "@/lib/plan/cors";
 
 /** Re-pick the unlogged, still-upcoming slots to fit the remaining budget. */
-export async function POST() {
-  const ctx = await loadContext();
+async function post(request: Request): Promise<Response> {
+  const ctx = await loadContext(request);
   if ("error" in ctx) return ctx.error;
   const { supabase, user, onboarding, meals } = ctx;
 
@@ -124,3 +125,6 @@ export async function POST() {
 
   return NextResponse.json({ ok: true, changedSlots });
 }
+
+export const POST = withCors(post);
+export const OPTIONS = preflight("POST, OPTIONS");
