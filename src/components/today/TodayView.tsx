@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 
 import { createClient } from "@/lib/supabase/client";
@@ -88,6 +88,18 @@ export function TodayView({ hasPlan, daySummary, meals, targets }: Props) {
       `swap-${slotIndex}`,
     );
 
+  // No plan (new day, or onboarding's build failed): build it immediately
+  // rather than asking the user to click a button. Ref guards double-fires
+  // from re-renders; router.refresh() flips hasPlan when the plan lands.
+  const autoBuildStarted = useRef(false);
+  useEffect(() => {
+    if (!hasPlan && !autoBuildStarted.current) {
+      autoBuildStarted.current = true;
+      generate(false);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hasPlan]);
+
   const planned = {
     kcal: meals.reduce((a, m) => a + m.kcal, 0),
     proteinG: meals.reduce((a, m) => a + m.proteinG, 0),
@@ -131,14 +143,17 @@ export function TodayView({ hasPlan, daySummary, meals, targets }: Props) {
 
       {!hasPlan ? (
         <div className="mt-16 text-center">
-          <p className="text-[#2c3a2e]">No plan for today yet.</p>
-          <button
-            onClick={() => generate(false)}
-            disabled={busy !== null}
-            className="press mt-4 rounded-2xl bg-[#2c3a2e] px-6 py-3 font-medium text-white disabled:opacity-60"
-          >
-            {busy === "generate" ? "Building your day..." : "Build today's plan"}
-          </button>
+          {error ? (
+            <button
+              onClick={() => generate(false)}
+              disabled={busy !== null}
+              className="press rounded-2xl bg-[#2c3a2e] px-6 py-3 font-medium text-white disabled:opacity-60"
+            >
+              Try again
+            </button>
+          ) : (
+            <p className="animate-pulse text-[#2c3a2e]">Building your day...</p>
+          )}
         </div>
       ) : (
         <>
