@@ -196,6 +196,15 @@ export default function OnboardingPage() {
     }
 
     await supabase.from("profiles").update({ onboarding_complete: true }).eq("id", user.id);
+
+    // Build the first plan here so Today opens with meals, not an empty
+    // prompt. If this fails, Today auto-builds on load as a fallback.
+    await fetch("/api/plan", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ regenerate: false }),
+    }).catch(() => {});
+
     router.push("/today");
   }
 
@@ -471,7 +480,7 @@ export default function OnboardingPage() {
             disabled={!results || saving}
             onClick={finish}
           >
-            {saving ? "Saving..." : "Looks right, build my plan"}
+            {saving ? "Building your plan..." : "Looks right, build my plan"}
           </button>
         )}
       </div>
