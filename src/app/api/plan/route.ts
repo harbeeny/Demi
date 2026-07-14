@@ -6,10 +6,11 @@ import { scoreMeal, isEligible } from "@/lib/plan/select-meals";
 import { distribute, targets } from "@/lib/nutrition";
 import { profileFromRow, prefsFromRow } from "@/lib/plan/generate";
 import type { MealPlanEntry, MealSlot } from "@/lib/supabase/types";
+import { preflight, withCors } from "@/lib/plan/cors";
 
 /** Generate (or regenerate) today's plan. */
-export async function POST(request: Request) {
-  const ctx = await loadContext();
+async function post(request: Request): Promise<Response> {
+  const ctx = await loadContext(request);
   if ("error" in ctx) return ctx.error;
   const { supabase, user, onboarding, meals } = ctx;
 
@@ -69,8 +70,8 @@ export async function POST(request: Request) {
 }
 
 /** Swap one meal slot for the next-best alternative. */
-export async function PATCH(request: Request) {
-  const ctx = await loadContext();
+async function patch(request: Request): Promise<Response> {
+  const ctx = await loadContext(request);
   if ("error" in ctx) return ctx.error;
   const { supabase, user, onboarding, meals } = ctx;
 
@@ -138,3 +139,7 @@ export async function PATCH(request: Request) {
 
   return NextResponse.json({ ok: true });
 }
+
+export const POST = withCors(post);
+export const PATCH = withCors(patch);
+export const OPTIONS = preflight("POST, PATCH, OPTIONS");

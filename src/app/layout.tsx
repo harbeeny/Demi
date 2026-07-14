@@ -1,6 +1,15 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
+
+// viewport-fit=cover lets the app paint under the notch/home indicator; the
+// safe-area padding in globals.css keeps content out of those regions.
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  viewportFit: "cover",
+  themeColor: "#f4f6f2",
+};
 
 const geistSans = Geist({
   variable: "--font-geist-sans",

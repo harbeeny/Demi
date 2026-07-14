@@ -263,6 +263,54 @@ export interface Database {
         };
         Relationships: [];
       };
+      device_tokens: {
+        Row: {
+          id: string;
+          user_id: string;
+          token: string;
+          platform: "ios" | "android";
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          user_id: string;
+          token: string;
+          platform?: "ios" | "android";
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          user_id?: string;
+          token?: string;
+          platform?: "ios" | "android";
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
+      push_sends: {
+        Row: {
+          id: string;
+          user_id: string;
+          date: string;
+          kind: string;
+          sent_at: string;
+        };
+        Insert: {
+          id?: string;
+          user_id: string;
+          date: string;
+          kind: string;
+          sent_at?: string;
+        };
+        Update: {
+          id?: string;
+          user_id?: string;
+          date?: string;
+          kind?: string;
+          sent_at?: string;
+        };
+        Relationships: [];
+      };
       meal_logs: {
         Row: {
           id: string;

@@ -1,24 +1,49 @@
 import "server-only";
 
 import { NextResponse } from "next/server";
+import type { SupabaseClient, User } from "@supabase/supabase-js";
 
-import { createClient } from "@/lib/supabase/server";
+import { createBearerClient, createClient } from "@/lib/supabase/server";
+import type { Database } from "@/lib/supabase/types";
 import type { Meal } from "@/lib/plan/select-meals";
 
 export function todayISO(): string {
   return new Date().toISOString().slice(0, 10);
 }
 
+type OnboardingRow = Database["public"]["Tables"]["onboarding_answers"]["Row"];
+
+/** Explicit union so `"error" in ctx` narrows cleanly at every callsite. */
+export type RouteContext =
+  | { error: NextResponse }
+  | {
+      supabase: SupabaseClient<Database>;
+      user: User;
+      onboarding: OnboardingRow;
+      meals: Meal[];
+    };
+
 /**
  * Shared context for the plan/log/day routes: authenticated user, their
  * latest onboarding answers, and the meal database.
+ *
+ * Auth accepts either the web's cookie session or an Authorization: Bearer
+ * token from the Capacitor shell. The bearer path validates the token against
+ * the Auth server via getUser(jwt); it is never trust-decoded locally.
  */
-export async function loadContext() {
-  const supabase = await createClient();
+export async function loadContext(request: Request): Promise<RouteContext> {
+  const bearer = request.headers.get("authorization")?.match(/^Bearer\s+(.+)$/i)?.[1];
+  const supabase: SupabaseClient<Database> = bearer
+    ? createBearerClient(bearer)
+    : await createClient();
+
   const {
     data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) return { error: NextResponse.json({ error: "Not signed in." }, { status: 401 }) };
+    error: authError,
+  } = bearer ? await supabase.auth.getUser(bearer) : await supabase.auth.getUser();
+  if (authError || !user) {
+    return { error: NextResponse.json({ error: "Not signed in." }, { status: 401 }) };
+  }
 
   const { data: onboarding } = await supabase
     .from("onboarding_answers")

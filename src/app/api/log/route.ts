@@ -5,6 +5,7 @@ import { syncDailyRollup } from "@/lib/log/persist";
 import { validateEstimate } from "@/lib/ai/estimate";
 import { containsDisorderedEatingSignal, SUPPORTIVE_RESPONSE } from "@/lib/ai/safety-filter";
 import type { MealPlanEntry, MealSlot } from "@/lib/supabase/types";
+import { preflight, withCors } from "@/lib/plan/cors";
 
 const SLOTS: MealSlot[] = ["breakfast", "lunch", "dinner", "snack"];
 
@@ -22,8 +23,8 @@ type LogBody =
     };
 
 /** Log something the user ate. */
-export async function POST(request: Request) {
-  const ctx = await loadContext();
+async function post(request: Request): Promise<Response> {
+  const ctx = await loadContext(request);
   if ("error" in ctx) return ctx.error;
   const { supabase, user } = ctx;
 
@@ -148,8 +149,8 @@ export async function POST(request: Request) {
 }
 
 /** Un-log an item. */
-export async function DELETE(request: Request) {
-  const ctx = await loadContext();
+async function del(request: Request): Promise<Response> {
+  const ctx = await loadContext(request);
   if ("error" in ctx) return ctx.error;
   const { supabase, user } = ctx;
 
@@ -175,3 +176,7 @@ export async function DELETE(request: Request) {
 
   return NextResponse.json({ ok: true });
 }
+
+export const POST = withCors(post);
+export const DELETE = withCors(del);
+export const OPTIONS = preflight("POST, DELETE, OPTIONS");

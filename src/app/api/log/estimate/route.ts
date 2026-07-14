@@ -3,10 +3,11 @@ import { NextResponse } from "next/server";
 import { loadContext } from "@/lib/plan/context";
 import { estimateMacros } from "@/lib/ai/estimate";
 import { containsDisorderedEatingSignal, SUPPORTIVE_RESPONSE } from "@/lib/ai/safety-filter";
+import { preflight, withCors } from "@/lib/plan/cors";
 
 /** Estimate macros for a free-text food description. Persists nothing. */
-export async function POST(request: Request) {
-  const ctx = await loadContext();
+async function post(request: Request): Promise<Response> {
+  const ctx = await loadContext(request);
   if ("error" in ctx) return ctx.error;
 
   const body = (await request.json().catch(() => ({}))) as { text?: string };
@@ -29,3 +30,6 @@ export async function POST(request: Request) {
 
   return NextResponse.json({ estimate, isEstimate: true });
 }
+
+export const POST = withCors(post);
+export const OPTIONS = preflight("POST, OPTIONS");

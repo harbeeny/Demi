@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 
 import { createClient } from "@/lib/supabase/client";
+import { apiFetch } from "@/lib/api";
 import { targets, type ProfileInput } from "@/lib/nutrition";
 import { formatFtIn, inchesToCm, lbPerWeekToKgPerWeek, lbsToKg } from "@/lib/units";
 import { WheelPicker } from "@/components/onboarding/WheelPicker";
@@ -199,7 +200,7 @@ export default function OnboardingPage() {
 
     // Build the first plan here so Today opens with meals, not an empty
     // prompt. If this fails, Today auto-builds on load as a fallback.
-    await fetch("/api/plan", {
+    await apiFetch("/api/plan", {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ regenerate: false }),

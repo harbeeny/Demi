@@ -2,8 +2,9 @@ import { NextResponse } from "next/server";
 
 import { buildCoachReply } from "@/lib/trainer";
 import { containsDisorderedEatingSignal, SUPPORTIVE_RESPONSE } from "@/lib/ai/safety-filter";
+import { preflight, withCors } from "@/lib/plan/cors";
 
-export async function POST(request: Request) {
+async function post(request: Request): Promise<Response> {
   const body = (await request.json()) as { message?: unknown };
   const message = typeof body.message === "string" ? body.message.trim() : "";
 
@@ -27,3 +28,6 @@ export async function POST(request: Request) {
   // model is connected, pass TRAINER_SYSTEM_PROMPT plus the conversation here.
   return NextResponse.json(buildCoachReply(message));
 }
+
+export const POST = withCors(post);
+export const OPTIONS = preflight("POST, OPTIONS");
