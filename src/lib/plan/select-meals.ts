@@ -4,7 +4,7 @@ import type { SlotTarget } from "@/lib/nutrition";
 export type Meal = Database["public"]["Tables"]["meals"]["Row"];
 
 export interface SelectionPrefs {
-  dietaryPrefs: string[]; // e.g. ["vegetarian"]; meal must carry every pref tag
+  dietaryPrefs: string[]; // e.g. ["vegetarian"]; every pref must be satisfied (see DIET_SATISFIES)
   allergies: string[]; // substring-matched against name + tags, meal excluded on hit
   dislikes: string[]; // substring-matched against name, meal excluded on hit
   budget: "low" | "medium" | "high";
@@ -21,19 +21,32 @@ export interface SelectedMeal {
     proteinDiff: number;
     score: number;
   };
+  /** set when the meal repeats within the same day because options ran out */
+  reused?: boolean;
 }
 
 const BUDGET_RANK = { low: 0, medium: 1, high: 2 } as const;
 const SKILL_RANK = { minimal: 0, basic: 1, confident: 2 } as const;
+
+/**
+ * Diet hierarchy: a pref is satisfied by any tag at least as restrictive.
+ * Pescatarians can eat vegetarian/vegan meals; vegetarians can eat vegan
+ * meals. Prefs not listed here (vegan, gluten_free, ...) require the exact tag.
+ */
+const DIET_SATISFIES: Record<string, string[]> = {
+  pescatarian: ["pescatarian", "vegetarian", "vegan"],
+  vegetarian: ["vegetarian", "vegan"],
+};
 
 /** A meal is eligible for a user if it passes every hard filter. */
 export function isEligible(meal: Meal, prefs: SelectionPrefs): boolean {
   const tags = meal.tags.map((t) => t.toLowerCase());
   const name = meal.name.toLowerCase();
 
-  // Diet pattern: every user pref must be present as a tag.
+  // Diet pattern: every user pref must be satisfied by some tag.
   for (const pref of prefs.dietaryPrefs) {
-    if (!tags.includes(pref.toLowerCase())) return false;
+    const accepted = DIET_SATISFIES[pref.toLowerCase()] ?? [pref.toLowerCase()];
+    if (!accepted.some((tag) => tags.includes(tag))) return false;
   }
 
   // Allergies and dislikes: exclude on any match against name or tags.
@@ -71,12 +84,16 @@ export function scoreMeal(meal: Meal, target: SlotTarget): number {
 /** Penalty added to meals used recently, to force variety. */
 const RECENT_USE_PENALTY = 0.75;
 
+/** Heavier penalty for repeating a meal within the same day. */
+const SAME_DAY_REUSE_PENALTY = 1.5;
+
 /**
  * Pick one meal per slot target. Deterministic:
  * 1. Hard-filter by prefs/allergies/dislikes/budget/skill.
  * 2. Within a slot, prefer meals tagged for that slot.
  * 3. Rank by macro fit + variety penalty for recently used meal ids.
- * 4. Never reuse a meal within the same day.
+ * 4. Avoid reusing a meal within the same day; if every eligible meal is
+ *    already used, repeat one (penalized, flagged `reused`) instead of failing.
  */
 export function selectMeals(
   allMeals: Meal[],
@@ -97,21 +114,28 @@ export function selectMeals(
       (m) => m.tags.includes(target.slot) && !usedToday.has(m.id),
     );
     // Fall back to any unused eligible meal if the slot has no tagged options.
-    const pool = slotTagged.length > 0 ? slotTagged : eligible.filter((m) => !usedToday.has(m.id));
+    let pool = slotTagged.length > 0 ? slotTagged : eligible.filter((m) => !usedToday.has(m.id));
     if (pool.length === 0) {
-      throw new Error(`Not enough distinct meals to fill ${slotTargets.length} slots.`);
+      // Every eligible meal is already used today: allow a repeat rather than
+      // failing, preferring meals tagged for this slot.
+      const slotTaggedUsed = eligible.filter((m) => m.tags.includes(target.slot));
+      pool = slotTaggedUsed.length > 0 ? slotTaggedUsed : eligible;
     }
 
     let best: Meal = pool[0];
     let bestScore = Infinity;
     for (const meal of pool) {
-      const score = scoreMeal(meal, target) + (recent.has(meal.id) ? RECENT_USE_PENALTY : 0);
+      const score =
+        scoreMeal(meal, target) +
+        (recent.has(meal.id) ? RECENT_USE_PENALTY : 0) +
+        (usedToday.has(meal.id) ? SAME_DAY_REUSE_PENALTY : 0);
       if (score < bestScore) {
         bestScore = score;
         best = meal;
       }
     }
 
+    const reused = usedToday.has(best.id);
     usedToday.add(best.id);
     return {
       meal: best,
@@ -122,6 +146,7 @@ export function selectMeals(
         proteinDiff: Math.round(Number(best.protein_g) - target.proteinG),
         score: Number(bestScore.toFixed(3)),
       },
+      ...(reused ? { reused: true } : {}),
     };
   });
 }
