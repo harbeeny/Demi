@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 
 import { createClient } from "@/lib/supabase/client";
+import { apiFetch } from "@/lib/api";
 import type { MacroTotals } from "@/lib/log/remaining";
 import { remainingBudget, sumLogged } from "@/lib/log/remaining";
 import { shouldOfferRebalance } from "@/lib/log/rebalance";
@@ -35,9 +36,11 @@ interface Props {
   logs: TodayLog[];
   summary: DaySummary | null;
   searchMeals: SearchMeal[];
+  /** re-runs the client data queries after a mutation (replaces router.refresh) */
+  onMutated: () => Promise<void>;
 }
 
-export function TodayView({ hasPlan, daySummary, meals, targets, logs, summary, searchMeals }: Props) {
+export function TodayView({ hasPlan, daySummary, meals, targets, logs, summary, searchMeals, onMutated }: Props) {
   const router = useRouter();
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState("");
@@ -48,7 +51,7 @@ export function TodayView({ hasPlan, daySummary, meals, targets, logs, summary, 
     setBusy(busyKey);
     setError("");
     try {
-      const res = await fetch(url, init);
+      const res = await apiFetch(url, init);
       const data = (await res.json().catch(() => ({}))) as {
         error?: string;
         supportive?: { text: string };
@@ -60,7 +63,7 @@ export function TodayView({ hasPlan, daySummary, meals, targets, logs, summary, 
         setError(data.error ?? "Something went wrong.");
         return false;
       }
-      router.refresh();
+      await onMutated();
       return true;
     } catch {
       setError("Network hiccup. Try again.");

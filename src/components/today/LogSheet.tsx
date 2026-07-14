@@ -2,6 +2,8 @@
 
 import { useMemo, useState } from "react";
 
+import { apiFetch } from "@/lib/api";
+
 export interface SearchMeal {
   id: string;
   name: string;
@@ -67,7 +69,7 @@ export function LogSheet({ open, onClose, searchMeals, busy, onLogDb, onLogEstim
     setMessage("");
     setSupportive(null);
     try {
-      const res = await fetch("/api/log/estimate", {
+      const res = await apiFetch("/api/log/estimate", {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ text: quickText.trim() }),

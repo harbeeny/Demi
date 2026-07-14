@@ -6,6 +6,8 @@
  * fake screenshot: same ring SVG and card markup the product renders.
  */
 
+import { AppRedirect } from "@/components/AppRedirect";
+
 const SAMPLE_RINGS = [
   { label: "kcal", value: 1470, target: 2240, color: "#2c3a2e" },
   { label: "protein", value: 106, target: 164, color: "#7a9a4e" },
@@ -92,6 +94,7 @@ function PreviewRing({ label, value, target, color }: (typeof SAMPLE_RINGS)[numb
 export default function LandingPage() {
   return (
     <div className="bg-[#f4f6f2] text-[#2c3a2e]">
+      <AppRedirect />
       {/* Nav: single line, 64px */}
       <header className="mx-auto flex h-16 max-w-6xl items-center justify-between px-6">
         <div className="flex items-center gap-2.5">

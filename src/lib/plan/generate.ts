@@ -1,11 +1,16 @@
 import "server-only";
 
 import type { Database, MealPlanEntry } from "@/lib/supabase/types";
-import { distribute, targets, type ProfileInput } from "@/lib/nutrition";
+import { distribute, targets } from "@/lib/nutrition";
 import { selectMeals, type Meal, type SelectionPrefs } from "./select-meals";
 import { personalize, type PersonalizedPlan } from "@/lib/ai/personalize";
 
 type OnboardingRow = Database["public"]["Tables"]["onboarding_answers"]["Row"];
+
+// Mappers live in the client-safe rows module; re-exported so the API routes'
+// existing imports keep working.
+export { profileFromRow, prefsFromRow } from "./rows";
+import { profileFromRow, prefsFromRow } from "./rows";
 
 export interface GeneratedPlan {
   entries: MealPlanEntry[];
@@ -22,33 +27,6 @@ export interface GeneratedPlan {
     why: string;
   }>;
   dayTargets: { kcal: number; proteinG: number; carbsG: number; fatG: number; fiberG: number };
-}
-
-export function profileFromRow(row: OnboardingRow): ProfileInput {
-  return {
-    sex: row.sex,
-    age: row.age,
-    heightCm: Number(row.height_cm),
-    weightKg: Number(row.weight_kg),
-    goal: row.goal,
-    goalRate: row.goal_rate === null ? null : Number(row.goal_rate),
-    activityLevel: row.activity_level,
-    mealsPerDay: row.meals_per_day,
-    eatingWindowStart: row.eating_window_start,
-    eatingWindowEnd: row.eating_window_end,
-    trainingDays: row.training_days,
-    trainingTime: row.training_time ? row.training_time.slice(0, 5) : null,
-  };
-}
-
-export function prefsFromRow(row: OnboardingRow): SelectionPrefs {
-  return {
-    dietaryPrefs: row.dietary_prefs,
-    allergies: row.allergies,
-    dislikes: row.dislikes,
-    budget: row.budget,
-    cookingSkill: row.cooking_skill,
-  };
 }
 
 /**
