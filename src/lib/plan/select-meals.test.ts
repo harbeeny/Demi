@@ -195,3 +195,24 @@ describe("selectMeals", () => {
     }
   });
 });
+
+describe("isEligible maxPrepMin", () => {
+  const quick = meal({ id: "q", name: "quick bowl", prep_min: 5, cook_min: 10, tags: ["lunch", "low", "minimal"] });
+  const slow = meal({ id: "s", name: "slow roast", prep_min: 15, cook_min: 40, tags: ["dinner", "low", "minimal"] });
+
+  test("total over the cap is excluded", () => {
+    expect(isEligible(slow, { ...openPrefs, maxPrepMin: 30 })).toBe(false);
+  });
+
+  test("total exactly at the cap is included", () => {
+    expect(isEligible(quick, { ...openPrefs, maxPrepMin: 15 })).toBe(true);
+  });
+
+  test("no cap excludes nothing", () => {
+    expect(isEligible(slow, openPrefs)).toBe(true);
+  });
+
+  test("cap composes with existing filters", () => {
+    expect(isEligible(quick, { ...openPrefs, dislikes: ["bowl"], maxPrepMin: 30 })).toBe(false);
+  });
+});

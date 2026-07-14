@@ -9,6 +9,8 @@ export interface SelectionPrefs {
   dislikes: string[]; // substring-matched against name, meal excluded on hit
   budget: "low" | "medium" | "high";
   cookingSkill: "minimal" | "basic" | "confident";
+  /** hard cap on prep_min + cook_min; undefined = no cap */
+  maxPrepMin?: number;
 }
 
 export interface SelectedMeal {
@@ -42,6 +44,14 @@ const DIET_SATISFIES: Record<string, string[]> = {
 export function isEligible(meal: Meal, prefs: SelectionPrefs): boolean {
   const tags = meal.tags.map((t) => t.toLowerCase());
   const name = meal.name.toLowerCase();
+
+  // Total time cap (inclusive: a 30-minute meal passes a 30-minute cap).
+  if (
+    prefs.maxPrepMin != null &&
+    Number(meal.prep_min) + Number(meal.cook_min) > prefs.maxPrepMin
+  ) {
+    return false;
+  }
 
   // Diet pattern: every user pref must be satisfied by some tag.
   for (const pref of prefs.dietaryPrefs) {
