@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 
 import { createClient } from "@/lib/supabase/client";
+import { registerPush } from "@/lib/push";
 import { targets } from "@/lib/nutrition";
 import { profileFromRow, prefsFromRow } from "@/lib/plan/rows";
 import { isEligible, type Meal } from "@/lib/plan/select-meals";
@@ -58,6 +59,9 @@ export function useTodayData(): { loading: boolean; data: TodayData | null; relo
       router.replace("/onboarding");
       return;
     }
+
+    // Signed-in and onboarded: this is the moment to ask for push (native only).
+    void registerPush();
 
     const today = new Date().toISOString().slice(0, 10);
     const [{ data: planRow }, { data: logRows }, { data: dailyLog }, { data: allMeals }] =
