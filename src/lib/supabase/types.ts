@@ -21,6 +21,10 @@ export type CookingSkill = "minimal" | "basic" | "confident";
 
 export type MealSlot = "breakfast" | "lunch" | "dinner" | "snack";
 
+export type MealLogSource = "planned" | "db" | "estimate";
+
+export type PlanEvent = "regenerated" | "swapped" | "rebalanced";
+
 export interface MealPlanEntry {
   meal_id: string;
   slot: MealSlot;
@@ -126,7 +130,7 @@ export interface Database {
           id: string;
           user_id: string;
           plan_id: string;
-          event: "regenerated" | "swapped";
+          event: PlanEvent;
           meal_slot: string | null;
           created_at: string;
         };
@@ -134,7 +138,7 @@ export interface Database {
           id?: string;
           user_id: string;
           plan_id: string;
-          event: "regenerated" | "swapped";
+          event: PlanEvent;
           meal_slot?: string | null;
           created_at?: string;
         };
@@ -142,7 +146,7 @@ export interface Database {
           id?: string;
           user_id?: string;
           plan_id?: string;
-          event?: "regenerated" | "swapped";
+          event?: PlanEvent;
           meal_slot?: string | null;
           created_at?: string;
         };
@@ -220,6 +224,11 @@ export interface Database {
           total_protein_g: number;
           total_carbs_g: number;
           total_fat_g: number;
+          energy: number | null;
+          day_note: string | null;
+          reflection: string | null;
+          tweak: string | null;
+          finished_at: string | null;
           created_at: string;
         };
         Insert: {
@@ -230,6 +239,11 @@ export interface Database {
           total_protein_g: number;
           total_carbs_g: number;
           total_fat_g: number;
+          energy?: number | null;
+          day_note?: string | null;
+          reflection?: string | null;
+          tweak?: string | null;
+          finished_at?: string | null;
           created_at?: string;
         };
         Update: {
@@ -240,7 +254,63 @@ export interface Database {
           total_protein_g?: number;
           total_carbs_g?: number;
           total_fat_g?: number;
+          energy?: number | null;
+          day_note?: string | null;
+          reflection?: string | null;
+          tweak?: string | null;
+          finished_at?: string | null;
           created_at?: string;
+        };
+        Relationships: [];
+      };
+      meal_logs: {
+        Row: {
+          id: string;
+          user_id: string;
+          date: string;
+          slot: MealSlot | null;
+          plan_slot_index: number | null;
+          meal_id: string | null;
+          name: string;
+          kcal: number;
+          protein_g: number;
+          carbs_g: number;
+          fat_g: number;
+          source: MealLogSource;
+          note: string | null;
+          logged_at: string;
+        };
+        Insert: {
+          id?: string;
+          user_id: string;
+          date: string;
+          slot?: MealSlot | null;
+          plan_slot_index?: number | null;
+          meal_id?: string | null;
+          name: string;
+          kcal: number;
+          protein_g: number;
+          carbs_g: number;
+          fat_g: number;
+          source: MealLogSource;
+          note?: string | null;
+          logged_at?: string;
+        };
+        Update: {
+          id?: string;
+          user_id?: string;
+          date?: string;
+          slot?: MealSlot | null;
+          plan_slot_index?: number | null;
+          meal_id?: string | null;
+          name?: string;
+          kcal?: number;
+          protein_g?: number;
+          carbs_g?: number;
+          fat_g?: number;
+          source?: MealLogSource;
+          note?: string | null;
+          logged_at?: string;
         };
         Relationships: [];
       };

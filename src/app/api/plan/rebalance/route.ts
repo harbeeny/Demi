@@ -1,0 +1,126 @@
+import { NextResponse } from "next/server";
+
+import { loadContext, todayISO } from "@/lib/plan/context";
+import { profileFromRow, prefsFromRow } from "@/lib/plan/generate";
+import { scoreMeal, isEligible } from "@/lib/plan/select-meals";
+import { distribute, targets } from "@/lib/nutrition";
+import { remainingBudget, sumLogged } from "@/lib/log/remaining";
+import { rebalanceSlotTargets } from "@/lib/log/rebalance";
+import type { MealPlanEntry } from "@/lib/supabase/types";
+
+/** Re-pick the unlogged, still-upcoming slots to fit the remaining budget. */
+export async function POST() {
+  const ctx = await loadContext();
+  if ("error" in ctx) return ctx.error;
+  const { supabase, user, onboarding, meals } = ctx;
+
+  const date = todayISO();
+  const { data: planRow } = await supabase
+    .from("meal_plans")
+    .select("id, meals")
+    .eq("user_id", user.id)
+    .eq("date", date)
+    .single();
+  if (!planRow) {
+    return NextResponse.json({ error: "No plan for today yet." }, { status: 404 });
+  }
+
+  const { data: logs } = await supabase
+    .from("meal_logs")
+    .select("kcal, protein_g, carbs_g, fat_g, plan_slot_index, source")
+    .eq("user_id", user.id)
+    .eq("date", date);
+
+  const eaten = sumLogged(
+    (logs ?? []).map((l) => ({
+      kcal: Number(l.kcal),
+      proteinG: Number(l.protein_g),
+      carbsG: Number(l.carbs_g),
+      fatG: Number(l.fat_g),
+    })),
+  );
+
+  const profile = profileFromRow(onboarding);
+  const dayTargets = targets(profile);
+  const remaining = remainingBudget(
+    {
+      kcal: dayTargets.kcal.value,
+      proteinG: dayTargets.proteinG.value,
+      carbsG: dayTargets.carbsG.value,
+      fatG: dayTargets.fatG.value,
+    },
+    eaten,
+  );
+
+  // Upcoming and unlogged: no planned log for the slot index, and the slot's
+  // time has not passed. Hours compare in UTC, the same convention todayISO
+  // uses for "today"; known debt near midnight local time.
+  const entries = planRow.meals as MealPlanEntry[];
+  const loggedIndexes = new Set(
+    (logs ?? []).filter((l) => l.source === "planned").map((l) => l.plan_slot_index),
+  );
+  const nowHour = new Date().getUTCHours() + new Date().getUTCMinutes() / 60;
+  const slotTargets = distribute(dayTargets, profile, new Date());
+
+  const upcoming = entries
+    .map((entry, index) => ({ entry, index, target: slotTargets[index] }))
+    .filter(
+      ({ entry, index, target }) =>
+        target !== undefined &&
+        !loggedIndexes.has(index) &&
+        (entry.time_hour ?? target.timeHour) >= nowHour,
+    );
+
+  if (remaining.kcal <= 0 || upcoming.length === 0) {
+    return NextResponse.json({ error: "Nothing left to rebalance today." }, { status: 409 });
+  }
+
+  const newTargets = rebalanceSlotTargets(
+    remaining,
+    upcoming.map(({ target }) => target),
+  );
+
+  const prefs = prefsFromRow(onboarding);
+  const usedIds = new Set(entries.map((e) => e.meal_id));
+  const changedSlots: number[] = [];
+
+  upcoming.forEach(({ entry, index }, i) => {
+    const slotTarget = newTargets[i];
+    const candidates = meals
+      .filter((m) => isEligible(m, prefs) && !usedIds.has(m.id))
+      .filter((m) => m.tags.includes(entry.slot))
+      .sort((a, b) => scoreMeal(a, slotTarget) - scoreMeal(b, slotTarget));
+
+    const replacement = candidates[0];
+    if (!replacement || replacement.id === entry.meal_id) return;
+
+    usedIds.add(replacement.id);
+    entries[index] = {
+      ...entry,
+      meal_id: replacement.id,
+      why: "Re-picked to fit what's left of your day.",
+    };
+    changedSlots.push(index);
+  });
+
+  if (changedSlots.length === 0) {
+    return NextResponse.json({ error: "Your remaining meals already fit best." }, { status: 409 });
+  }
+
+  const { error: updateError } = await supabase
+    .from("meal_plans")
+    .update({ meals: entries })
+    .eq("id", planRow.id);
+
+  if (updateError) {
+    return NextResponse.json({ error: "Couldn't save the rebalance." }, { status: 500 });
+  }
+
+  await supabase.from("plan_events").insert({
+    user_id: user.id,
+    plan_id: planRow.id,
+    event: "rebalanced",
+  });
+
+  return NextResponse.json({ ok: true, changedSlots });
+}
