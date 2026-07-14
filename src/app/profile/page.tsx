@@ -190,6 +190,7 @@ export default function ProfilePage() {
     return (
       <main className="mx-auto flex min-h-dvh max-w-md items-center justify-center bg-[#f4f6f2]">
         <p className="animate-pulse text-[#2c3a2e]">Loading your profile...</p>
+        <TabBar />
       </main>
     );
   }

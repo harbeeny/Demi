@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 
 import { createClient } from "@/lib/supabase/client";
@@ -34,9 +34,6 @@ export function useTodayData(): { loading: boolean; data: TodayData | null; relo
   const router = useRouter();
   const [loading, setLoading] = useState(true);
   const [data, setData] = useState<TodayData | null>(null);
-  const alive = useRef(true);
-  useEffect(() => () => { alive.current = false; }, []);
-
   const reload = useCallback(async () => {
     const supabase = createClient();
     const {
@@ -117,7 +114,6 @@ export function useTodayData(): { loading: boolean; data: TodayData | null; relo
 
     const prefs = prefsFromRow(onboarding);
 
-    if (!alive.current) return;
     setData({
       hasPlan: planRow !== null && mealsData.length > 0,
       daySummary,

@@ -17,6 +17,7 @@ export default function TodayPage() {
     return (
       <main className="mx-auto flex min-h-dvh max-w-md items-center justify-center bg-[#f4f6f2]">
         <p className="animate-pulse text-[#2c3a2e]">Loading your day...</p>
+        <TabBar />
       </main>
     );
   }
