@@ -57,6 +57,30 @@ describe("isEligible", () => {
     expect(isEligible(eggs, { ...openPrefs, dislikes: ["eggs"] })).toBe(false);
   });
 
+  test("diet hierarchy: pescatarian accepts vegetarian and vegan meals", () => {
+    const fish = meal({ id: "1", name: "Salmon plate", tags: ["dinner", "pescatarian"] });
+    const veg = meal({ id: "2", name: "Halloumi bowl", tags: ["dinner", "vegetarian"] });
+    const vegan = meal({ id: "3", name: "Tofu curry", tags: ["dinner", "vegan", "vegetarian"] });
+    const omnivore = meal({ id: "4", name: "Steak", tags: ["dinner"] });
+    const prefs = { ...openPrefs, dietaryPrefs: ["pescatarian"] };
+    expect(isEligible(fish, prefs)).toBe(true);
+    expect(isEligible(veg, prefs)).toBe(true);
+    expect(isEligible(vegan, prefs)).toBe(true);
+    expect(isEligible(omnivore, prefs)).toBe(false);
+  });
+
+  test("diet hierarchy: vegetarian accepts vegan meals but not the reverse", () => {
+    const veganMeal = meal({ id: "1", name: "Lentil soup", tags: ["lunch", "vegan"] });
+    const vegMeal = meal({ id: "2", name: "Egg salad", tags: ["lunch", "vegetarian"] });
+    expect(isEligible(veganMeal, { ...openPrefs, dietaryPrefs: ["vegetarian"] })).toBe(true);
+    expect(isEligible(vegMeal, { ...openPrefs, dietaryPrefs: ["vegan"] })).toBe(false);
+  });
+
+  test("gluten_free stays exact-match", () => {
+    const untagged = meal({ id: "1", name: "Quinoa bowl", tags: ["lunch", "vegan"] });
+    expect(isEligible(untagged, { ...openPrefs, dietaryPrefs: ["gluten_free"] })).toBe(false);
+  });
+
   test("budget and skill ceilings are respected", () => {
     const fancy = meal({ id: "1", name: "Salmon", tags: ["dinner", "high", "confident"] });
     expect(isEligible(fancy, { ...openPrefs, budget: "low" })).toBe(false);
@@ -105,10 +129,44 @@ describe("selectMeals", () => {
     expect(picked[2].meal.tags).toContain("dinner");
   });
 
-  test("never repeats a meal within a day", () => {
+  test("never repeats a meal within a day when enough options exist", () => {
     const picked = selectMeals(db, threeSlots, openPrefs);
     const ids = picked.map((p) => p.meal.id);
     expect(new Set(ids).size).toBe(ids.length);
+    expect(picked.every((p) => !p.reused)).toBe(true);
+  });
+
+  test("reuses a meal instead of throwing when eligible meals run out", () => {
+    const tiny = [
+      meal({ id: "l1", name: "Chicken salad", tags: ["lunch"] }),
+      meal({ id: "d1", name: "Salmon plate", tags: ["dinner"] }),
+    ];
+    const fourSlots: SlotTarget[] = [
+      slot({ slot: "breakfast", timeHour: 8 }),
+      slot({ slot: "lunch", timeHour: 12 }),
+      slot({ slot: "snack", timeHour: 16 }),
+      slot({ slot: "dinner", timeHour: 20 }),
+    ];
+    const picked = selectMeals(tiny, fourSlots, openPrefs);
+    expect(picked).toHaveLength(4);
+    // Distinct meals are used before any repeat.
+    expect(new Set(picked.slice(0, 2).map((p) => p.meal.id)).size).toBe(2);
+    // Repeats are flagged.
+    expect(picked.filter((p) => p.reused)).toHaveLength(2);
+  });
+
+  test("prefers a distinct off-slot meal over repeating a slot-tagged one", () => {
+    const meals = [
+      meal({ id: "l1", name: "Chicken salad", tags: ["lunch"] }),
+      meal({ id: "d1", name: "Salmon plate", tags: ["dinner"] }),
+    ];
+    const twoLunches: SlotTarget[] = [
+      slot({ slot: "lunch", timeHour: 12 }),
+      slot({ slot: "lunch", timeHour: 15 }),
+    ];
+    const picked = selectMeals(meals, twoLunches, openPrefs);
+    expect(picked.map((p) => p.meal.id).sort()).toEqual(["d1", "l1"]);
+    expect(picked.every((p) => !p.reused)).toBe(true);
   });
 
   test("variety penalty steers away from recently used meals", () => {

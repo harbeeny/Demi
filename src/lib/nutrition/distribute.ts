@@ -1,7 +1,7 @@
 import type { MealSlot } from "@/lib/supabase/types";
 import type { MacroTargets, ProfileInput, SlotTarget } from "./types";
 
-const SLOT_SEQUENCES: Record<number, MealSlot[]> = {
+export const SLOT_SEQUENCES: Record<number, MealSlot[]> = {
   1: ["dinner"],
   2: ["lunch", "dinner"],
   3: ["breakfast", "lunch", "dinner"],
