@@ -1,9 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { useRouter } from "next/navigation";
 
-import { createClient } from "@/lib/supabase/client";
 import { apiFetch } from "@/lib/api";
 import type { MacroTotals } from "@/lib/log/remaining";
 import { remainingBudget, sumLogged } from "@/lib/log/remaining";
@@ -41,7 +39,6 @@ interface Props {
 }
 
 export function TodayView({ hasPlan, daySummary, meals, targets, logs, summary, searchMeals, onMutated }: Props) {
-  const router = useRouter();
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
@@ -113,19 +110,6 @@ export function TodayView({ hasPlan, daySummary, meals, targets, logs, summary, 
   const finishDay = (energy: number | null, note: string) =>
     post("/api/day/finish", { energy: energy ?? undefined, dayNote: note || undefined }, "finish");
 
-  async function signOut() {
-    setBusy("signout");
-    setError("");
-    try {
-      await createClient().auth.signOut();
-      router.push("/");
-      router.refresh();
-    } catch {
-      setError("Couldn't sign out. Try again.");
-      setBusy(null);
-    }
-  }
-
   // No plan (new day, or onboarding's build failed): build it immediately
   // rather than asking the user to click a button. Ref guards double-fires
   // from re-renders; router.refresh() flips hasPlan when the plan lands.
@@ -168,24 +152,15 @@ export function TodayView({ hasPlan, daySummary, meals, targets, logs, summary, 
             </p>
           </div>
         </div>
-        <div className="flex items-center gap-2">
-          {hasPlan && (
-            <button
-              onClick={() => generate(true)}
-              disabled={busy !== null}
-              className="press rounded-full border border-[#dce3d7] bg-white px-4 py-2 text-sm text-[#2c3a2e] hover:border-[#8aa06f] disabled:opacity-50"
-            >
-              {busy === "generate" ? "Working..." : "Regenerate"}
-            </button>
-          )}
+        {hasPlan && (
           <button
-            onClick={signOut}
+            onClick={() => generate(true)}
             disabled={busy !== null}
-            className="press rounded-full px-3 py-2 text-sm text-[#829084] hover:text-[#2c3a2e] disabled:opacity-50"
+            className="press rounded-full border border-[#dce3d7] bg-white px-4 py-2 text-sm text-[#2c3a2e] hover:border-[#8aa06f] disabled:opacity-50"
           >
-            {busy === "signout" ? "Signing out..." : "Sign out"}
+            {busy === "generate" ? "Working..." : "Regenerate"}
           </button>
-        </div>
+        )}
       </header>
 
       {error && <p className="mb-4 rounded-2xl bg-red-50 p-3 text-sm text-red-800">{error}</p>}

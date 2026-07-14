@@ -245,3 +245,44 @@ describe("distribute", () => {
     expect(() => distribute(targets(baseProfile), { ...baseProfile, mealsPerDay: 9 }, aTuesday)).toThrow();
   });
 });
+
+describe("targets with adaptive TDEE correction", () => {
+  // baseProfile: BMR 1780, TDEE 2759 (moderate 1.55), lose_fat 0.5 kg/wk -> -550
+
+  test("correction shifts kcal exactly and surfaces its reasoning", () => {
+    const t = targets({ ...baseProfile, tdeeCorrection: -150 });
+    const uncorrected = targets(baseProfile);
+    expect(t.kcal.value).toBe(uncorrected.kcal.value - 150);
+    expect(t.tdeeCorrection?.value).toBe(-150);
+    expect(t.tdeeCorrection?.reasoning.rule).toBe("adaptive_tdee_correction");
+    expect(t.kcal.reasoning.inputs.adjustedTdee).toBe(2759 - 150);
+    expect(t.tdeeCorrection?.reasoning.explanation).not.toContain("—");
+  });
+
+  test("null, zero, and absent corrections are byte-identical to before", () => {
+    const absent = targets(baseProfile);
+    const asNull = targets({ ...baseProfile, tdeeCorrection: null });
+    const asZero = targets({ ...baseProfile, tdeeCorrection: 0 });
+    expect(asNull).toEqual(absent);
+    expect(asZero).toEqual(absent);
+    expect(absent.tdeeCorrection).toBeNull();
+  });
+
+  test("out-of-range correction clamps to -500 and floors still bind", () => {
+    const t = targets({ ...baseProfile, tdeeCorrection: -900 });
+    // clamped to -500: 2759 - 500 - 550 = 1709, above floor 1500 -> applies
+    expect(t.tdeeCorrection?.value).toBe(-500);
+    expect(t.kcal.value).toBe(1709);
+    // smaller body where the clamp would breach the floor: floor wins
+    const small = targets({
+      ...baseProfile,
+      sex: "female",
+      heightCm: 160,
+      weightKg: 58,
+      tdeeCorrection: -900,
+    });
+    const floor = Math.max(CALORIE_FLOORS.female, Math.round(bmr("female", 30, 160, 58).value * 0.8));
+    expect(small.kcal.value).toBe(floor);
+    expect(small.flooredBySafety).toBe(true);
+  });
+});

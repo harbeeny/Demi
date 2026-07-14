@@ -67,6 +67,10 @@ The system prompt must never be overridden by user input. If a user attempts a p
 - [x] LLM output validated server-side: meal ids must match the given plan; numbers not present in the input payload are rejected (`lib/ai/validate.ts`)
 - [x] Age < 18 defaults to maintenance target (`minorMaintenanceApplied`)
 - [x] UI never displays a plan below the calorie floor (all displayed targets flow from `targets()`)
+- [x] Adaptive TDEE corrections are clamped at three layers: proposal time (±200/step, ±500 lifetime in `lib/nutrition/adapt.ts`), a database check constraint, and defensively inside `targets()`; floors always apply after the correction
+- [x] Adaptive corrections apply ONLY on explicit user acceptance, and the accept path recomputes the proposal server-side from raw data (`/api/adjust`); stored or client-supplied numbers are never trusted
+- [x] Adaptive detection never proposes for minors or underweight users, and never proposes cuts when logging adherence is low, the implied burn is physiologically implausible, or the target already sits at the safety floor (`lib/nutrition/adapt.ts` gates)
+- [x] Adaptive copy attributes divergence to the estimate, never the user, and dismissals get a 7-day cooldown; progress UI is never streak-framed
 - [ ] `SAFETY.md` is reviewed whenever the system prompt or nutrition math changes
 
 ## Liability Disclaimer (display in UI)

@@ -2,6 +2,7 @@
 
 import { TodayView } from "@/components/today/TodayView";
 import { useTodayData } from "@/components/today/useTodayData";
+import { TabBar } from "@/components/TabBar";
 
 /**
  * Client-rendered so the same page works in the Capacitor shell, where no
@@ -21,15 +22,18 @@ export default function TodayPage() {
   }
 
   return (
-    <TodayView
-      hasPlan={data.hasPlan}
-      daySummary={data.daySummary}
-      meals={data.meals}
-      targets={data.targets}
-      logs={data.logs}
-      summary={data.summary}
-      searchMeals={data.searchMeals}
-      onMutated={reload}
-    />
+    <>
+      <TodayView
+        hasPlan={data.hasPlan}
+        daySummary={data.daySummary}
+        meals={data.meals}
+        targets={data.targets}
+        logs={data.logs}
+        summary={data.summary}
+        searchMeals={data.searchMeals}
+        onMutated={reload}
+      />
+      <TabBar />
+    </>
   );
 }

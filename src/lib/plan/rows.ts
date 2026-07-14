@@ -21,6 +21,7 @@ export function profileFromRow(row: OnboardingRow): ProfileInput {
     eatingWindowEnd: row.eating_window_end,
     trainingDays: row.training_days,
     trainingTime: row.training_time ? row.training_time.slice(0, 5) : null,
+    tdeeCorrection: row.tdee_correction,
   };
 }
 

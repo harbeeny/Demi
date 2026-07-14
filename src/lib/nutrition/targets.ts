@@ -26,7 +26,13 @@ export const PROTEIN_G_PER_KG: Record<Goal, number> = {
   improve_health: 1.6,
 };
 
-const KCAL_PER_KG_TISSUE = 7700;
+/** Energy density of body tissue change; shared with the adaptive engine. */
+export const KCAL_PER_KG_TISSUE = 7700;
+/** SAFETY: one accepted adaptive adjustment never moves TDEE more than this. */
+export const MAX_CORRECTION_DELTA = 200;
+/** SAFETY: lifetime cap on adaptive TDEE correction (~Mifflin's error band). */
+export const MAX_CUMULATIVE_TDEE_CORRECTION = 500;
+
 const FAT_FLOOR_G_PER_KG = 0.8;
 const FAT_FLOOR_PCT_KCAL = 0.2;
 const FIBER_G_PER_1000_KCAL = 14;
@@ -66,6 +72,14 @@ export function targets(profile: ProfileInput, options: TargetOptions = {}): Mac
   const basal = bmr(profile.sex, profile.age, profile.heightCm, profile.weightKg);
   const expenditure = tdee(basal.value, profile.activityLevel);
 
+  // Adaptive TDEE correction (accepted by the user from logged results).
+  // Clamped here as the last line of defense; floors still apply after.
+  const correction = Math.max(
+    -MAX_CUMULATIVE_TDEE_CORRECTION,
+    Math.min(MAX_CUMULATIVE_TDEE_CORRECTION, Math.round(profile.tdeeCorrection ?? 0)),
+  );
+  const adjustedTdee = expenditure.value + correction;
+
   // SAFETY: no more than ~1% of bodyweight per week of suggested loss.
   const requestedRate = profile.goalRate ?? DEFAULT_GOAL_RATES[profile.goal];
   const maxLossRate = MAX_LOSS_RATE_PCT_BW * profile.weightKg;
@@ -84,7 +98,7 @@ export function targets(profile: ProfileInput, options: TargetOptions = {}): Mac
     !minorMaintenanceApplied && profile.goal === "lose_fat" && bmi < UNDERWEIGHT_BMI;
 
   const atMaintenance = minorMaintenanceApplied || underweightMaintenanceApplied;
-  let kcal = atMaintenance ? expenditure.value : expenditure.value + dailyDelta;
+  let kcal = atMaintenance ? adjustedTdee : adjustedTdee + dailyDelta;
 
   // SAFETY: never below the sex floor, and never below 80% of BMR.
   const floor = Math.max(CALORIE_FLOORS[profile.sex], Math.round(basal.value * BMR_FLOOR_FRACTION));
@@ -92,16 +106,16 @@ export function targets(profile: ProfileInput, options: TargetOptions = {}): Mac
   if (flooredBySafety) kcal = floor;
 
   const kcalReasoning = minorMaintenanceApplied
-    ? `Because you're under 18, your target stays at maintenance (${expenditure.value} kcal). Growing bodies shouldn't run deficits without clinical supervision.`
+    ? `Because you're under 18, your target stays at maintenance (${adjustedTdee} kcal). Growing bodies shouldn't run deficits without clinical supervision.`
     : underweightMaintenanceApplied
-      ? `Your current weight is already at the low end of the healthy range, so we're holding you at maintenance (${expenditure.value} kcal). Feeling stronger comes from fueling well, not eating less.`
+      ? `Your current weight is already at the low end of the healthy range, so we're holding you at maintenance (${adjustedTdee} kcal). Feeling stronger comes from fueling well, not eating less.`
       : flooredBySafety
-        ? `Your goal implied ${expenditure.value + dailyDelta} kcal, but we hold the line at ${floor} kcal. Going lower isn't safe or sustainable.`
+        ? `Your goal implied ${adjustedTdee + dailyDelta} kcal, but we hold the line at ${floor} kcal. Going lower isn't safe or sustainable.`
         : direction === 0
           ? `Your goal is ${profile.goal === "maintain" ? "maintenance" : "overall health"}, so you eat right at your daily burn of ${kcal} kcal.`
           : rateCappedBySafety
-            ? `We slowed your pace to ${rateLabel(rate)} (about 1% of your bodyweight). Faster than that tends to cost muscle and rebound, so this is ${Math.abs(dailyDelta)} kcal below your ${expenditure.value} kcal daily burn.`
-            : `A ${rateLabel(rate)} ${direction < 0 ? "loss" : "gain"} works out to ${Math.abs(dailyDelta)} kcal ${direction < 0 ? "below" : "above"} your ${expenditure.value} kcal daily burn.`;
+            ? `We slowed your pace to ${rateLabel(rate)} (about 1% of your bodyweight). Faster than that tends to cost muscle and rebound, so this is ${Math.abs(dailyDelta)} kcal below your ${adjustedTdee} kcal daily burn.`
+            : `A ${rateLabel(rate)} ${direction < 0 ? "loss" : "gain"} works out to ${Math.abs(dailyDelta)} kcal ${direction < 0 ? "below" : "above"} your ${adjustedTdee} kcal daily burn.`;
 
   const proteinPerKg = PROTEIN_G_PER_KG[profile.goal];
   const proteinG = Math.round(proteinPerKg * profile.weightKg);
@@ -131,6 +145,8 @@ export function targets(profile: ProfileInput, options: TargetOptions = {}): Mac
         inputs: {
           bmr: basal.value,
           tdee: expenditure.value,
+          tdeeCorrection: correction,
+          adjustedTdee,
           requestedRate,
           rate,
           dailyDelta,
@@ -173,6 +189,20 @@ export function targets(profile: ProfileInput, options: TargetOptions = {}): Mac
         explanation: `${fiberG} g of fiber (14 g per 1,000 kcal) keeps digestion and satiety on your side.`,
       },
     },
+    tdeeCorrection:
+      correction === 0
+        ? null
+        : {
+            value: correction,
+            reasoning: {
+              rule: "adaptive_tdee_correction",
+              inputs: { mifflinTdee: expenditure.value, correction, adjustedTdee },
+              explanation:
+                correction < 0
+                  ? `Your logs and weight trend showed your daily burn runs about ${-correction} kcal below the standard estimate, so we use ${adjustedTdee} kcal instead of ${expenditure.value} kcal.`
+                  : `Your logs and weight trend showed your daily burn runs about ${correction} kcal above the standard estimate, so we use ${adjustedTdee} kcal instead of ${expenditure.value} kcal.`,
+            },
+          },
     flooredBySafety,
     minorMaintenanceApplied,
     rateCappedBySafety,

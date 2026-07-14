@@ -77,6 +77,7 @@ export interface Database {
           eating_window_end: number;
           training_days: string[];
           training_time: string | null;
+          tdee_correction: number | null;
           created_at: string;
         };
         Insert: {
@@ -99,6 +100,7 @@ export interface Database {
           eating_window_end?: number;
           training_days?: string[];
           training_time?: string | null;
+          tdee_correction?: number | null;
           created_at?: string;
         };
         Update: {
@@ -121,6 +123,7 @@ export interface Database {
           eating_window_end?: number;
           training_days?: string[];
           training_time?: string | null;
+          tdee_correction?: number | null;
           created_at?: string;
         };
         Relationships: [];
@@ -260,6 +263,66 @@ export interface Database {
           tweak?: string | null;
           finished_at?: string | null;
           created_at?: string;
+        };
+        Relationships: [];
+      };
+      weight_logs: {
+        Row: {
+          id: string;
+          user_id: string;
+          date: string;
+          weight_kg: number;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          user_id: string;
+          date: string;
+          weight_kg: number;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          user_id?: string;
+          date?: string;
+          weight_kg?: number;
+          created_at?: string;
+        };
+        Relationships: [];
+      };
+      target_adjustments: {
+        Row: {
+          id: string;
+          user_id: string;
+          status: "proposed" | "accepted" | "dismissed";
+          correction_delta: number;
+          new_correction: number;
+          window_stats: Json;
+          rationale: string;
+          created_at: string;
+          resolved_at: string | null;
+        };
+        Insert: {
+          id?: string;
+          user_id: string;
+          status?: "proposed" | "accepted" | "dismissed";
+          correction_delta: number;
+          new_correction: number;
+          window_stats?: Json;
+          rationale: string;
+          created_at?: string;
+          resolved_at?: string | null;
+        };
+        Update: {
+          id?: string;
+          user_id?: string;
+          status?: "proposed" | "accepted" | "dismissed";
+          correction_delta?: number;
+          new_correction?: number;
+          window_stats?: Json;
+          rationale?: string;
+          created_at?: string;
+          resolved_at?: string | null;
         };
         Relationships: [];
       };
