@@ -4,66 +4,111 @@ import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 
 import { createClient } from "@/lib/supabase/client";
+import type { MacroTotals } from "@/lib/log/remaining";
+import { remainingBudget, sumLogged } from "@/lib/log/remaining";
+import { shouldOfferRebalance } from "@/lib/log/rebalance";
+import type { MealLogSource } from "@/lib/supabase/types";
+import { MacroRings } from "./MacroRings";
+import { MealCard, type TodayMeal } from "./MealCard";
+import { LogSheet, type SearchMeal } from "./LogSheet";
+import { SummaryCard, type DaySummary } from "./SummaryCard";
 
-export interface TodayMeal {
-  slotIndex: number;
-  slot: string;
-  timeHour: number;
+export type { TodayMeal };
+
+export interface TodayLog {
+  id: string;
+  slot: string | null;
+  planSlotIndex: number | null;
   name: string;
   kcal: number;
   proteinG: number;
   carbsG: number;
   fatG: number;
-  why: string;
+  source: MealLogSource;
 }
 
 interface Props {
   hasPlan: boolean;
   daySummary: string;
   meals: TodayMeal[];
-  targets: { kcal: number; proteinG: number; carbsG: number; fatG: number };
+  targets: MacroTotals;
+  logs: TodayLog[];
+  summary: DaySummary | null;
+  searchMeals: SearchMeal[];
 }
 
-function timeLabel(timeHour: number): string {
-  const h = Math.floor(timeHour);
-  const m = Math.round((timeHour % 1) * 60);
-  const ampm = h >= 12 ? "pm" : "am";
-  const h12 = h % 12 === 0 ? 12 : h % 12;
-  return `${h12}:${String(m).padStart(2, "0")} ${ampm}`;
-}
-
-export function TodayView({ hasPlan, daySummary, meals, targets }: Props) {
+export function TodayView({ hasPlan, daySummary, meals, targets, logs, summary, searchMeals }: Props) {
   const router = useRouter();
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState("");
+  const [notice, setNotice] = useState("");
+  const [sheetOpen, setSheetOpen] = useState(false);
 
-  async function callPlanApi(init: RequestInit, busyKey: string) {
+  async function callApi(url: string, init: RequestInit, busyKey: string): Promise<boolean> {
     setBusy(busyKey);
     setError("");
     try {
-      const res = await fetch("/api/plan", init);
-      if (!res.ok) {
-        const body = (await res.json().catch(() => ({}))) as { error?: string };
-        setError(body.error ?? "Something went wrong.");
-      } else {
-        router.refresh();
+      const res = await fetch(url, init);
+      const data = (await res.json().catch(() => ({}))) as {
+        error?: string;
+        supportive?: { text: string };
+      };
+      if (data.supportive) {
+        setNotice(data.supportive.text);
       }
+      if (!res.ok) {
+        setError(data.error ?? "Something went wrong.");
+        return false;
+      }
+      router.refresh();
+      return true;
     } catch {
       setError("Network hiccup. Try again.");
+      return false;
     } finally {
       setBusy(null);
     }
   }
 
-  const generate = (regenerate: boolean) =>
-    callPlanApi(
-      {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ regenerate }),
-      },
-      "generate",
+  const post = (url: string, body: unknown, busyKey: string) =>
+    callApi(
+      url,
+      { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) },
+      busyKey,
     );
+
+  const generate = (regenerate: boolean) => post("/api/plan", { regenerate }, "generate");
+  const swap = (slotIndex: number) =>
+    callApi(
+      "/api/plan",
+      { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ slotIndex }) },
+      `swap-${slotIndex}`,
+    );
+
+  const logPlanned = (slotIndex: number) =>
+    post("/api/log", { source: "planned", slotIndex }, `log-${slotIndex}`);
+  const unlog = (logId: string) =>
+    callApi(
+      "/api/log",
+      { method: "DELETE", headers: { "content-type": "application/json" }, body: JSON.stringify({ logId }) },
+      "unlog",
+    );
+  const logDb = async (mealId: string, note: string) => {
+    if (await post("/api/log", { source: "db", mealId, note: note || undefined }, "log-db")) {
+      setSheetOpen(false);
+    }
+  };
+  const logEstimate = async (
+    fields: { name: string; kcal: number; proteinG: number; carbsG: number; fatG: number },
+    note: string,
+  ) => {
+    if (await post("/api/log", { source: "estimate", ...fields, note: note || undefined }, "log-estimate")) {
+      setSheetOpen(false);
+    }
+  };
+  const rebalance = () => post("/api/plan/rebalance", {}, "rebalance");
+  const finishDay = (energy: number | null, note: string) =>
+    post("/api/day/finish", { energy: energy ?? undefined, dayNote: note || undefined }, "finish");
 
   async function signOut() {
     setBusy("signout");
@@ -78,16 +123,6 @@ export function TodayView({ hasPlan, daySummary, meals, targets }: Props) {
     }
   }
 
-  const swap = (slotIndex: number) =>
-    callPlanApi(
-      {
-        method: "PATCH",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ slotIndex }),
-      },
-      `swap-${slotIndex}`,
-    );
-
   // No plan (new day, or onboarding's build failed): build it immediately
   // rather than asking the user to click a button. Ref guards double-fires
   // from re-renders; router.refresh() flips hasPlan when the plan lands.
@@ -100,12 +135,23 @@ export function TodayView({ hasPlan, daySummary, meals, targets }: Props) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [hasPlan]);
 
-  const planned = {
-    kcal: meals.reduce((a, m) => a + m.kcal, 0),
-    proteinG: meals.reduce((a, m) => a + m.proteinG, 0),
-    carbsG: meals.reduce((a, m) => a + m.carbsG, 0),
-    fatG: meals.reduce((a, m) => a + m.fatG, 0),
-  };
+  const planned: MacroTotals = sumLogged(meals);
+  const eaten: MacroTotals | null = logs.length > 0 ? sumLogged(logs) : null;
+
+  // Logged planned slots, matched by index so duplicate slot names stay distinct.
+  const loggedBySlotIndex = new Map(
+    logs.filter((l) => l.source === "planned" && l.planSlotIndex !== null).map((l) => [l.planSlotIndex, l.id]),
+  );
+
+  // Upcoming = unlogged planned meals whose time hasn't passed. Hours compare
+  // in UTC to match the server's todayISO convention.
+  const nowHour = new Date().getUTCHours() + new Date().getUTCMinutes() / 60;
+  const upcomingMeals = meals.filter(
+    (m) => !loggedBySlotIndex.has(m.slotIndex) && m.timeHour >= nowHour,
+  );
+  const offerRebalance =
+    eaten !== null &&
+    shouldOfferRebalance(remainingBudget(targets, eaten), sumLogged(upcomingMeals), upcomingMeals.length);
 
   return (
     <main className="mx-auto min-h-dvh max-w-md bg-[#f4f6f2] px-5 pb-24 pt-8">
@@ -140,6 +186,9 @@ export function TodayView({ hasPlan, daySummary, meals, targets }: Props) {
       </header>
 
       {error && <p className="mb-4 rounded-2xl bg-red-50 p-3 text-sm text-red-800">{error}</p>}
+      {notice && (
+        <p className="mb-4 rounded-2xl bg-[#e9efdd] p-4 text-sm leading-6 text-[#3c4a3e]">{notice}</p>
+      )}
 
       {!hasPlan ? (
         <div className="mt-16 text-center">
@@ -157,99 +206,99 @@ export function TodayView({ hasPlan, daySummary, meals, targets }: Props) {
         </div>
       ) : (
         <>
-          {/* Macro rings */}
-          <section className="mb-6 grid grid-cols-4 gap-2 rounded-3xl bg-white p-4 shadow-sm">
-            <MacroRing label="kcal" value={planned.kcal} target={targets.kcal} color="#2c3a2e" />
-            <MacroRing label="protein" value={planned.proteinG} target={targets.proteinG} color="#7a9a4e" unit="g" />
-            <MacroRing label="carbs" value={planned.carbsG} target={targets.carbsG} color="#c9a44c" unit="g" />
-            <MacroRing label="fat" value={planned.fatG} target={targets.fatG} color="#a4785c" unit="g" />
-          </section>
+          <MacroRings planned={planned} eaten={eaten} targets={targets} />
+
+          {offerRebalance && (
+            <button
+              onClick={rebalance}
+              disabled={busy !== null}
+              className="press mb-6 w-full rounded-2xl border border-[#8aa06f] bg-white px-4 py-3 text-sm text-[#2c3a2e] disabled:opacity-50"
+            >
+              {busy === "rebalance"
+                ? "Rebalancing..."
+                : "Your day shifted. Rebalance the remaining meals?"}
+            </button>
+          )}
 
           {daySummary && (
             <p className="mb-6 rounded-3xl bg-[#e9efdd] p-4 text-sm leading-6 text-[#3c4a3e]">{daySummary}</p>
           )}
 
-          {/* Timeline */}
           <section className="space-y-4">
             {meals.map((meal) => (
-              <article key={meal.slotIndex} className="relative rounded-3xl bg-white p-4 shadow-sm">
-                <div className="flex items-baseline justify-between">
-                  <span className="text-xs font-medium uppercase tracking-wide text-[#829084]">
-                    {meal.slot} · {timeLabel(meal.timeHour)}
-                  </span>
-                  <button
-                    onClick={() => swap(meal.slotIndex)}
-                    disabled={busy !== null}
-                    className="text-xs text-[#7a9a4e] underline-offset-2 hover:underline disabled:opacity-50"
-                  >
-                    {busy === `swap-${meal.slotIndex}` ? "Swapping..." : "Swap"}
-                  </button>
-                </div>
-                <h2 className="mt-1 font-medium text-[#2c3a2e]">{meal.name}</h2>
-                <div className="mt-2 flex gap-3 text-xs text-[#5d6b5f]">
-                  <span>{Math.round(meal.kcal)} kcal</span>
-                  <span>P {Math.round(meal.proteinG)}g</span>
-                  <span>C {Math.round(meal.carbsG)}g</span>
-                  <span>F {Math.round(meal.fatG)}g</span>
-                </div>
-                {meal.why && <p className="mt-2 text-sm leading-5 text-[#5d6b5f]">{meal.why}</p>}
-              </article>
+              <MealCard
+                key={meal.slotIndex}
+                meal={meal}
+                loggedId={loggedBySlotIndex.get(meal.slotIndex) ?? null}
+                busy={busy}
+                onConfirm={logPlanned}
+                onUndo={unlog}
+                onSwap={swap}
+              />
             ))}
           </section>
+
+          {logs.some((l) => l.source !== "planned") && (
+            <section className="mt-6 space-y-2">
+              <h2 className="text-xs font-medium uppercase tracking-wide text-[#829084]">Also logged</h2>
+              {logs
+                .filter((l) => l.source !== "planned")
+                .map((l) => (
+                  <div key={l.id} className="flex items-center justify-between rounded-2xl bg-white p-3 shadow-sm">
+                    <div>
+                      <p className="text-sm font-medium text-[#2c3a2e]">
+                        {l.name}
+                        {l.source === "estimate" && (
+                          <span className="ml-2 rounded-full bg-[#fdf3d7] px-2 py-0.5 text-[10px] text-[#7a6420]">estimate</span>
+                        )}
+                      </p>
+                      <p className="mt-0.5 text-xs text-[#5d6b5f]">
+                        {Math.round(l.kcal)} kcal · P {Math.round(l.proteinG)}g
+                      </p>
+                    </div>
+                    <button
+                      onClick={() => unlog(l.id)}
+                      disabled={busy !== null}
+                      className="text-xs text-[#829084] underline-offset-2 hover:underline disabled:opacity-50"
+                    >
+                      Undo
+                    </button>
+                  </div>
+                ))}
+            </section>
+          )}
+
+          <button
+            onClick={() => setSheetOpen(true)}
+            disabled={busy !== null}
+            className="press mt-6 w-full rounded-2xl border border-dashed border-[#8aa06f] bg-transparent px-4 py-3 text-sm text-[#2c3a2e] disabled:opacity-50"
+          >
+            + Log something else
+          </button>
+
+          <SummaryCard
+            logsCount={logs.length}
+            summary={summary}
+            planned={hasPlan ? planned : null}
+            actual={eaten ?? { kcal: 0, proteinG: 0, carbsG: 0, fatG: 0 }}
+            busy={busy}
+            onFinish={finishDay}
+          />
         </>
       )}
 
       <p className="mt-10 text-center text-xs leading-5 text-[#829084]">
         Demi offers general wellness guidance, not medical advice.
       </p>
+
+      <LogSheet
+        open={sheetOpen}
+        onClose={() => setSheetOpen(false)}
+        searchMeals={searchMeals}
+        busy={busy}
+        onLogDb={logDb}
+        onLogEstimate={logEstimate}
+      />
     </main>
-  );
-}
-
-function MacroRing({
-  label,
-  value,
-  target,
-  color,
-  unit = "",
-}: {
-  label: string;
-  value: number;
-  target: number;
-  color: string;
-  unit?: string;
-}) {
-  const pct = Math.min(1, target > 0 ? value / target : 0);
-  const r = 26;
-  const c = 2 * Math.PI * r;
-
-  // Rings draw in on first view: decorative, once per visit, so animation
-  // is allowed (emil-design-eng frequency rule). Starts empty, fills to pct.
-  const [drawn, setDrawn] = useState(false);
-  useEffect(() => {
-    const raf = requestAnimationFrame(() => setDrawn(true));
-    return () => cancelAnimationFrame(raf);
-  }, []);
-
-  return (
-    <div className="flex flex-col items-center">
-      <svg width="68" height="68" viewBox="0 0 68 68" role="img" aria-label={`${label}: ${Math.round(value)} of ${target}${unit}`}>
-        <circle cx="34" cy="34" r={r} fill="none" stroke="#eef1ea" strokeWidth="6" />
-        <circle
-          cx="34" cy="34" r={r} fill="none"
-          stroke={color} strokeWidth="6" strokeLinecap="round"
-          strokeDasharray={c}
-          strokeDashoffset={drawn ? c * (1 - pct) : c}
-          transform="rotate(-90 34 34)"
-          style={{ transition: "stroke-dashoffset 600ms var(--ease-out)" }}
-        />
-        <text x="34" y="38" textAnchor="middle" fontSize="13" fontWeight="600" fill="#2c3a2e">
-          {Math.round(value)}
-        </text>
-      </svg>
-      <span className="mt-1 text-[10px] text-[#829084]">
-        {label} / {target}{unit}
-      </span>
-    </div>
   );
 }
