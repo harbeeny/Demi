@@ -12,6 +12,10 @@ function meal(overrides: Partial<Meal> & { id: string; name: string }): Meal {
     fiber_g: 5,
     tags: [],
     source: "test",
+    ingredients: [],
+    instructions: [],
+    prep_min: 10,
+    cook_min: 10,
     ...overrides,
   };
 }

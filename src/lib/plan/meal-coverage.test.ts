@@ -42,6 +42,10 @@ function loadSeededMeals(): Meal[] {
           fiber_g: Number(fiber),
           tags: tags.split(","),
           source,
+          ingredients: [],
+          instructions: [],
+          prep_min: 0,
+          cook_min: 0,
         });
       }
     }
