@@ -29,13 +29,15 @@ interface Props {
   /** id of this slot's log row when the user has confirmed eating it */
   loggedId: string | null;
   busy: string | null;
+  /** section already names the slot and time, so the card header hides */
+  compact?: boolean;
   onConfirm: (slotIndex: number) => void;
   onUndo: (logId: string) => void;
   onSwap: (slotIndex: number) => void;
   onRecipe: (recipe: NonNullable<TodayMeal["recipe"]>) => void;
 }
 
-export function MealCard({ meal, loggedId, busy, onConfirm, onUndo, onSwap, onRecipe }: Props) {
+export function MealCard({ meal, loggedId, busy, compact = false, onConfirm, onUndo, onSwap, onRecipe }: Props) {
   const logged = loggedId !== null;
 
   return (
@@ -46,7 +48,7 @@ export function MealCard({ meal, loggedId, busy, onConfirm, onUndo, onSwap, onRe
     >
       <div className="flex items-baseline justify-between">
         <span className="text-xs font-medium uppercase tracking-wide text-[#829084]">
-          {meal.slot} · {timeLabel(meal.timeHour)}
+          {compact ? "Suggested" : `${meal.slot} · ${timeLabel(meal.timeHour)}`}
         </span>
         <span className="flex gap-3">
           {meal.recipe && meal.recipe.instructions.length > 0 && (

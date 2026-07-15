@@ -42,6 +42,8 @@ interface Props {
   busy: string | null;
   /** which mode the sheet opens in; tracker users default to the food search */
   defaultMode?: "fdc" | "search" | "quick";
+  /** meal section the sheet was opened from (section Add); null = unknown */
+  forcedSlot?: MealSlot | null;
   onLogDb: (
     mealId: string,
     note: string,
@@ -63,9 +65,10 @@ interface Props {
 }
 
 /** Bottom sheet for logging something that wasn't on the plan. */
-export function LogSheet({ open, onClose, searchMeals, busy, defaultMode = "fdc", onLogDb, onLogEstimate, onLogFdc }: Props) {
+export function LogSheet({ open, onClose, searchMeals, busy, defaultMode = "fdc", forcedSlot = null, onLogDb, onLogEstimate, onLogFdc }: Props) {
   const [mode, setMode] = useState<"fdc" | "search" | "quick">(defaultMode);
-  // Meal section for the Meals and Quick add forms, defaulting from the clock.
+  // Meal section for the Meals and Quick add forms: the opening section when
+  // known, else a clock-based default.
   const [slot, setSlot] = useState<MealSlot>(() =>
     suggestSlot(new Date().getHours(), new Date().getMinutes()),
   );
@@ -73,8 +76,11 @@ export function LogSheet({ open, onClose, searchMeals, busy, defaultMode = "fdc"
   // The sheet stays mounted while closed, so the initial state can capture a
   // stale default (day mode loads async). Re-sync on every open.
   useEffect(() => {
-    if (open) setMode(defaultMode);
-  }, [open, defaultMode]);
+    if (open) {
+      setMode(defaultMode);
+      setSlot(forcedSlot ?? suggestSlot(new Date().getHours(), new Date().getMinutes()));
+    }
+  }, [open, defaultMode, forcedSlot]);
   const [query, setQuery] = useState("");
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [note, setNote] = useState("");
@@ -232,6 +238,7 @@ export function LogSheet({ open, onClose, searchMeals, busy, defaultMode = "fdc"
             {mode === "fdc" && (
               <FoodSearch
                 busy={busy}
+                forcedSlot={forcedSlot}
                 onLog={onLogFdc}
                 onLogDb={onLogDb}
                 onLogEstimate={onLogEstimate}

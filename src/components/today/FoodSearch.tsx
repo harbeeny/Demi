@@ -147,6 +147,8 @@ export function VerifiedBadge() {
 
 interface Props {
   busy: string | null;
+  /** section the sheet was opened from; quick adds skip the slot picker */
+  forcedSlot?: MealSlot | null;
   onLog: (fields: FdcLogFields, note: string, opts?: { keepOpen?: boolean }) => Promise<boolean>;
   /** re-log a catalog/planned meal from recents */
   onLogDb: (
@@ -173,7 +175,7 @@ const input =
   "w-full rounded-2xl border border-[#dce3d7] bg-white px-3 py-2 text-sm text-[#2c3a2e] outline-none focus:border-[#8aa06f]";
 
 /** USDA FoodData Central search with portion-aware logging. */
-export function FoodSearch({ busy, onLog, onLogDb, onLogEstimate }: Props) {
+export function FoodSearch({ busy, forcedSlot = null, onLog, onLogDb, onLogEstimate }: Props) {
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<FdcFood[]>([]);
   const [searching, setSearching] = useState(false);
@@ -184,16 +186,22 @@ export function FoodSearch({ busy, onLog, onLogDb, onLogEstimate }: Props) {
   // Amount entry unit. Grams stay canonical internally; oz only changes what
   // the user types and reads, so macros and the server payload never drift.
   const [unit, setUnit] = useState<"g" | "oz">("g");
-  // Meal section for the detail form, defaulting from the clock.
-  const [slot, setSlot] = useState<MealSlot>(() =>
-    suggestSlot(new Date().getHours(), new Date().getMinutes()),
+  // Meal section for the detail form: the section the sheet was opened from,
+  // else a clock-based default. The component remounts per sheet open.
+  const [slot, setSlot] = useState<MealSlot>(
+    () => forcedSlot ?? suggestSlot(new Date().getHours(), new Date().getMinutes()),
   );
   // A quick add knows the food but not the section; this holds the log action
-  // while the slot picker asks where it goes.
+  // while the slot picker asks where it goes. With a forced slot there is
+  // nothing to ask and the action runs immediately.
   const [pendingAdd, setPendingAdd] = useState<{
     name: string;
     run: (slot: MealSlot) => void;
   } | null>(null);
+  const quickAdd = (name: string, run: (slot: MealSlot) => void) => {
+    if (forcedSlot) run(forcedSlot);
+    else setPendingAdd({ name, run });
+  };
   const [note, setNote] = useState("");
   const [recents, setRecents] = useState<RecentFood[]>([]);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -600,7 +608,7 @@ export function FoodSearch({ busy, onLog, onLogDb, onLogEstimate }: Props) {
               return (
                 <button
                   key={r.key}
-                  onClick={() => setPendingAdd({ name: r.name, run: (s) => void performRelog(r, s) })}
+                  onClick={() => quickAdd(r.name, (s) => void performRelog(r, s))}
                   disabled={busy !== null}
                   aria-label={confirmed ? `Logged ${r.name}` : `Quick add ${r.name}`}
                   className={`press flex w-full items-center gap-2 rounded-2xl border p-3 text-left transition-[background-color,border-color] duration-200 disabled:opacity-50 ${
@@ -681,21 +689,19 @@ export function FoodSearch({ busy, onLog, onLogDb, onLogEstimate }: Props) {
               </button>
               <button
                 onClick={() =>
-                  setPendingAdd({
-                    name: f.description,
-                    run: (s) =>
-                      void onLog(
-                        {
-                          fdcId: f.fdcId,
-                          name: f.description,
-                          grams: defaultGrams,
-                          verified: isVerifiedSource(f.dataType),
-                          slot: s,
-                          ...scaleMacros(f.per100g, defaultGrams),
-                        },
-                        "",
-                      ),
-                  })
+                  quickAdd(f.description, (s) =>
+                    void onLog(
+                      {
+                        fdcId: f.fdcId,
+                        name: f.description,
+                        grams: defaultGrams,
+                        verified: isVerifiedSource(f.dataType),
+                        slot: s,
+                        ...scaleMacros(f.per100g, defaultGrams),
+                      },
+                      "",
+                    ),
+                  )
                 }
                 disabled={busy !== null}
                 aria-label={`Quick add ${f.description}, ${portionLabel}`}
