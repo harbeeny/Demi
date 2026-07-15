@@ -7,6 +7,7 @@ import { distribute, targets } from "@/lib/nutrition";
 import { profileFromRow, prefsFromRow } from "@/lib/plan/generate";
 import type { MealPlanEntry, MealSlot } from "@/lib/supabase/types";
 import { preflight, withCors } from "@/lib/plan/cors";
+import { consumeQuota, quotaExceeded } from "@/lib/plan/quota";
 
 /** Generate (or regenerate) today's plan. */
 async function post(request: Request): Promise<Response> {
@@ -31,6 +32,19 @@ async function post(request: Request): Promise<Response> {
     .eq("user_id", user.id)
     .order("date", { ascending: false })
     .limit(2);
+
+  // Idempotency: today's plan already exists and this isn't an explicit
+  // regenerate, so return it without spending an LLM call. Without this a
+  // client could loop POST /api/plan and bill a fresh generation each time.
+  const todaysPlan = (recentPlans ?? []).find((p) => p.date === date);
+  if (todaysPlan && !body.regenerate) {
+    return NextResponse.json({ ok: true, unchanged: true });
+  }
+
+  // This path runs the paid personalize() generation; meter it per user.
+  if (!(await consumeQuota(supabase, "llm"))) {
+    return quotaExceeded("llm");
+  }
 
   const recentlyUsedIds = (recentPlans ?? []).flatMap((p) =>
     (p.meals as MealPlanEntry[]).map((m) => m.meal_id),

@@ -2,9 +2,16 @@ import { NextResponse } from "next/server";
 
 import { buildCoachReply } from "@/lib/trainer";
 import { containsDisorderedEatingSignal, SUPPORTIVE_RESPONSE } from "@/lib/ai/safety-filter";
+import { loadContext } from "@/lib/plan/context";
 import { preflight, withCors } from "@/lib/plan/cors";
 
 async function post(request: Request): Promise<Response> {
+  // Auth up front: the reply is a deterministic stub today, but this is where a
+  // model gets wired in (see below). Gating now keeps it from ever becoming an
+  // unauthenticated, unmetered LLM endpoint.
+  const ctx = await loadContext(request);
+  if ("error" in ctx) return ctx.error;
+
   const body = (await request.json()) as { message?: unknown };
   const message = typeof body.message === "string" ? body.message.trim() : "";
 
@@ -24,8 +31,11 @@ async function post(request: Request): Promise<Response> {
     return NextResponse.json(SUPPORTIVE_RESPONSE);
   }
 
-  // This stays deliberately provider-agnostic for the first milestone. When a
-  // model is connected, pass TRAINER_SYSTEM_PROMPT plus the conversation here.
+  // This stays deliberately provider-agnostic for the first milestone. The
+  // reply is a deterministic stub, so it does NOT consume the LLM quota. When a
+  // model is connected here (pass TRAINER_SYSTEM_PROMPT plus the conversation),
+  // meter it first so it can't be looped for free:
+  //   if (!(await consumeQuota(supabase, "llm"))) return quotaExceeded("llm");
   return NextResponse.json(buildCoachReply(message));
 }
 

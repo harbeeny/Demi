@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 
 import { loadContext } from "@/lib/plan/context";
 import { preflight, withCors } from "@/lib/plan/cors";
+import { consumeQuota, quotaExceeded } from "@/lib/plan/quota";
 import { normalizeSearchHit, rankResults, type RawSearchHit } from "@/lib/food/fdc";
 
 // USDA FoodData Central proxy. Auth required (loadContext) so the API key
@@ -42,6 +43,7 @@ function cacheSet(key: string, body: unknown) {
 async function get(request: Request): Promise<Response> {
   const ctx = await loadContext(request);
   if ("error" in ctx) return ctx.error;
+  const { supabase } = ctx;
 
   const apiKey = process.env.FDC_API_KEY;
   if (!apiKey) {
@@ -59,6 +61,12 @@ async function get(request: Request): Promise<Response> {
   const cacheKey = q.toLowerCase();
   const cached = cacheGet(cacheKey);
   if (cached) return NextResponse.json({ foods: cached, cached: true });
+
+  // Cache miss: this hits the shared 1,000 req/hr USDA key. Meter per user so
+  // one account cache-busting distinct queries can't drain the quota for all.
+  if (!(await consumeQuota(supabase, "fdc"))) {
+    return quotaExceeded("fdc");
+  }
 
   const params = new URLSearchParams({
     query: q,

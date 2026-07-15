@@ -23,6 +23,11 @@
 # misc
 .DS_Store
 *.pem
+# APNs signing keys and other private keys must never be committed
+*.p8
+*.key
+*.mobileprovision
+*.p12
 
 # debug
 npm-debug.log*
