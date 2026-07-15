@@ -42,6 +42,10 @@ function loadSeededMeals(): Meal[] {
           fiber_g: Number(fiber),
           tags: tags.split(","),
           source,
+          ingredients: [],
+          instructions: [],
+          prep_min: 0,
+          cook_min: 0,
         });
       }
     }
@@ -81,7 +85,7 @@ function targetsFor(mealsPerDay: number): SlotTarget[] {
 
 describe("seeded meal coverage", () => {
   test("seed migrations parse into the expected meal set", () => {
-    expect(meals.length).toBeGreaterThanOrEqual(53);
+    expect(meals.length).toBeGreaterThanOrEqual(63);
     // Spot-check the retag pass applied.
     const yogurt = meals.find((m) => m.name === "Greek yogurt with berries and honey");
     expect(yogurt?.tags).toContain("gluten_free");

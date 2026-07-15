@@ -9,6 +9,7 @@ import { targets } from "@/lib/nutrition";
 import { profileFromRow, prefsFromRow } from "@/lib/plan/rows";
 import { isEligible, type Meal } from "@/lib/plan/select-meals";
 import type { MealPlanEntry } from "@/lib/supabase/types";
+import type { Ingredient } from "@/lib/plan/grocery";
 import type { MacroTotals } from "@/lib/log/remaining";
 import type { TodayMeal, TodayLog } from "./TodayView";
 import type { DaySummary } from "./SummaryCard";
@@ -106,6 +107,17 @@ export function useTodayData(): { loading: boolean; data: TodayData | null; relo
             carbsG: Number(meal.carbs_g),
             fatG: Number(meal.fat_g),
             why: e.why ?? "",
+            recipe: {
+              name: meal.name,
+              servings: e.servings,
+              prepMin: Number(meal.prep_min),
+              cookMin: Number(meal.cook_min),
+              kcal: Number(meal.kcal),
+              proteinG: Number(meal.protein_g),
+              ingredients: (meal.ingredients as unknown as Ingredient[]) ?? [],
+              instructions: meal.instructions ?? [],
+              source: meal.source,
+            },
           },
         ];
       });

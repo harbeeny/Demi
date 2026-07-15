@@ -3,7 +3,7 @@ import "server-only";
 import type { Database, MealPlanEntry } from "@/lib/supabase/types";
 import { distribute, targets } from "@/lib/nutrition";
 import { selectMeals, type Meal, type SelectionPrefs } from "./select-meals";
-import { personalize, type PersonalizedPlan } from "@/lib/ai/personalize";
+import { deterministicFallback, personalize, type PersonalizedPlan } from "@/lib/ai/personalize";
 
 type OnboardingRow = Database["public"]["Tables"]["onboarding_answers"]["Row"];
 
@@ -34,17 +34,29 @@ export interface GeneratedPlan {
  * explanation. The LLM never chooses macros; it only explains what the
  * deterministic engine picked from the curated database.
  */
+export interface GenerateOptions {
+  /** hard cap on prep_min + cook_min for eligible meals */
+  maxPrepMin?: number;
+  /** false = deterministic copy only (used for far-future week days) */
+  personalizeWithLLM?: boolean;
+}
+
 export async function generatePlan(
   row: OnboardingRow,
   allMeals: Meal[],
   today: Date,
   recentlyUsedIds: string[] = [],
+  opts: GenerateOptions = {},
 ): Promise<GeneratedPlan> {
   const profile = profileFromRow(row);
   const dayTargets = targets(profile, { displayUnits: "us" });
   const slotTargets = distribute(dayTargets, profile, today);
-  const selected = selectMeals(allMeals, slotTargets, prefsFromRow(row), recentlyUsedIds);
-  const rationale = await personalize(selected, dayTargets, profile);
+  const prefs = { ...prefsFromRow(row), maxPrepMin: opts.maxPrepMin };
+  const selected = selectMeals(allMeals, slotTargets, prefs, recentlyUsedIds);
+  const rationale =
+    opts.personalizeWithLLM === false
+      ? deterministicFallback(selected, dayTargets)
+      : await personalize(selected, dayTargets, profile);
 
   const whyById = new Map(rationale.meals.map((m) => [m.mealId, m.why]));
 

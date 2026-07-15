@@ -14,7 +14,14 @@ async function post(request: Request): Promise<Response> {
   if ("error" in ctx) return ctx.error;
   const { supabase, user, onboarding, meals } = ctx;
 
-  const body = (await request.json().catch(() => ({}))) as { regenerate?: boolean };
+  const body = (await request.json().catch(() => ({}))) as {
+    regenerate?: boolean;
+    maxPrepMin?: number;
+  };
+  const maxPrepMin =
+    Number.isFinite(body.maxPrepMin) && Number(body.maxPrepMin) > 0
+      ? Number(body.maxPrepMin)
+      : undefined;
   const date = todayISO();
 
   // Variety: avoid repeating yesterday's meals, and on regenerate, today's current picks.
@@ -29,7 +36,7 @@ async function post(request: Request): Promise<Response> {
     (p.meals as MealPlanEntry[]).map((m) => m.meal_id),
   );
 
-  const plan = await generatePlan(onboarding, meals, new Date(), recentlyUsedIds);
+  const plan = await generatePlan(onboarding, meals, new Date(), recentlyUsedIds, { maxPrepMin });
 
   const entries: MealPlanEntry[] = plan.slots.map((s) => ({
     meal_id: s.mealId,

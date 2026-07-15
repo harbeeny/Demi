@@ -166,6 +166,10 @@ export interface Database {
           fiber_g: number;
           tags: string[];
           source: string;
+          ingredients: Json;
+          instructions: string[];
+          prep_min: number;
+          cook_min: number;
         };
         Insert: {
           id?: string;
@@ -177,6 +181,10 @@ export interface Database {
           fiber_g: number;
           tags?: string[];
           source: string;
+          ingredients?: Json;
+          instructions?: string[];
+          prep_min?: number;
+          cook_min?: number;
         };
         Update: {
           id?: string;
@@ -188,6 +196,10 @@ export interface Database {
           fiber_g?: number;
           tags?: string[];
           source?: string;
+          ingredients?: Json;
+          instructions?: string[];
+          prep_min?: number;
+          cook_min?: number;
         };
         Relationships: [];
       };

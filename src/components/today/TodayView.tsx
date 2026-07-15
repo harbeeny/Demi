@@ -11,6 +11,7 @@ import { MacroRings } from "./MacroRings";
 import { MealCard, type TodayMeal } from "./MealCard";
 import { LogSheet, type SearchMeal } from "./LogSheet";
 import { SummaryCard, type DaySummary } from "./SummaryCard";
+import { RecipeSheet, type RecipeData } from "@/components/kitchen/RecipeSheet";
 
 export type { TodayMeal };
 
@@ -43,6 +44,7 @@ export function TodayView({ hasPlan, daySummary, meals, targets, logs, summary, 
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [sheetOpen, setSheetOpen] = useState(false);
+  const [recipe, setRecipe] = useState<RecipeData | null>(null);
 
   async function callApi(url: string, init: RequestInit, busyKey: string): Promise<boolean> {
     setBusy(busyKey);
@@ -212,6 +214,7 @@ export function TodayView({ hasPlan, daySummary, meals, targets, logs, summary, 
                 onConfirm={logPlanned}
                 onUndo={unlog}
                 onSwap={swap}
+                onRecipe={setRecipe}
               />
             ))}
           </section>
@@ -268,6 +271,8 @@ export function TodayView({ hasPlan, daySummary, meals, targets, logs, summary, 
       <p className="mt-10 text-center text-xs leading-5 text-[#829084]">
         Demi offers general wellness guidance, not medical advice.
       </p>
+
+      <RecipeSheet recipe={recipe} onClose={() => setRecipe(null)} />
 
       <LogSheet
         open={sheetOpen}

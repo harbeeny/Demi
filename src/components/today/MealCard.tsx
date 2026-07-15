@@ -1,5 +1,7 @@
 "use client";
 
+import type { RecipeData } from "@/components/kitchen/RecipeSheet";
+
 export interface TodayMeal {
   slotIndex: number;
   slot: string;
@@ -10,6 +12,8 @@ export interface TodayMeal {
   carbsG: number;
   fatG: number;
   why: string;
+  /** present once the meal has recipe content */
+  recipe?: RecipeData;
 }
 
 export function timeLabel(timeHour: number): string {
@@ -28,9 +32,10 @@ interface Props {
   onConfirm: (slotIndex: number) => void;
   onUndo: (logId: string) => void;
   onSwap: (slotIndex: number) => void;
+  onRecipe: (recipe: NonNullable<TodayMeal["recipe"]>) => void;
 }
 
-export function MealCard({ meal, loggedId, busy, onConfirm, onUndo, onSwap }: Props) {
+export function MealCard({ meal, loggedId, busy, onConfirm, onUndo, onSwap, onRecipe }: Props) {
   const logged = loggedId !== null;
 
   return (
@@ -43,15 +48,26 @@ export function MealCard({ meal, loggedId, busy, onConfirm, onUndo, onSwap }: Pr
         <span className="text-xs font-medium uppercase tracking-wide text-[#829084]">
           {meal.slot} · {timeLabel(meal.timeHour)}
         </span>
-        {!logged && (
-          <button
-            onClick={() => onSwap(meal.slotIndex)}
-            disabled={busy !== null}
-            className="text-xs text-[#7a9a4e] underline-offset-2 hover:underline disabled:opacity-50"
-          >
-            {busy === `swap-${meal.slotIndex}` ? "Swapping..." : "Swap"}
-          </button>
-        )}
+        <span className="flex gap-3">
+          {meal.recipe && meal.recipe.instructions.length > 0 && (
+            <button
+              onClick={() => onRecipe(meal.recipe!)}
+              disabled={busy !== null}
+              className="text-xs text-[#7a9a4e] underline-offset-2 hover:underline disabled:opacity-50"
+            >
+              Recipe
+            </button>
+          )}
+          {!logged && (
+            <button
+              onClick={() => onSwap(meal.slotIndex)}
+              disabled={busy !== null}
+              className="text-xs text-[#7a9a4e] underline-offset-2 hover:underline disabled:opacity-50"
+            >
+              {busy === `swap-${meal.slotIndex}` ? "Swapping..." : "Swap"}
+            </button>
+          )}
+        </span>
       </div>
       <h2 className="mt-1 font-medium text-[#2c3a2e]">
         {logged && <span aria-hidden className="mr-1 text-[#7a9a4e]">✓</span>}
