@@ -35,6 +35,21 @@ body {
   box-sizing: border-box;
 }
 
+/*
+ * iOS zooms the whole viewport when a focused field's font is under 16px
+ * (e.g. the log sheet's auto-focused search input). Keep every text-entry
+ * control at 16px on touch devices so focusing a field never triggers that
+ * jump. The :not() selectors out-specify Tailwind's text-sm on the same
+ * element; desktop keeps its smaller inputs (fine pointer, no zoom there).
+ */
+@media (pointer: coarse) {
+  input:not([type="checkbox"]):not([type="radio"]),
+  textarea:not([hidden]),
+  select:not([hidden]) {
+    font-size: 16px;
+  }
+}
+
 ::selection {
   background: #cce5c9;
   color: #16201a;
