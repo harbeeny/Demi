@@ -1,5 +1,7 @@
 "use client";
 
+import { localDateISO } from "@/lib/dates";
+
 interface Props {
   days: Array<{ date: string; planned: boolean }>;
   selectedDate: string;
@@ -8,7 +10,7 @@ interface Props {
 
 /** Seven day pills; lime dot = planned, ring = today, tap selects. */
 export function WeekStrip({ days, selectedDate, onSelect }: Props) {
-  const today = new Date().toISOString().slice(0, 10);
+  const today = localDateISO();
 
   return (
     <div className="flex justify-between gap-1">

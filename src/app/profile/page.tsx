@@ -8,6 +8,7 @@ import { apiFetch } from "@/lib/api";
 import { targets } from "@/lib/nutrition";
 import { profileFromRow, type OnboardingRow } from "@/lib/plan/rows";
 import { cmToFtIn, formatFtIn, inchesToCm, kgToLbs, lbsToKg } from "@/lib/units";
+import { localDateISO } from "@/lib/dates";
 import type { ActivityLevel, Budget, CookingSkill, Goal } from "@/lib/supabase/types";
 import { TabBar } from "@/components/TabBar";
 
@@ -153,7 +154,7 @@ export default function ProfilePage() {
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = `demi-export-${new Date().toISOString().slice(0, 10)}.json`;
+      a.download = `demi-export-${localDateISO()}.json`;
       document.body.appendChild(a);
       a.click();
       a.remove();

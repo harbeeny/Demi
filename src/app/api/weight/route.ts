@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 
-import { loadContext, todayISO } from "@/lib/plan/context";
+import { loadContext } from "@/lib/plan/context";
 import { preflight, withCors } from "@/lib/plan/cors";
 
 /** Record a weight check-in (kg; the UI converts from lbs). Upsert per day. */
@@ -21,7 +21,7 @@ async function post(request: Request): Promise<Response> {
   const date =
     typeof body.date === "string" && /^\d{4}-\d{2}-\d{2}$/.test(body.date)
       ? body.date
-      : todayISO();
+      : ctx.today;
 
   const { error } = await supabase.from("weight_logs").upsert(
     { user_id: user.id, date, weight_kg: Math.round(weightKg * 10) / 10 },

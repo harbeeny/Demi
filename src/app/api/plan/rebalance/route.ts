@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 
-import { loadContext, todayISO } from "@/lib/plan/context";
+import { loadContext } from "@/lib/plan/context";
+import { localHour } from "@/lib/dates";
 import { profileFromRow, prefsFromRow } from "@/lib/plan/generate";
 import { scoreMeal, isEligible } from "@/lib/plan/select-meals";
 import { distribute, targets } from "@/lib/nutrition";
@@ -13,9 +14,9 @@ import { preflight, withCors } from "@/lib/plan/cors";
 async function post(request: Request): Promise<Response> {
   const ctx = await loadContext(request);
   if ("error" in ctx) return ctx.error;
-  const { supabase, user, onboarding, meals } = ctx;
+  const { supabase, user, onboarding, meals, today, timezone } = ctx;
 
-  const date = todayISO();
+  const date = today;
   const { data: planRow } = await supabase
     .from("meal_plans")
     .select("id, meals")
@@ -54,13 +55,12 @@ async function post(request: Request): Promise<Response> {
   );
 
   // Upcoming and unlogged: no planned log for the slot index, and the slot's
-  // time has not passed. Hours compare in UTC, the same convention todayISO
-  // uses for "today"; known debt near midnight local time.
+  // time has not passed, in the user's own timezone.
   const entries = planRow.meals as MealPlanEntry[];
   const loggedIndexes = new Set(
     (logs ?? []).filter((l) => l.source === "planned").map((l) => l.plan_slot_index),
   );
-  const nowHour = new Date().getUTCHours() + new Date().getUTCMinutes() / 60;
+  const nowHour = localHour(timezone ?? "UTC");
   const slotTargets = distribute(dayTargets, profile, new Date());
 
   const upcoming = entries

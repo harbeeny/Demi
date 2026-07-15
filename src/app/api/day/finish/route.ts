@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 
-import { loadContext, todayISO } from "@/lib/plan/context";
+import { loadContext } from "@/lib/plan/context";
 import { profileFromRow } from "@/lib/plan/generate";
 import { targets } from "@/lib/nutrition";
 import { reflect } from "@/lib/ai/reflect";
@@ -32,7 +32,7 @@ async function post(request: Request): Promise<Response> {
     return NextResponse.json({ supportive: SUPPORTIVE_RESPONSE });
   }
 
-  const date = todayISO();
+  const date = ctx.today;
   const { data: logs } = await supabase
     .from("meal_logs")
     .select("name, slot, kcal, protein_g, carbs_g, fat_g")

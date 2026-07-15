@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { generatePlan } from "@/lib/plan/generate";
-import { loadContext, todayISO } from "@/lib/plan/context";
+import { loadContext } from "@/lib/plan/context";
 import { scoreMeal, isEligible } from "@/lib/plan/select-meals";
 import { distribute, targets } from "@/lib/nutrition";
 import { profileFromRow, prefsFromRow } from "@/lib/plan/generate";
@@ -13,7 +13,7 @@ import { consumeQuota, quotaExceeded } from "@/lib/plan/quota";
 async function post(request: Request): Promise<Response> {
   const ctx = await loadContext(request);
   if ("error" in ctx) return ctx.error;
-  const { supabase, user, onboarding, meals } = ctx;
+  const { supabase, user, onboarding, meals, today } = ctx;
 
   const body = (await request.json().catch(() => ({}))) as {
     regenerate?: boolean;
@@ -23,7 +23,7 @@ async function post(request: Request): Promise<Response> {
     Number.isFinite(body.maxPrepMin) && Number(body.maxPrepMin) > 0
       ? Number(body.maxPrepMin)
       : undefined;
-  const date = todayISO();
+  const date = today;
 
   // Variety: avoid repeating yesterday's meals, and on regenerate, today's current picks.
   const { data: recentPlans } = await supabase
@@ -94,14 +94,14 @@ async function post(request: Request): Promise<Response> {
 async function patch(request: Request): Promise<Response> {
   const ctx = await loadContext(request);
   if ("error" in ctx) return ctx.error;
-  const { supabase, user, onboarding, meals } = ctx;
+  const { supabase, user, onboarding, meals, today } = ctx;
 
   const body = (await request.json().catch(() => ({}))) as { slotIndex?: number };
   if (typeof body.slotIndex !== "number") {
     return NextResponse.json({ error: "slotIndex is required." }, { status: 400 });
   }
 
-  const date = todayISO();
+  const date = today;
   const { data: planRow } = await supabase
     .from("meal_plans")
     .select("id, meals")

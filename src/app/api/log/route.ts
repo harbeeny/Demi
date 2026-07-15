@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 
-import { loadContext, todayISO } from "@/lib/plan/context";
+import { loadContext } from "@/lib/plan/context";
 import { syncDailyRollup } from "@/lib/log/persist";
 import { validateEstimate } from "@/lib/ai/estimate";
 import { containsDisorderedEatingSignal, SUPPORTIVE_RESPONSE } from "@/lib/ai/safety-filter";
@@ -41,7 +41,7 @@ type LogBody =
 async function post(request: Request): Promise<Response> {
   const ctx = await loadContext(request);
   if ("error" in ctx) return ctx.error;
-  const { supabase, user } = ctx;
+  const { supabase, user, today } = ctx;
 
   const body = (await request.json().catch(() => null)) as LogBody | null;
   if (!body || !["planned", "db", "estimate", "fdc"].includes(body.source)) {
@@ -57,7 +57,7 @@ async function post(request: Request): Promise<Response> {
     note = null;
   }
 
-  const date = todayISO();
+  const date = today;
   let insert: {
     slot: MealSlot | null;
     plan_slot_index: number | null;
@@ -213,7 +213,7 @@ async function del(request: Request): Promise<Response> {
     return NextResponse.json({ error: "Couldn't remove the log." }, { status: 500 });
   }
 
-  const { error: rollupError } = await syncDailyRollup(supabase, user.id, todayISO());
+  const { error: rollupError } = await syncDailyRollup(supabase, user.id, ctx.today);
   if (rollupError) {
     return NextResponse.json({ error: rollupError }, { status: 500 });
   }

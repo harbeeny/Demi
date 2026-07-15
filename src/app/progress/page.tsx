@@ -8,6 +8,7 @@ import { apiFetch } from "@/lib/api";
 import { targets } from "@/lib/nutrition";
 import { profileFromRow } from "@/lib/plan/rows";
 import { kgToLbs, lbsToKg } from "@/lib/units";
+import { localDateISO } from "@/lib/dates";
 import { WheelPicker } from "@/components/onboarding/WheelPicker";
 import { TabBar } from "@/components/TabBar";
 import { WeightChart } from "@/components/progress/WeightChart";
@@ -57,7 +58,7 @@ export default function ProgressPage() {
       return;
     }
 
-    const since = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+    const since = localDateISO(null, new Date(Date.now() - 30 * 24 * 60 * 60 * 1000));
     const [{ data: logDays }, weightRes, adjustRes] = await Promise.all([
       supabase
         .from("daily_logs")
@@ -78,7 +79,7 @@ export default function ProgressPage() {
     setTargetKcal(targets(profileFromRow(onboarding), { displayUnits: "us" }).kcal.value);
     if (adjustRes.ok && adjustData) setAdjust(adjustData);
 
-    const today = new Date().toISOString().slice(0, 10);
+    const today = localDateISO();
     const latest = rows[rows.length - 1];
     setSavedToday(latest?.date === today);
     setWheelLbs(

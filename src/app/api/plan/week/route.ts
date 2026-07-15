@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 
-import { loadContext, todayISO } from "@/lib/plan/context";
+import { loadContext } from "@/lib/plan/context";
 import { preflight, withCors } from "@/lib/plan/cors";
 import { generatePlan } from "@/lib/plan/generate";
 import { prefsFromRow } from "@/lib/plan/rows";
@@ -35,7 +35,7 @@ async function post(request: Request): Promise<Response> {
     }
   }
 
-  const dates = weekDates(todayISO());
+  const dates = weekDates(ctx.today);
   const { data: existing } = await supabase
     .from("meal_plans")
     .select("date, meals")

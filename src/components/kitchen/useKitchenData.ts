@@ -7,6 +7,7 @@ import { createClient } from "@/lib/supabase/client";
 import { weekDates } from "@/lib/plan/week";
 import type { Ingredient } from "@/lib/plan/grocery";
 import type { Budget, MealPlanEntry, MealSlot } from "@/lib/supabase/types";
+import { localDateISO } from "@/lib/dates";
 
 export interface KitchenMeal {
   mealId: string;
@@ -65,7 +66,7 @@ export function useKitchenData(): {
       return;
     }
 
-    const dates = weekDates(new Date().toISOString().slice(0, 10));
+    const dates = weekDates(localDateISO());
     const [{ data: planRows }, { data: mealRows }] = await Promise.all([
       supabase
         .from("meal_plans")

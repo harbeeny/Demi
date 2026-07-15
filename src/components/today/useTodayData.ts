@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 
 import { createClient } from "@/lib/supabase/client";
 import { registerPush } from "@/lib/push";
+import { deviceTimeZone, localDateISO } from "@/lib/dates";
 import { targets } from "@/lib/nutrition";
 import { profileFromRow, prefsFromRow } from "@/lib/plan/rows";
 import { isEligible, type Meal } from "@/lib/plan/select-meals";
@@ -61,7 +62,20 @@ export function useTodayData(): { loading: boolean; data: TodayData | null; relo
     // Signed-in and onboarded: this is the moment to ask for push (native only).
     void registerPush();
 
-    const today = new Date().toISOString().slice(0, 10);
+    // The app's day follows the device clock; keep the profile's timezone
+    // fresh so the server (routes, meal reminders) resolves the same day.
+    const tz = deviceTimeZone();
+    if (tz) {
+      // or-filter because a NULL timezone would never match a plain neq
+      void supabase
+        .from("profiles")
+        .update({ timezone: tz })
+        .eq("id", user.id)
+        .or(`timezone.neq.${tz},timezone.is.null`)
+        .then(() => undefined);
+    }
+
+    const today = localDateISO();
     const [{ data: planRow }, { data: logRows }, { data: dailyLog }, { data: allMeals }] =
       await Promise.all([
         supabase
