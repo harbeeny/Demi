@@ -39,6 +39,7 @@ export function FoodSearch({ busy, onLog }: Props) {
   const [results, setResults] = useState<FdcFood[]>([]);
   const [searching, setSearching] = useState(false);
   const [message, setMessage] = useState("");
+  const [correctedTo, setCorrectedTo] = useState<string | null>(null);
   const [selected, setSelected] = useState<FdcFood | null>(null);
   const [grams, setGrams] = useState(100);
   const [note, setNote] = useState("");
@@ -109,6 +110,7 @@ export function FoodSearch({ busy, onLog }: Props) {
       setResults([]);
       setSearching(false);
       setMessage("");
+      setCorrectedTo(null);
       return;
     }
     setSearching(true);
@@ -117,15 +119,18 @@ export function FoodSearch({ busy, onLog }: Props) {
         const res = await apiFetch(`/api/food/search?q=${encodeURIComponent(q)}`);
         const data = (await res.json().catch(() => ({}))) as {
           foods?: FdcFood[];
+          correctedTo?: string | null;
           error?: string;
         };
         if (id !== searchSeq.current) return; // a newer query owns the UI
         if (!res.ok) {
           setMessage(data.error ?? "Search failed. Try again.");
           setResults([]);
+          setCorrectedTo(null);
         } else {
           setMessage(data.foods?.length ? "" : "No matches. Try different words.");
           setResults(data.foods ?? []);
+          setCorrectedTo(data.foods?.length ? (data.correctedTo ?? null) : null);
         }
       } catch {
         if (id !== searchSeq.current) return;
@@ -248,6 +253,11 @@ export function FoodSearch({ busy, onLog }: Props) {
       </div>
       {searching && <p className="mt-2 text-xs text-[#829084]">Searching...</p>}
       {message && !searching && <p className="mt-2 text-sm text-[#829084]">{message}</p>}
+      {correctedTo && !searching && results.length > 0 && (
+        <p className="mt-2 text-xs text-[#829084]">
+          Showing results for &quot;{correctedTo}&quot;
+        </p>
+      )}
 
       {results.length === 0 && query.trim().length < 2 && recents.length > 0 && (
         <div className="mt-3">
