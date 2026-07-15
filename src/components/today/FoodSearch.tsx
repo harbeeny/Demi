@@ -26,7 +26,11 @@ export interface FdcLogFields {
 }
 
 interface RecentFood {
-  fdcId: number;
+  /** dedupe identity: fdc id, meal id, or the name itself */
+  key: string;
+  source: "fdc" | "db" | "planned" | "estimate";
+  fdcId: number | null;
+  mealId: string | null;
   name: string;
   kcal: number;
   proteinG: number;
@@ -64,13 +68,20 @@ export function VerifiedBadge() {
 interface Props {
   busy: string | null;
   onLog: (fields: FdcLogFields, note: string) => void;
+  /** re-log a catalog/planned meal from recents */
+  onLogDb: (mealId: string, note: string) => void;
+  /** re-log a quick-add estimate from recents */
+  onLogEstimate: (
+    fields: { name: string; kcal: number; proteinG: number; carbsG: number; fatG: number },
+    note: string,
+  ) => void;
 }
 
 const input =
   "w-full rounded-2xl border border-[#dce3d7] bg-white px-3 py-2 text-sm text-[#2c3a2e] outline-none focus:border-[#8aa06f]";
 
 /** USDA FoodData Central search with portion-aware logging. */
-export function FoodSearch({ busy, onLog }: Props) {
+export function FoodSearch({ busy, onLog, onLogDb, onLogEstimate }: Props) {
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<FdcFood[]>([]);
   const [searching, setSearching] = useState(false);
@@ -145,29 +156,41 @@ export function FoodSearch({ busy, onLog }: Props) {
     }
   };
 
-  // Recent FDC foods for one-tap re-logging (macros were snapshotted at log
-  // time, so re-logging costs zero API calls).
+  // Recently logged foods across every source (planned meals, catalog picks,
+  // quick-add estimates, searched foods) for one-tap re-logging. Macros were
+  // snapshotted at log time, so re-logging costs zero API calls. getSession
+  // reads locally; getUser would add a network roundtrip that can silently
+  // fail on a flaky mobile connection and leave the list empty.
   useEffect(() => {
     (async () => {
       const supabase = createClient();
       const {
-        data: { user },
-      } = await supabase.auth.getUser();
-      if (!user) return;
+        data: { session },
+      } = await supabase.auth.getSession();
+      const userId = session?.user?.id;
+      if (!userId) return;
       const { data } = await supabase
         .from("meal_logs")
-        .select("fdc_id, name, kcal, protein_g, carbs_g, fat_g, verified")
-        .eq("user_id", user.id)
-        .eq("source", "fdc")
+        .select("source, fdc_id, meal_id, name, kcal, protein_g, carbs_g, fat_g, verified")
+        .eq("user_id", userId)
         .order("logged_at", { ascending: false })
-        .limit(30);
-      const seen = new Set<number>();
+        .limit(40);
+      const seen = new Set<string>();
       const distinct: RecentFood[] = [];
       for (const row of data ?? []) {
-        if (row.fdc_id === null || seen.has(row.fdc_id)) continue;
-        seen.add(row.fdc_id);
+        const key =
+          row.source === "fdc" && row.fdc_id !== null
+            ? `f${row.fdc_id}`
+            : row.meal_id
+              ? `m${row.meal_id}`
+              : `n${row.name.toLowerCase()}`;
+        if (seen.has(key)) continue;
+        seen.add(key);
         distinct.push({
+          key,
+          source: row.source as RecentFood["source"],
           fdcId: row.fdc_id,
+          mealId: row.meal_id,
           name: row.name,
           kcal: Number(row.kcal),
           proteinG: Number(row.protein_g),
@@ -180,6 +203,33 @@ export function FoodSearch({ busy, onLog }: Props) {
       setRecents(distinct);
     })();
   }, []);
+
+  // Route a recent food back through the matching log path with its
+  // snapshotted macros; planned meals re-log as catalog picks.
+  const relogRecent = (r: RecentFood) => {
+    if (r.source === "fdc" && r.fdcId !== null) {
+      onLog(
+        {
+          fdcId: r.fdcId,
+          name: r.name.replace(/ \(\d+ g\)$/, ""),
+          grams: Number(r.name.match(/\((\d+) g\)$/)?.[1] ?? 0) || 100,
+          kcal: r.kcal,
+          proteinG: r.proteinG,
+          carbsG: r.carbsG,
+          fatG: r.fatG,
+          verified: r.verified,
+        },
+        "",
+      );
+    } else if (r.mealId) {
+      onLogDb(r.mealId, "");
+    } else {
+      onLogEstimate(
+        { name: r.name, kcal: r.kcal, proteinG: r.proteinG, carbsG: r.carbsG, fatG: r.fatG },
+        "",
+      );
+    }
+  };
 
   useEffect(() => {
     if (debounceRef.current) clearTimeout(debounceRef.current);
@@ -411,32 +461,41 @@ export function FoodSearch({ busy, onLog }: Props) {
           <div className="space-y-2">
             {recents.map((r) => (
               <button
-                key={r.fdcId}
-                onClick={() =>
-                  onLog(
-                    {
-                      fdcId: r.fdcId,
-                      // name already carries its portion suffix from the log
-                      name: r.name.replace(/ \(\d+ g\)$/, ""),
-                      grams: Number(r.name.match(/\((\d+) g\)$/)?.[1] ?? 0) || 100,
-                      kcal: r.kcal,
-                      proteinG: r.proteinG,
-                      carbsG: r.carbsG,
-                      fatG: r.fatG,
-                      verified: r.verified,
-                    },
-                    "",
-                  )
-                }
+                key={r.key}
+                onClick={() => relogRecent(r)}
                 disabled={busy !== null}
-                className="press w-full rounded-2xl border border-[#dce3d7] bg-white p-3 text-left disabled:opacity-50"
+                aria-label={`Quick add ${r.name}`}
+                className="press flex w-full items-center gap-2 rounded-2xl border border-[#dce3d7] bg-white p-3 text-left hover:border-[#8aa06f] disabled:opacity-50"
               >
-                <span className="flex items-center gap-1.5 text-sm font-medium text-[#2c3a2e]">
-                  <span className="truncate">{r.name}</span>
-                  {r.verified && <VerifiedBadge />}
+                <span className="min-w-0 flex-1">
+                  <span className="flex items-center gap-1.5 text-sm font-medium text-[#2c3a2e]">
+                    <span className="truncate">{r.name}</span>
+                    {r.verified && <VerifiedBadge />}
+                    {r.source === "estimate" && (
+                      <span className="shrink-0 rounded-full bg-[#fdf3d7] px-2 py-0.5 text-[10px] text-[#7a6420]">
+                        estimate
+                      </span>
+                    )}
+                  </span>
+                  <span className="mt-0.5 block text-xs text-[#5d6b5f]">
+                    {Math.round(r.kcal)} kcal · P {Math.round(r.proteinG)}g
+                  </span>
                 </span>
-                <span className="mt-0.5 block text-xs text-[#5d6b5f]">
-                  {Math.round(r.kcal)} kcal · P {Math.round(r.proteinG)}g · log again
+                <span
+                  aria-hidden="true"
+                  className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-[#dce3d7] text-[#2c3a2e]"
+                >
+                  <svg
+                    width="16"
+                    height="16"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2.25"
+                    strokeLinecap="round"
+                  >
+                    <path d="M12 5v14M5 12h14" />
+                  </svg>
                 </span>
               </button>
             ))}

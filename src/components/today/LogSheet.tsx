@@ -207,7 +207,14 @@ export function LogSheet({ open, onClose, searchMeals, busy, defaultMode = "fdc"
               ))}
             </div>
 
-            {mode === "fdc" && <FoodSearch busy={busy} onLog={onLogFdc} />}
+            {mode === "fdc" && (
+              <FoodSearch
+                busy={busy}
+                onLog={onLogFdc}
+                onLogDb={onLogDb}
+                onLogEstimate={onLogEstimate}
+              />
+            )}
 
             {mode === "fdc" ? null : mode === "search" ? (
               <div>
