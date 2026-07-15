@@ -3,7 +3,14 @@ import { NextResponse } from "next/server";
 import { loadContext } from "@/lib/plan/context";
 import { preflight, withCors } from "@/lib/plan/cors";
 import { consumeQuota, quotaExceeded } from "@/lib/plan/quota";
-import { normalizeSearchHit, rankResults, type FdcFood, type RawSearchHit } from "@/lib/food/fdc";
+import {
+  isBarcodeQuery,
+  matchesBarcode,
+  normalizeSearchHit,
+  rankResults,
+  type FdcFood,
+  type RawSearchHit,
+} from "@/lib/food/fdc";
 import { correctQuery, fallbackQueries } from "@/lib/food/spell";
 
 // USDA FoodData Central proxy. Auth required (loadContext) so the API key
@@ -80,10 +87,20 @@ async function get(request: Request): Promise<Response> {
     );
   }
 
-  // Zero results (or a still-failing original): try the smart variants, a
-  // plural flip then dictionary spell correction, and say what we searched.
   let foods: FdcFood[] = attempt.ok ? attempt.foods : [];
   let correctedTo: string | null = null;
+
+  // A scanned barcode: FDC full-text matches the digits, but only an exact
+  // UPC/EAN match identifies THE product. When one exists, show it alone;
+  // otherwise leave the loose matches as a fallback. Spell/plural rescue is
+  // meaningless for digits, so the smart-search paths below no-op by design.
+  if (isBarcodeQuery(q)) {
+    const exact = foods.filter((f) => matchesBarcode(f.gtinUpc, q));
+    if (exact.length > 0) foods = exact;
+  }
+
+  // Zero results (or a still-failing original): try the smart variants, a
+  // plural flip then dictionary spell correction, and say what we searched.
   if (foods.length === 0) {
     for (const variant of fallbackQueries(q)) {
       const rescue = await fdcSearch(variant, apiKey);

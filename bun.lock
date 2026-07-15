@@ -5,6 +5,7 @@
     "": {
       "name": "demi-next-scaffold",
       "dependencies": {
+        "@capacitor/barcode-scanner": "^3.1.0",
         "@capacitor/core": "^8.4.1",
         "@capacitor/ios": "^8.4.1",
         "@capacitor/push-notifications": "^8.1.1",
@@ -73,6 +74,8 @@
     "@babel/types": ["@babel/types@7.29.7", "", { "dependencies": { "@babel/helper-string-parser": "^7.29.7", "@babel/helper-validator-identifier": "^7.29.7" } }, "sha512-4zBIxpPzowiZpusoFkyGVwakdRJUyuH5PxQ/PrqghfdFWWasvnCdPfQXHrenDai+gyLARulZjZowCOj6fjT4pA=="],
 
     "@capacitor/assets": ["@capacitor/assets@3.0.5", "", { "dependencies": { "@capacitor/cli": "^5.3.0", "@ionic/utils-array": "2.1.6", "@ionic/utils-fs": "3.1.7", "@trapezedev/project": "^7.0.10", "commander": "8.3.0", "debug": "4.3.4", "fs-extra": "10.1.0", "node-fetch": "2.7.0", "node-html-parser": "5.4.2", "sharp": "0.32.6", "tslib": "2.6.2", "yargs": "17.7.2" }, "bin": { "capacitor-assets": "bin/capacitor-assets" } }, "sha512-ohz/OUq61Y1Fc6aVSt0uDrUdeOA7oTH4pkWDbv/8I3UrPjH7oPkzYhShuDRUjekNp9RBi198VSFdt0CetpEOzw=="],
+
+    "@capacitor/barcode-scanner": ["@capacitor/barcode-scanner@3.1.0", "", { "dependencies": { "html5-qrcode": "2.3.8" }, "peerDependencies": { "@capacitor/core": ">=8.0.0" } }, "sha512-uE4njvsQGVfhjChg5ZU8ayYX9i2LM9Dg9/TWXG/L1s+pRVR5JG6PxsC3dCuKa9F6OVCYrKcEmdSi3E6KT+fMbg=="],
 
     "@capacitor/cli": ["@capacitor/cli@8.4.1", "", { "dependencies": { "@ionic/cli-framework-output": "^2.2.8", "@ionic/utils-subprocess": "^3.0.1", "@ionic/utils-terminal": "^2.3.5", "commander": "^12.1.0", "debug": "^4.4.0", "env-paths": "^2.2.0", "fs-extra": "^11.2.0", "kleur": "^4.1.5", "native-run": "^2.0.3", "open": "^8.4.0", "plist": "^3.1.0", "prompts": "^2.4.2", "rimraf": "^6.0.1", "semver": "^7.6.3", "tar": "^7.5.3", "tslib": "^2.8.1", "xml2js": "^0.6.2" }, "bin": { "cap": "bin/capacitor", "capacitor": "bin/capacitor" } }, "sha512-t7F2s7fFHCq113xgrggrmK6ctV0/8E5YfLNVLfPHp4GCTDO+tly9fZvWPf2/sOI8lMm18dLT43qbXLRTz/OZgw=="],
 
@@ -801,6 +804,8 @@
     "he": ["he@1.2.0", "", { "bin": { "he": "bin/he" } }, "sha512-F/1DnUGPopORZi0ni+CvrCgHQ5FyEAHRLSApuYWMmrbSwoN2Mn/7k+Gl38gJnR7yyDZk6WLXwiGod1JOWNDKGw=="],
 
     "hosted-git-info": ["hosted-git-info@4.1.0", "", { "dependencies": { "lru-cache": "^6.0.0" } }, "sha512-kyCuEOWjJqZuDbRHzL8V93NzQhwIB71oFWSyzVo+KPZI+pnQPPxucdkrOZvkLRnrf5URsQM+IJ09Dw29cRALIA=="],
+
+    "html5-qrcode": ["html5-qrcode@2.3.8", "", {}, "sha512-jsr4vafJhwoLVEDW3n1KvPnCCXWaQfRng0/EEYk1vNcQGcG/htAdhJX0be8YyqMoSz7+hZvOZSTAepsabiuhiQ=="],
 
     "iceberg-js": ["iceberg-js@0.8.1", "", {}, "sha512-1dhVQZXhcHje7798IVM+xoo/1ZdVfzOMIc8/rgVSijRK38EDqOJoGula9N/8ZI5RD8QTxNQtK/Gozpr+qUqRRA=="],
 

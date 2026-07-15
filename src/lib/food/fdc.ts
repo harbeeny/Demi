@@ -26,6 +26,8 @@ export interface FdcFood {
   description: string;
   brand: string | null;
   dataType: string;
+  /** UPC/EAN digits for Branded foods; null elsewhere */
+  gtinUpc: string | null;
   /** always per 100 g */
   per100g: FdcMacros;
   portions: FdcPortion[];
@@ -50,6 +52,7 @@ export interface RawSearchHit {
   dataType: string;
   brandOwner?: string;
   brandName?: string;
+  gtinUpc?: string;
   servingSize?: number;
   servingSizeUnit?: string;
   householdServingFullText?: string;
@@ -141,6 +144,7 @@ export function normalizeSearchHit(hit: RawSearchHit): FdcFood | null {
         ? titleCaseIfShouting(hit.brandOwner.trim())
         : null,
     dataType: hit.dataType,
+    gtinUpc: hit.gtinUpc?.trim() || null,
     per100g: {
       kcal: Math.round(kcal * 10) / 10,
       proteinG: Math.round(macrosNoKcal.proteinG * 10) / 10,
@@ -149,6 +153,23 @@ export function normalizeSearchHit(hit: RawSearchHit): FdcFood | null {
     },
     portions: portions.slice(0, 6),
   };
+}
+
+/** A run of 8-14 digits is a scanned barcode, not a food name. */
+export function isBarcodeQuery(q: string): boolean {
+  return /^\d{8,14}$/.test(q.trim());
+}
+
+/**
+ * Compare barcode digit strings ignoring leading zeros: scanners hand back
+ * EAN-13 ("0038000138416") where FDC may store the 12-digit UPC-A
+ * ("038000138416"), and vice versa.
+ */
+export function matchesBarcode(gtin: string | null, code: string): boolean {
+  if (!gtin) return false;
+  const a = gtin.replace(/\D/g, "").replace(/^0+/, "");
+  const b = code.replace(/\D/g, "").replace(/^0+/, "");
+  return a.length > 0 && a === b;
 }
 
 /** Scale per-100g macros to a gram amount, rounded for display and logging. */
