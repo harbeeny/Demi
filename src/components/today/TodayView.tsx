@@ -12,6 +12,8 @@ import { MealCard, type TodayMeal } from "./MealCard";
 import { LogSheet, type SearchMeal } from "./LogSheet";
 import { VerifiedBadge, type FdcLogFields } from "./FoodSearch";
 import { tapHaptic } from "@/lib/haptics";
+import { SLOT_LABELS, SLOT_ORDER } from "@/lib/log/slots";
+import type { MealSlot } from "@/lib/supabase/types";
 import { SummaryCard, type DaySummary } from "./SummaryCard";
 import { RecipeSheet, type RecipeData } from "@/components/kitchen/RecipeSheet";
 
@@ -124,13 +126,28 @@ export function TodayView({ hasPlan, daySummary, meals, targets, logs, summary, 
     );
   // Each returns whether the log landed; keepOpen leaves the sheet up for
   // rapid multi-adds (recents), which confirm inline instead of closing.
-  const logDb = async (mealId: string, note: string, opts?: { keepOpen?: boolean }) => {
-    const ok = await post("/api/log", { source: "db", mealId, note: note || undefined }, "log-db");
+  const logDb = async (
+    mealId: string,
+    note: string,
+    opts?: { keepOpen?: boolean; slot?: MealSlot },
+  ) => {
+    const ok = await post(
+      "/api/log",
+      { source: "db", mealId, slot: opts?.slot, note: note || undefined },
+      "log-db",
+    );
     if (ok && !opts?.keepOpen) setSheetOpen(false);
     return ok;
   };
   const logEstimate = async (
-    fields: { name: string; kcal: number; proteinG: number; carbsG: number; fatG: number },
+    fields: {
+      name: string;
+      kcal: number;
+      proteinG: number;
+      carbsG: number;
+      fatG: number;
+      slot?: MealSlot;
+    },
     note: string,
     opts?: { keepOpen?: boolean },
   ) => {
@@ -214,31 +231,7 @@ export function TodayView({ hasPlan, daySummary, meals, targets, logs, summary, 
         <>
           <MacroRings planned={{ kcal: 0, proteinG: 0, carbsG: 0, fatG: 0 }} eaten={eaten ?? { kcal: 0, proteinG: 0, carbsG: 0, fatG: 0 }} targets={targets} />
 
-          {logs.length > 0 && (
-            <section className="mt-2 space-y-2">
-              <h2 className="text-xs font-medium uppercase tracking-wide text-[#829084]">Logged today</h2>
-              {logs.map((l) => (
-                <div key={l.id} className="flex items-center justify-between rounded-2xl bg-white p-3 shadow-sm">
-                  <div className="min-w-0">
-                    <p className="flex items-center gap-1.5 text-sm font-medium text-[#2c3a2e]">
-                      <span className="truncate">{l.name}</span>
-                      {l.verified && <VerifiedBadge />}
-                    </p>
-                    <p className="mt-0.5 text-xs text-[#5d6b5f]">
-                      {Math.round(l.kcal)} kcal · P {Math.round(l.proteinG)}g
-                    </p>
-                  </div>
-                  <button
-                    onClick={() => unlog(l.id)}
-                    disabled={busy !== null}
-                    className="text-xs text-[#829084] underline-offset-2 hover:underline disabled:opacity-50"
-                  >
-                    Undo
-                  </button>
-                </div>
-              ))}
-            </section>
-          )}
+          <LoggedSections logs={logs} busy={busy} onUndo={unlog} />
 
           <SummaryCard
             logsCount={logs.length}
@@ -322,36 +315,12 @@ export function TodayView({ hasPlan, daySummary, meals, targets, logs, summary, 
             ))}
           </section>
 
-          {logs.some((l) => l.source !== "planned") && (
-            <section className="mt-6 space-y-2">
-              <h2 className="text-xs font-medium uppercase tracking-wide text-[#829084]">Also logged</h2>
-              {logs
-                .filter((l) => l.source !== "planned")
-                .map((l) => (
-                  <div key={l.id} className="flex items-center justify-between rounded-2xl bg-white p-3 shadow-sm">
-                    <div className="min-w-0">
-                      <p className="flex items-center gap-1.5 text-sm font-medium text-[#2c3a2e]">
-                        <span className="truncate">{l.name}</span>
-                        {l.verified && <VerifiedBadge />}
-                        {l.source === "estimate" && (
-                          <span className="shrink-0 rounded-full bg-[#fdf3d7] px-2 py-0.5 text-[10px] text-[#7a6420]">estimate</span>
-                        )}
-                      </p>
-                      <p className="mt-0.5 text-xs text-[#5d6b5f]">
-                        {Math.round(l.kcal)} kcal · P {Math.round(l.proteinG)}g
-                      </p>
-                    </div>
-                    <button
-                      onClick={() => unlog(l.id)}
-                      disabled={busy !== null}
-                      className="text-xs text-[#829084] underline-offset-2 hover:underline disabled:opacity-50"
-                    >
-                      Undo
-                    </button>
-                  </div>
-                ))}
-            </section>
-          )}
+          <LoggedSections
+            logs={logs.filter((l) => l.source !== "planned")}
+            busy={busy}
+            onUndo={unlog}
+            className="mt-6"
+          />
 
           <SummaryCard
             logsCount={logs.length}
@@ -409,5 +378,64 @@ export function TodayView({ hasPlan, daySummary, meals, targets, logs, summary, 
         onLogFdc={logFdc}
       />
     </main>
+  );
+}
+
+/** The day's logs grouped into meal sections; legacy unslotted logs fall under Other. */
+function LoggedSections({
+  logs,
+  busy,
+  onUndo,
+  className = "mt-2",
+}: {
+  logs: TodayLog[];
+  busy: string | null;
+  onUndo: (id: string) => void;
+  className?: string;
+}) {
+  const groups = [
+    ...SLOT_ORDER.map((s) => ({
+      key: s as string,
+      label: SLOT_LABELS[s],
+      items: logs.filter((l) => l.slot === s),
+    })),
+    {
+      key: "other",
+      label: "Other",
+      items: logs.filter((l) => !l.slot || !SLOT_ORDER.includes(l.slot as MealSlot)),
+    },
+  ].filter((g) => g.items.length > 0);
+
+  return (
+    <>
+      {groups.map((g) => (
+        <section key={g.key} className={`${className} space-y-2`}>
+          <h2 className="text-xs font-medium uppercase tracking-wide text-[#829084]">{g.label}</h2>
+          {g.items.map((l) => (
+            <div key={l.id} className="flex items-center justify-between rounded-2xl bg-white p-3 shadow-sm">
+              <div className="min-w-0">
+                <p className="flex items-center gap-1.5 text-sm font-medium text-[#2c3a2e]">
+                  <span className="truncate">{l.name}</span>
+                  {l.verified && <VerifiedBadge />}
+                  {l.source === "estimate" && (
+                    <span className="shrink-0 rounded-full bg-[#fdf3d7] px-2 py-0.5 text-[10px] text-[#7a6420]">estimate</span>
+                  )}
+                </p>
+                <p className="mt-0.5 text-xs text-[#5d6b5f]">
+                  {Math.round(l.kcal)} kcal · P {Math.round(l.proteinG)}g
+                </p>
+              </div>
+              <button
+                onClick={() => onUndo(l.id)}
+                disabled={busy !== null}
+                className="text-xs text-[#829084] underline-offset-2 hover:underline disabled:opacity-50"
+              >
+                Undo
+              </button>
+            </div>
+          ))}
+        </section>
+      ))}
+    </>
   );
 }
