@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 
-import { shouldDismiss } from "./useSwipeToDismiss";
+import { shouldBeginDrag, shouldDismiss } from "./useSwipeToDismiss";
 
 const HEIGHT = 800; // a typical 90dvh sheet on a phone
 
@@ -29,5 +29,25 @@ describe("shouldDismiss", () => {
 
   test("an upward flick (negative velocity) never dismisses on its own", () => {
     expect(shouldDismiss(50, -2, HEIGHT)).toBe(false);
+  });
+});
+
+describe("shouldBeginDrag", () => {
+  test("mouse hover (no press) never starts a drag, whatever the travel", () => {
+    expect(shouldBeginDrag(false, 500, false, true)).toBe(false);
+    expect(shouldBeginDrag(false, 500, true, true)).toBe(false);
+  });
+
+  test("a pressed downward pull starts from the handle or a top-scrolled body", () => {
+    expect(shouldBeginDrag(true, 12, true, false)).toBe(true);
+    expect(shouldBeginDrag(true, 12, false, true)).toBe(true);
+  });
+
+  test("a pressed pull mid-scroll stays with the content", () => {
+    expect(shouldBeginDrag(true, 12, false, false)).toBe(false);
+  });
+
+  test("travel inside the tap slop never starts a drag", () => {
+    expect(shouldBeginDrag(true, 5, true, true)).toBe(false);
   });
 });

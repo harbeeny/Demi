@@ -21,7 +21,27 @@ export function shouldDismiss(offset: number, velocity: number, height: number):
   return offset >= height * DISMISS_FRACTION;
 }
 
+// The gesture only begins after this much downward travel, so taps (on the X,
+// on result rows) are never mistaken for a drag.
+const START_THRESHOLD = 6;
+
+/**
+ * A drag may only begin while the pointer is actually pressed. Mouse hover
+ * fires pointermove with no press at all, so without the `pressed` gate,
+ * desktop users sliding the cursor over the sheet would start a phantom drag
+ * and the next click would dismiss it.
+ */
+export function shouldBeginDrag(
+  pressed: boolean,
+  dy: number,
+  fromHandle: boolean,
+  atTop: boolean,
+): boolean {
+  return pressed && dy > START_THRESHOLD && (fromHandle || atTop);
+}
+
 interface DragState {
+  pressed: boolean;
   startY: number;
   lastY: number;
   lastT: number;
@@ -33,6 +53,7 @@ interface DragState {
 }
 
 const IDLE: DragState = {
+  pressed: false,
   startY: 0,
   lastY: 0,
   lastT: 0,
@@ -42,10 +63,6 @@ const IDLE: DragState = {
   active: false,
   fromHandle: false,
 };
-
-// The gesture only begins after this much downward travel, so taps (on the X,
-// on result rows) are never mistaken for a drag.
-const START_THRESHOLD = 6;
 
 /**
  * Bottom-sheet lifecycle: slide-up on open, slide-down on close, and
@@ -128,6 +145,7 @@ export function useSwipeToDismiss(open: boolean, onClose: () => void) {
       const fromHandle = !!(e.target as HTMLElement).closest("[data-drag-handle]");
       drag.current = {
         ...IDLE,
+        pressed: true,
         startY: e.clientY,
         lastY: e.clientY,
         lastT: e.timeStamp,
@@ -140,10 +158,13 @@ export function useSwipeToDismiss(open: boolean, onClose: () => void) {
 
   const onPointerMove = useCallback((e: React.PointerEvent) => {
     const d = drag.current;
+    // Hover moves carry no press; a mouse released outside the window also
+    // reports buttons === 0. Neither may start or continue a drag.
+    if (!d.pressed || (e.pointerType === "mouse" && e.buttons === 0)) return;
     const dy = e.clientY - d.startY;
     if (!d.active) {
       const atTop = (scrollRef.current?.scrollTop ?? 0) <= 0;
-      if (dy > START_THRESHOLD && (d.fromHandle || atTop)) {
+      if (shouldBeginDrag(d.pressed, dy, d.fromHandle, atTop)) {
         d.active = true;
         setDragging(true);
         try {
@@ -165,6 +186,7 @@ export function useSwipeToDismiss(open: boolean, onClose: () => void) {
 
   const finish = useCallback(() => {
     const d = drag.current;
+    d.pressed = false;
     if (!d.active) return;
     d.active = false;
     setDragging(false);

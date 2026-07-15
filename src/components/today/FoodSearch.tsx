@@ -44,6 +44,9 @@ export function FoodSearch({ busy, onLog }: Props) {
   const [note, setNote] = useState("");
   const [recents, setRecents] = useState<RecentFood[]>([]);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Monotonic id per query: a slow, older fetch must never clobber the
+  // results of a newer one (it read as "search didn't recognize the word").
+  const searchSeq = useRef(0);
 
   // Recent FDC foods for one-tap re-logging (macros were snapshotted at log
   // time, so re-logging costs zero API calls).
@@ -83,9 +86,11 @@ export function FoodSearch({ busy, onLog }: Props) {
   useEffect(() => {
     if (debounceRef.current) clearTimeout(debounceRef.current);
     const q = query.trim();
+    const id = ++searchSeq.current;
     if (q.length < 2) {
       setResults([]);
       setSearching(false);
+      setMessage("");
       return;
     }
     setSearching(true);
@@ -96,6 +101,7 @@ export function FoodSearch({ busy, onLog }: Props) {
           foods?: FdcFood[];
           error?: string;
         };
+        if (id !== searchSeq.current) return; // a newer query owns the UI
         if (!res.ok) {
           setMessage(data.error ?? "Search failed. Try again.");
           setResults([]);
@@ -104,11 +110,12 @@ export function FoodSearch({ busy, onLog }: Props) {
           setResults(data.foods ?? []);
         }
       } catch {
+        if (id !== searchSeq.current) return;
         setMessage("Network hiccup. Try again.");
       } finally {
-        setSearching(false);
+        if (id === searchSeq.current) setSearching(false);
       }
-    }, 450);
+    }, 300);
     return () => {
       if (debounceRef.current) clearTimeout(debounceRef.current);
     };
