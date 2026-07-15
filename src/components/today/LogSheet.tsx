@@ -63,7 +63,7 @@ export function LogSheet({ open, onClose, searchMeals, busy, defaultMode = "fdc"
   const [message, setMessage] = useState("");
   const [supportive, setSupportive] = useState<{ text: string } | null>(null);
   const [estimating, setEstimating] = useState(false);
-  const { sheetRef, scrollRef, offset, dragging, progress, handlers } = useSwipeToDismiss(
+  const { sheetRef, scrollRef, mounted, sheetStyle, backdropStyle, handlers } = useSwipeToDismiss(
     open,
     onClose,
   );
@@ -76,7 +76,8 @@ export function LogSheet({ open, onClose, searchMeals, busy, defaultMode = "fdc"
 
   const selected = searchMeals.find((m) => m.id === selectedId) ?? null;
 
-  if (!open) return null;
+  // Stay in the DOM through the exit transition; the hook unmounts us after.
+  if (!mounted) return null;
 
   async function runEstimate() {
     if (!quickText.trim() || estimating) return;
@@ -141,19 +142,13 @@ export function LogSheet({ open, onClose, searchMeals, busy, defaultMode = "fdc"
   return (
     <div
       className="fixed inset-0 z-40 flex items-end justify-center"
-      style={{
-        backgroundColor: `rgba(0, 0, 0, ${0.3 * (1 - progress)})`,
-        transition: dragging ? "none" : "background-color 260ms var(--ease-drawer)",
-      }}
+      style={backdropStyle}
       onClick={onClose}
     >
       <div
         ref={sheetRef}
         className="flex h-[90dvh] w-full max-w-md flex-col overflow-hidden rounded-t-3xl bg-[#f4f6f2] shadow-[0_-8px_40px_rgba(22,32,26,0.18)]"
-        style={{
-          transform: `translateY(${offset}px)`,
-          transition: dragging ? "none" : "transform 260ms var(--ease-drawer)",
-        }}
+        style={sheetStyle}
         onClick={(e) => e.stopPropagation()}
         {...handlers}
       >
