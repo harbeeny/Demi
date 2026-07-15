@@ -260,7 +260,7 @@ export function TodayView({ hasPlan, daySummary, meals, targets, logs, summary, 
             onClick={() => chooseMode("plan")}
             className="press w-full rounded-2xl bg-[#2c3a2e] px-6 py-3 font-medium text-white"
           >
-            Build today's plan
+            Build today&apos;s plan
           </button>
           <button
             onClick={() => chooseMode("track")}
