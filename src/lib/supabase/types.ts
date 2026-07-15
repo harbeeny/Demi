@@ -21,7 +21,7 @@ export type CookingSkill = "minimal" | "basic" | "confident";
 
 export type MealSlot = "breakfast" | "lunch" | "dinner" | "snack";
 
-export type MealLogSource = "planned" | "db" | "estimate";
+export type MealLogSource = "planned" | "db" | "estimate" | "fdc";
 
 export type PlanEvent = "regenerated" | "swapped" | "rebalanced";
 
@@ -393,6 +393,7 @@ export interface Database {
           date: string;
           slot: MealSlot | null;
           plan_slot_index: number | null;
+          fdc_id: number | null;
           meal_id: string | null;
           name: string;
           kcal: number;
@@ -409,6 +410,7 @@ export interface Database {
           date: string;
           slot?: MealSlot | null;
           plan_slot_index?: number | null;
+          fdc_id?: number | null;
           meal_id?: string | null;
           name: string;
           kcal: number;
@@ -425,6 +427,7 @@ export interface Database {
           date?: string;
           slot?: MealSlot | null;
           plan_slot_index?: number | null;
+          fdc_id?: number | null;
           meal_id?: string | null;
           name?: string;
           kcal?: number;

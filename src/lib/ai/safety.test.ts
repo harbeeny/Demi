@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 
-import { extractNumbers, numbersAreGrounded } from "./validate";
+import { extractNumbers, numbersAreGrounded, stripEmDashes } from "./validate";
 import { containsDisorderedEatingSignal, SUPPORTIVE_RESPONSE } from "./safety-filter";
 
 describe("extractNumbers", () => {
@@ -30,6 +30,19 @@ describe("numbersAreGrounded", () => {
 
   test("accepts output with no numbers at all", () => {
     expect(numbersAreGrounded("A steady, satisfying day of eating.", input)).toBe(true);
+  });
+});
+
+describe("stripEmDashes", () => {
+  test("replaces em-dashes with a comma and space, however they were spaced", () => {
+    expect(stripEmDashes("life gets in the way—sometimes")).toBe("life gets in the way, sometimes");
+    expect(stripEmDashes("one thing — another")).toBe("one thing, another");
+  });
+
+  test("leaves clean text and hyphens untouched", () => {
+    expect(stripEmDashes("a protein-forward snack, nothing else")).toBe(
+      "a protein-forward snack, nothing else",
+    );
   });
 });
 

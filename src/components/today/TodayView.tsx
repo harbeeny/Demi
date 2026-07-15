@@ -10,6 +10,7 @@ import type { MealLogSource } from "@/lib/supabase/types";
 import { MacroRings } from "./MacroRings";
 import { MealCard, type TodayMeal } from "./MealCard";
 import { LogSheet, type SearchMeal } from "./LogSheet";
+import type { FdcLogFields } from "./FoodSearch";
 import { SummaryCard, type DaySummary } from "./SummaryCard";
 import { RecipeSheet, type RecipeData } from "@/components/kitchen/RecipeSheet";
 
@@ -45,6 +46,30 @@ export function TodayView({ hasPlan, daySummary, meals, targets, logs, summary, 
   const [notice, setNotice] = useState("");
   const [sheetOpen, setSheetOpen] = useState(false);
   const [recipe, setRecipe] = useState<RecipeData | null>(null);
+  // "plan" auto-builds a meal plan; "track" is the standalone macro tracker;
+  // null means the user has never chosen (first no-plan visit shows a choice).
+  const [dayMode, setDayMode] = useState<"plan" | "track" | null>(null);
+  const [modeLoaded, setModeLoaded] = useState(false);
+
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem("demi:mode");
+      if (stored === "plan" || stored === "track") setDayMode(stored);
+    } catch {
+      // storage unavailable: behave like a first visit
+    }
+    setModeLoaded(true);
+  }, []);
+
+  const chooseMode = (m: "plan" | "track") => {
+    setDayMode(m);
+    try {
+      localStorage.setItem("demi:mode", m);
+    } catch {
+      // ignore
+    }
+    if (m === "plan" && !hasPlan) generate(false);
+  };
 
   async function callApi(url: string, init: RequestInit, busyKey: string): Promise<boolean> {
     setBusy(busyKey);
@@ -108,6 +133,11 @@ export function TodayView({ hasPlan, daySummary, meals, targets, logs, summary, 
       setSheetOpen(false);
     }
   };
+  const logFdc = async (fields: FdcLogFields, note: string) => {
+    if (await post("/api/log", { source: "fdc", ...fields, note: note || undefined }, "log-fdc")) {
+      setSheetOpen(false);
+    }
+  };
   const rebalance = () => post("/api/plan/rebalance", {}, "rebalance");
   const finishDay = (energy: number | null, note: string) =>
     post("/api/day/finish", { energy: energy ?? undefined, dayNote: note || undefined }, "finish");
@@ -117,12 +147,13 @@ export function TodayView({ hasPlan, daySummary, meals, targets, logs, summary, 
   // from re-renders; router.refresh() flips hasPlan when the plan lands.
   const autoBuildStarted = useRef(false);
   useEffect(() => {
+    if (!modeLoaded || dayMode !== "plan") return;
     if (!hasPlan && !autoBuildStarted.current) {
       autoBuildStarted.current = true;
       generate(false);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [hasPlan]);
+  }, [hasPlan, modeLoaded, dayMode]);
 
   const planned: MacroTotals = sumLogged(meals);
   const eaten: MacroTotals | null = logs.length > 0 ? sumLogged(logs) : null;
@@ -170,7 +201,75 @@ export function TodayView({ hasPlan, daySummary, meals, targets, logs, summary, 
         <p className="mb-4 rounded-2xl bg-[#e9efdd] p-4 text-sm leading-6 text-[#3c4a3e]">{notice}</p>
       )}
 
-      {!hasPlan ? (
+      {!hasPlan && dayMode === "track" ? (
+        <>
+          <MacroRings planned={{ kcal: 0, proteinG: 0, carbsG: 0, fatG: 0 }} eaten={eaten ?? { kcal: 0, proteinG: 0, carbsG: 0, fatG: 0 }} targets={targets} />
+
+          {logs.length > 0 && (
+            <section className="mt-2 space-y-2">
+              <h2 className="text-xs font-medium uppercase tracking-wide text-[#829084]">Logged today</h2>
+              {logs.map((l) => (
+                <div key={l.id} className="flex items-center justify-between rounded-2xl bg-white p-3 shadow-sm">
+                  <div>
+                    <p className="text-sm font-medium text-[#2c3a2e]">{l.name}</p>
+                    <p className="mt-0.5 text-xs text-[#5d6b5f]">
+                      {Math.round(l.kcal)} kcal · P {Math.round(l.proteinG)}g
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => unlog(l.id)}
+                    disabled={busy !== null}
+                    className="text-xs text-[#829084] underline-offset-2 hover:underline disabled:opacity-50"
+                  >
+                    Undo
+                  </button>
+                </div>
+              ))}
+            </section>
+          )}
+
+          <button
+            onClick={() => setSheetOpen(true)}
+            disabled={busy !== null}
+            className="press mt-4 w-full rounded-2xl bg-[#2c3a2e] px-5 py-3 font-medium text-white disabled:opacity-60"
+          >
+            + Log a food
+          </button>
+
+          <SummaryCard
+            logsCount={logs.length}
+            summary={summary}
+            planned={null}
+            actual={eaten ?? { kcal: 0, proteinG: 0, carbsG: 0, fatG: 0 }}
+            busy={busy}
+            onFinish={finishDay}
+          />
+
+          <button
+            onClick={() => chooseMode("plan")}
+            disabled={busy !== null}
+            className="mt-6 w-full text-center text-xs text-[#829084] underline-offset-2 hover:underline disabled:opacity-50"
+          >
+            Switch to a meal plan
+          </button>
+        </>
+      ) : !hasPlan && dayMode === null && modeLoaded && !busy ? (
+        <div className="mt-16 space-y-3 text-center">
+          <p className="text-[#2c3a2e]">How do you want to run today?</p>
+          <button
+            onClick={() => chooseMode("plan")}
+            className="press w-full rounded-2xl bg-[#2c3a2e] px-6 py-3 font-medium text-white"
+          >
+            Build today&apos;s plan
+          </button>
+          <button
+            onClick={() => chooseMode("track")}
+            className="press w-full rounded-2xl border border-[#dce3d7] bg-white px-6 py-3 font-medium text-[#2c3a2e] hover:border-[#8aa06f]"
+          >
+            Just track what I eat
+          </button>
+        </div>
+      ) : !hasPlan ? (
         <div className="mt-16 text-center">
           {error ? (
             <button
@@ -279,8 +378,10 @@ export function TodayView({ hasPlan, daySummary, meals, targets, logs, summary, 
         onClose={() => setSheetOpen(false)}
         searchMeals={searchMeals}
         busy={busy}
+        defaultMode={dayMode === "track" ? "fdc" : "search"}
         onLogDb={logDb}
         onLogEstimate={logEstimate}
+        onLogFdc={logFdc}
       />
     </main>
   );
