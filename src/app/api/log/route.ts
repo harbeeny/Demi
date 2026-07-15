@@ -20,6 +20,17 @@ type LogBody =
       carbsG: number;
       fatG: number;
       note?: string;
+    }
+  | {
+      source: "fdc";
+      fdcId: number;
+      name: string;
+      grams?: number;
+      kcal: number;
+      proteinG: number;
+      carbsG: number;
+      fatG: number;
+      note?: string;
     };
 
 /** Log something the user ate. */
@@ -29,7 +40,7 @@ async function post(request: Request): Promise<Response> {
   const { supabase, user } = ctx;
 
   const body = (await request.json().catch(() => null)) as LogBody | null;
-  if (!body || !["planned", "db", "estimate"].includes(body.source)) {
+  if (!body || !["planned", "db", "estimate", "fdc"].includes(body.source)) {
     return NextResponse.json({ error: "Invalid log payload." }, { status: 400 });
   }
 
@@ -46,6 +57,7 @@ async function post(request: Request): Promise<Response> {
   let insert: {
     slot: MealSlot | null;
     plan_slot_index: number | null;
+    fdc_id?: number | null;
     meal_id: string | null;
     name: string;
     kcal: number;
@@ -106,6 +118,32 @@ async function post(request: Request): Promise<Response> {
       carbs_g: Number(meal.carbs_g),
       fat_g: Number(meal.fat_g),
       source: "db",
+    };
+  } else if (body.source === "fdc") {
+    // Macros are client-computed from per-100g FDC data (visible before
+    // save); same trust model as quick-add, bounded the same way.
+    if (!Number.isInteger(body.fdcId) || body.fdcId <= 0) {
+      return NextResponse.json({ error: "Invalid food reference." }, { status: 400 });
+    }
+    const checked = validateEstimate(body);
+    if (!checked) {
+      return NextResponse.json({ error: "Those numbers look out of range." }, { status: 400 });
+    }
+    const grams =
+      Number.isFinite(body.grams) && Number(body.grams) > 0 ? Math.round(Number(body.grams)) : null;
+    // the portion suffix must not push the name past the 120-char DB limit
+    const baseName = grams ? checked.name.slice(0, 105) : checked.name;
+    insert = {
+      slot: null,
+      plan_slot_index: null,
+      fdc_id: body.fdcId,
+      meal_id: null,
+      name: grams ? `${baseName} (${grams} g)` : checked.name,
+      kcal: checked.kcal,
+      protein_g: checked.proteinG,
+      carbs_g: checked.carbsG,
+      fat_g: checked.fatG,
+      source: "fdc",
     };
   } else {
     // Estimate numbers are user-editable client values; re-check bounds here.
