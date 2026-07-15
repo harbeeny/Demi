@@ -238,22 +238,64 @@ export function FoodSearch({ busy, onLog }: Props) {
       )}
 
       <div className="mt-3 space-y-2">
-        {results.map((f) => (
-          <button
-            key={f.fdcId}
-            onClick={() => {
-              setSelected(f);
-              setGrams(Math.round(f.portions[0]?.gramWeight ?? 100));
-            }}
-            className="press w-full rounded-2xl border border-[#dce3d7] bg-white p-3 text-left hover:border-[#8aa06f]"
-          >
-            <span className="block text-sm font-medium text-[#2c3a2e]">{f.description}</span>
-            <span className="mt-0.5 block text-xs text-[#5d6b5f]">
-              {f.brand ? `${f.brand} · ` : ""}
-              {Math.round(f.per100g.kcal)} kcal per 100 g
-            </span>
-          </button>
-        ))}
+        {results.map((f) => {
+          // Same default the portion picker preselects: the food's primary
+          // household measure, falling back to 100 g.
+          const defaultGrams = Math.round(f.portions[0]?.gramWeight ?? 100);
+          const portionLabel = f.portions[0]?.label ?? "100 g";
+          return (
+            <div
+              key={f.fdcId}
+              className="flex items-center gap-2 rounded-2xl border border-[#dce3d7] bg-white p-3 hover:border-[#8aa06f]"
+            >
+              <button
+                onClick={() => {
+                  setSelected(f);
+                  setGrams(defaultGrams);
+                }}
+                disabled={busy !== null}
+                className="press min-w-0 flex-1 text-left disabled:opacity-50"
+              >
+                <span className="block truncate text-sm font-medium text-[#2c3a2e]">
+                  {f.description}
+                </span>
+                <span className="mt-0.5 block text-xs text-[#5d6b5f]">
+                  {f.brand ? `${f.brand} · ` : ""}
+                  {Math.round(f.per100g.kcal)} kcal per 100 g
+                </span>
+              </button>
+              <button
+                onClick={() =>
+                  onLog(
+                    {
+                      fdcId: f.fdcId,
+                      name: f.description,
+                      grams: defaultGrams,
+                      ...scaleMacros(f.per100g, defaultGrams),
+                    },
+                    "",
+                  )
+                }
+                disabled={busy !== null}
+                aria-label={`Quick add ${f.description}, ${portionLabel}`}
+                className="press flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-[#dce3d7] text-[#2c3a2e] hover:border-[#8aa06f] hover:bg-[#f0f4ec] disabled:opacity-50"
+              >
+                <svg
+                  width="16"
+                  height="16"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2.25"
+                  strokeLinecap="round"
+                  aria-hidden="true"
+                >
+                  <path d="M12 5v14M5 12h14" />
+                </svg>
+              </button>
+            </div>
+          );
+        })}
       </div>
 
       <p className="mt-4 text-center text-[10px] text-[#829084]">
