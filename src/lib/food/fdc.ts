@@ -168,3 +168,15 @@ export function rankResults(foods: FdcFood[]): FdcFood[] {
   const branded = foods.filter((f) => f.dataType === "Branded");
   return [...curated, ...branded];
 }
+
+/**
+ * Curated USDA sources: Foundation and SR Legacy are lab-analyzed and Survey
+ * (FNDDS) is professionally maintained by USDA nutritionists, the reference
+ * data dietitians themselves use. Branded rows are manufacturer-supplied
+ * label data and stay unmarked.
+ */
+export function isVerifiedSource(dataType: string): boolean {
+  return dataType === "Foundation" || dataType === "SR Legacy" || dataType === "Survey (FNDDS)";
+}
+
+export const GRAMS_PER_OZ = 28.3495;

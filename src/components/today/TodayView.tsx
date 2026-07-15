@@ -10,7 +10,7 @@ import type { MealLogSource } from "@/lib/supabase/types";
 import { MacroRings } from "./MacroRings";
 import { MealCard, type TodayMeal } from "./MealCard";
 import { LogSheet, type SearchMeal } from "./LogSheet";
-import type { FdcLogFields } from "./FoodSearch";
+import { VerifiedBadge, type FdcLogFields } from "./FoodSearch";
 import { SummaryCard, type DaySummary } from "./SummaryCard";
 import { RecipeSheet, type RecipeData } from "@/components/kitchen/RecipeSheet";
 
@@ -26,6 +26,7 @@ export interface TodayLog {
   carbsG: number;
   fatG: number;
   source: MealLogSource;
+  verified: boolean;
 }
 
 interface Props {
@@ -210,8 +211,11 @@ export function TodayView({ hasPlan, daySummary, meals, targets, logs, summary, 
               <h2 className="text-xs font-medium uppercase tracking-wide text-[#829084]">Logged today</h2>
               {logs.map((l) => (
                 <div key={l.id} className="flex items-center justify-between rounded-2xl bg-white p-3 shadow-sm">
-                  <div>
-                    <p className="text-sm font-medium text-[#2c3a2e]">{l.name}</p>
+                  <div className="min-w-0">
+                    <p className="flex items-center gap-1.5 text-sm font-medium text-[#2c3a2e]">
+                      <span className="truncate">{l.name}</span>
+                      {l.verified && <VerifiedBadge />}
+                    </p>
                     <p className="mt-0.5 text-xs text-[#5d6b5f]">
                       {Math.round(l.kcal)} kcal · P {Math.round(l.proteinG)}g
                     </p>
@@ -317,11 +321,12 @@ export function TodayView({ hasPlan, daySummary, meals, targets, logs, summary, 
                 .filter((l) => l.source !== "planned")
                 .map((l) => (
                   <div key={l.id} className="flex items-center justify-between rounded-2xl bg-white p-3 shadow-sm">
-                    <div>
-                      <p className="text-sm font-medium text-[#2c3a2e]">
-                        {l.name}
+                    <div className="min-w-0">
+                      <p className="flex items-center gap-1.5 text-sm font-medium text-[#2c3a2e]">
+                        <span className="truncate">{l.name}</span>
+                        {l.verified && <VerifiedBadge />}
                         {l.source === "estimate" && (
-                          <span className="ml-2 rounded-full bg-[#fdf3d7] px-2 py-0.5 text-[10px] text-[#7a6420]">estimate</span>
+                          <span className="shrink-0 rounded-full bg-[#fdf3d7] px-2 py-0.5 text-[10px] text-[#7a6420]">estimate</span>
                         )}
                       </p>
                       <p className="mt-0.5 text-xs text-[#5d6b5f]">
@@ -387,7 +392,7 @@ export function TodayView({ hasPlan, daySummary, meals, targets, logs, summary, 
         onClose={() => setSheetOpen(false)}
         searchMeals={searchMeals}
         busy={busy}
-        defaultMode={dayMode === "track" ? "fdc" : "search"}
+        defaultMode="fdc"
         onLogDb={logDb}
         onLogEstimate={logEstimate}
         onLogFdc={logFdc}
