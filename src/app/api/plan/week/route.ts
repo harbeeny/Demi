@@ -6,6 +6,7 @@ import { generatePlan } from "@/lib/plan/generate";
 import { prefsFromRow } from "@/lib/plan/rows";
 import { isEligible } from "@/lib/plan/select-meals";
 import { recentIdsFor, weekDates } from "@/lib/plan/week";
+import { consumeQuota } from "@/lib/plan/quota";
 import type { MealPlanEntry, MealSlot } from "@/lib/supabase/types";
 
 // Up to two LLM personalize calls plus six deterministic generations.
@@ -56,14 +57,18 @@ async function post(request: Request): Promise<Response> {
       continue;
     }
 
+    // LLM copy only for today and tomorrow: farther days go stale before they
+    // arrive, and Regenerate restores the copy when the day comes. Meter each
+    // personalize call; when the daily cap is hit, fall back to deterministic
+    // copy for that day instead of failing the whole week.
+    const personalizeWithLLM = offset <= 1 && (await consumeQuota(supabase, "llm"));
+
     const plan = await generatePlan(
       onboarding,
       meals,
       new Date(`${date}T12:00:00Z`),
       recentIdsFor(date, plansByDate),
-      // LLM copy only for today and tomorrow: farther days go stale before
-      // they arrive, and Regenerate restores the copy when the day comes.
-      { maxPrepMin, personalizeWithLLM: offset <= 1 },
+      { maxPrepMin, personalizeWithLLM },
     );
 
     const entries: MealPlanEntry[] = plan.slots.map((s) => ({

@@ -9,6 +9,7 @@ import { rollupTotals } from "@/lib/log/rollup";
 import { containsDisorderedEatingSignal, SUPPORTIVE_RESPONSE } from "@/lib/ai/safety-filter";
 import type { MealPlanEntry, MealSlot } from "@/lib/supabase/types";
 import { preflight, withCors } from "@/lib/plan/cors";
+import { consumeQuota, quotaExceeded } from "@/lib/plan/quota";
 
 /** Close out the day: planned vs actual plus a short reflection. */
 async function post(request: Request): Promise<Response> {
@@ -85,6 +86,12 @@ async function post(request: Request): Promise<Response> {
         ];
       }),
     );
+  }
+
+  // The reflection is a billable LLM call; meter it per user so re-finishing
+  // in a loop can't run up the bill.
+  if (!(await consumeQuota(supabase, "llm"))) {
+    return quotaExceeded("llm");
   }
 
   const dayTargets = targets(profileFromRow(onboarding));
