@@ -8,6 +8,13 @@ import { useCallback, useEffect, useRef, useState } from "react";
 const DISMISS_FRACTION = 0.25;
 const FLICK_VELOCITY = 0.55; // px per ms, downward
 
+// One fixed timing for every open and every close, whichever path triggered
+// it, so consecutive presses always play identically. Exit is slightly faster
+// than enter; both use CSS transitions (not keyframes) so an interrupted
+// animation retargets smoothly from wherever the sheet currently is.
+export const ENTER_MS = 300;
+export const EXIT_MS = 240;
+
 export function shouldDismiss(offset: number, velocity: number, height: number): boolean {
   if (offset <= 0) return false;
   if (velocity >= FLICK_VELOCITY) return true;
@@ -41,27 +48,66 @@ const IDLE: DragState = {
 const START_THRESHOLD = 6;
 
 /**
- * Swipe-to-dismiss for a bottom sheet. A drag starts when the pointer goes down
- * on the grab handle (`data-drag-handle`) or when the scroll content is already
- * at the top; either way a downward pull translates the sheet 1:1 and releasing
- * past the threshold closes it. Works for touch and mouse via pointer events.
+ * Bottom-sheet lifecycle: slide-up on open, slide-down on close, and
+ * swipe-to-dismiss. A drag starts when the pointer goes down on the grab
+ * handle (`data-drag-handle`) or when the scroll content is already at the
+ * top; a downward pull translates the sheet 1:1 and releasing past the
+ * threshold closes it. Every close path (X, backdrop, swipe) funnels through
+ * the same exit transition, which retargets from the sheet's current position.
+ * Render while `mounted`; the sheet stays in the DOM through the exit.
  */
 export function useSwipeToDismiss(open: boolean, onClose: () => void) {
+  const [mounted, setMounted] = useState(open);
+  const [entered, setEntered] = useState(false);
   const [offset, setOffset] = useState(0);
   const [dragging, setDragging] = useState(false);
-  const [closing, setClosing] = useState(false);
+  const [reducedMotion, setReducedMotion] = useState(false);
   const sheetRef = useRef<HTMLDivElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const drag = useRef<DragState>({ ...IDLE });
+  const exitTimer = useRef<number | null>(null);
 
-  // Reset the transform whenever the sheet (re)opens.
+  useEffect(() => {
+    const mq = window.matchMedia("(prefers-reduced-motion: reduce)");
+    setReducedMotion(mq.matches);
+    const onChange = (e: MediaQueryListEvent) => setReducedMotion(e.matches);
+    mq.addEventListener("change", onChange);
+    return () => mq.removeEventListener("change", onChange);
+  }, []);
+
   useEffect(() => {
     if (open) {
+      if (exitTimer.current !== null) {
+        window.clearTimeout(exitTimer.current);
+        exitTimer.current = null;
+      }
       drag.current = { ...IDLE };
       setOffset(0);
       setDragging(false);
-      setClosing(false);
+      setMounted(true);
+      // Double rAF: the browser must paint the off-screen start before the
+      // target lands, or the enter transition silently skips. This makes the
+      // open animation identical on every press, including rapid re-opens.
+      let raf2 = 0;
+      const raf1 = requestAnimationFrame(() => {
+        raf2 = requestAnimationFrame(() => setEntered(true));
+      });
+      return () => {
+        cancelAnimationFrame(raf1);
+        cancelAnimationFrame(raf2);
+      };
     }
+    setEntered(false);
+    exitTimer.current = window.setTimeout(() => {
+      setMounted(false);
+      exitTimer.current = null;
+    }, EXIT_MS);
+    return () => {
+      if (exitTimer.current !== null) {
+        window.clearTimeout(exitTimer.current);
+        exitTimer.current = null;
+      }
+    };
   }, [open]);
 
   // React's onTouchMove is passive, so cancel the scroll/rubber-band from a
@@ -74,11 +120,11 @@ export function useSwipeToDismiss(open: boolean, onClose: () => void) {
     };
     el.addEventListener("touchmove", cancelScroll, { passive: false });
     return () => el.removeEventListener("touchmove", cancelScroll);
-  }, [open]);
+  }, [mounted]);
 
   const onPointerDown = useCallback(
     (e: React.PointerEvent) => {
-      if (closing) return;
+      if (!open) return;
       const fromHandle = !!(e.target as HTMLElement).closest("[data-drag-handle]");
       drag.current = {
         ...IDLE,
@@ -89,7 +135,7 @@ export function useSwipeToDismiss(open: boolean, onClose: () => void) {
         fromHandle,
       };
     },
-    [closing],
+    [open],
   );
 
   const onPointerMove = useCallback((e: React.PointerEvent) => {
@@ -123,9 +169,9 @@ export function useSwipeToDismiss(open: boolean, onClose: () => void) {
     d.active = false;
     setDragging(false);
     if (shouldDismiss(d.offset, d.velocity, d.height)) {
-      setClosing(true);
-      setOffset(d.height);
-      window.setTimeout(onClose, 260);
+      // Hand off to the shared exit transition, which picks up from the
+      // dragged position; no separate swipe-out animation to drift from.
+      onClose();
     } else {
       setOffset(0);
       d.offset = 0;
@@ -148,12 +194,35 @@ export function useSwipeToDismiss(open: boolean, onClose: () => void) {
 
   const progress = offset > 0 ? Math.min(1, offset / (drag.current.height || 1)) : 0;
 
+  // Reduced motion keeps the fade but drops the movement; the drag itself
+  // stays 1:1 because direct manipulation follows the finger, not a timer.
+  const sheetStyle: React.CSSProperties = dragging
+    ? { transform: `translateY(${offset}px)`, transition: "none" }
+    : reducedMotion
+      ? {
+          opacity: entered ? 1 : 0,
+          transition: `opacity ${entered ? ENTER_MS : EXIT_MS}ms ease`,
+        }
+      : {
+          transform: entered ? "translateY(0)" : "translateY(100%)",
+          transition: `transform ${entered ? ENTER_MS : EXIT_MS}ms var(--ease-drawer)`,
+        };
+
+  const backdropStyle: React.CSSProperties = {
+    backgroundColor: dragging
+      ? `rgba(0, 0, 0, ${(0.3 * (1 - progress)).toFixed(3)})`
+      : `rgba(0, 0, 0, ${entered ? 0.3 : 0})`,
+    transition: dragging
+      ? "none"
+      : `background-color ${entered ? ENTER_MS : EXIT_MS}ms var(--ease-drawer)`,
+  };
+
   return {
     sheetRef,
     scrollRef,
-    offset,
-    dragging,
-    progress,
+    mounted,
+    sheetStyle,
+    backdropStyle,
     handlers: {
       onPointerDown,
       onPointerMove,

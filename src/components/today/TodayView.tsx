@@ -174,7 +174,7 @@ export function TodayView({ hasPlan, daySummary, meals, targets, logs, summary, 
     shouldOfferRebalance(remainingBudget(targets, eaten), sumLogged(upcomingMeals), upcomingMeals.length);
 
   return (
-    <main className="mx-auto min-h-dvh max-w-md bg-[#f4f6f2] px-5 pb-24 pt-8">
+    <main className="mx-auto min-h-dvh max-w-md bg-[#f4f6f2] px-5 pb-36 pt-8">
       <header className="mb-6 flex items-center justify-between">
         <div className="flex items-center gap-3">
           <span className="flex h-9 w-9 items-center justify-center rounded-full bg-[#d3e29f] font-semibold text-[#2c3a2e]">D</span>
@@ -227,14 +227,6 @@ export function TodayView({ hasPlan, daySummary, meals, targets, logs, summary, 
               ))}
             </section>
           )}
-
-          <button
-            onClick={() => setSheetOpen(true)}
-            disabled={busy !== null}
-            className="press mt-4 w-full rounded-2xl bg-[#2c3a2e] px-5 py-3 font-medium text-white disabled:opacity-60"
-          >
-            + Log a food
-          </button>
 
           <SummaryCard
             logsCount={logs.length}
@@ -348,14 +340,6 @@ export function TodayView({ hasPlan, daySummary, meals, targets, logs, summary, 
             </section>
           )}
 
-          <button
-            onClick={() => setSheetOpen(true)}
-            disabled={busy !== null}
-            className="press mt-6 w-full rounded-2xl border border-dashed border-[#8aa06f] bg-transparent px-4 py-3 text-sm text-[#2c3a2e] disabled:opacity-50"
-          >
-            + Log something else
-          </button>
-
           <SummaryCard
             logsCount={logs.length}
             summary={summary}
@@ -370,6 +354,31 @@ export function TodayView({ hasPlan, daySummary, meals, targets, logs, summary, 
       <p className="mt-10 text-center text-xs leading-5 text-[#829084]">
         Demi offers general wellness guidance, not medical advice.
       </p>
+
+      {/* Floating log action, bottom-right above the tab bar. Rendered in the
+          same states that previously showed an inline log button; the sheet's
+          z-40 backdrop covers it while open. */}
+      {(hasPlan || dayMode === "track") && (
+        <button
+          onClick={() => setSheetOpen(true)}
+          disabled={busy !== null}
+          aria-label="Log a food"
+          className="press fixed bottom-[calc(env(safe-area-inset-bottom)+4.75rem)] right-[max(1.25rem,calc(50vw-14rem+1.25rem))] z-30 flex h-14 w-14 items-center justify-center rounded-full bg-[#2c3a2e] text-white shadow-[0_8px_24px_rgba(22,32,26,0.35)] hover:bg-[#243027] disabled:opacity-60"
+        >
+          <svg
+            width="26"
+            height="26"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2.25"
+            strokeLinecap="round"
+            aria-hidden="true"
+          >
+            <path d="M12 5v14M5 12h14" />
+          </svg>
+        </button>
+      )}
 
       <RecipeSheet recipe={recipe} onClose={() => setRecipe(null)} />
 
