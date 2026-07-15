@@ -89,14 +89,28 @@ export function FoodSearch({ busy, onLog }: Props) {
   // results of a newer one (it read as "search didn't recognize the word").
   const searchSeq = useRef(0);
 
-  // Touching the results area drops the keyboard so more of the list shows;
-  // the OS animates it down on blur. Touches on the field or its clear button
-  // are exempt, and desktop pointers never blur (no keyboard to dismiss).
+  // Touching blank space or scrolling the list drops the keyboard; the OS
+  // animates it down on blur. Touches on any control are exempt: blurring on
+  // touchstart shifts the iOS layout mid-tap and the tap gets swallowed, so
+  // buttons must act, not dismiss. Desktop pointers never blur.
+  const touchStartY = useRef<number | null>(null);
   const dismissKeyboard = (e: React.TouchEvent) => {
+    touchStartY.current = e.touches[0]?.clientY ?? null;
     const input = inputRef.current;
     if (!input || document.activeElement !== input) return;
-    if ((e.target as HTMLElement).closest("[data-search-controls]")) return;
+    if ((e.target as HTMLElement).closest("button, a, input, [data-search-controls]")) return;
     input.blur();
+  };
+
+  // A drag is scroll intent: dismiss the keyboard even when it started on a
+  // control, so the list is fully visible while scrolling.
+  const dismissOnScroll = (e: React.TouchEvent) => {
+    const input = inputRef.current;
+    if (!input || document.activeElement !== input) return;
+    const startY = touchStartY.current;
+    const y = e.touches[0]?.clientY;
+    if (startY === null || y === undefined) return;
+    if (Math.abs(y - startY) > 12) input.blur();
   };
 
   const clearSearch = () => {
@@ -326,7 +340,7 @@ export function FoodSearch({ busy, onLog }: Props) {
   }
 
   return (
-    <div onTouchStart={dismissKeyboard}>
+    <div onTouchStart={dismissKeyboard} onTouchMove={dismissOnScroll}>
       <div className="flex gap-2" data-search-controls>
         <div className="relative min-w-0 flex-1">
           <input
@@ -336,7 +350,6 @@ export function FoodSearch({ busy, onLog }: Props) {
             placeholder="Search foods, e.g. greek yogurt"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            autoFocus
           />
           {query.length > 0 && (
             <button
