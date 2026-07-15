@@ -101,8 +101,14 @@ export function normalizeSearchHit(hit: RawSearchHit): FdcFood | null {
   const portions: FdcPortion[] = [];
 
   // Survey (FNDDS) carries household measures right in the search hit.
+  // "Quantity not specified" is FNDDS filler, not a real portion.
   for (const m of [...(hit.foodMeasures ?? [])].sort((a, b) => (a.rank ?? 99) - (b.rank ?? 99))) {
-    if (m.disseminationText && typeof m.gramWeight === "number" && m.gramWeight > 0) {
+    if (
+      m.disseminationText &&
+      typeof m.gramWeight === "number" &&
+      m.gramWeight > 0 &&
+      !/quantity not specified/i.test(m.disseminationText)
+    ) {
       portions.push({ label: m.disseminationText, gramWeight: m.gramWeight });
     }
   }

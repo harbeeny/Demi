@@ -51,6 +51,7 @@ const surveyApple: RawSearchHit = {
   foodMeasures: [
     { disseminationText: "1 slice", gramWeight: 25, rank: 5 },
     { disseminationText: "1 small", gramWeight: 165, rank: 1 },
+    { disseminationText: "Quantity not specified", gramWeight: 182, rank: 9 },
   ],
   foodNutrients: [
     { nutrientId: 1008, nutrientNumber: "208", unitName: "KCAL", value: 61 },
@@ -113,6 +114,7 @@ describe("normalizeSearchHit", () => {
     expect(food.portions[0]).toEqual({ label: "1 small", gramWeight: 165 });
     expect(food.portions[1]).toEqual({ label: "1 slice", gramWeight: 25 });
     expect(food.portions[2]).toEqual({ label: "100 g", gramWeight: 100 });
+    expect(food.portions).toHaveLength(3); // "Quantity not specified" filler dropped
   });
 
   test("hit with no macro nutrients is dropped", () => {
