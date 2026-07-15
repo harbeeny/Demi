@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 
 import { apiFetch } from "@/lib/api";
+import { FoodSearch, type FdcLogFields } from "./FoodSearch";
 
 export interface SearchMeal {
   id: string;
@@ -36,13 +37,16 @@ interface Props {
   onClose: () => void;
   searchMeals: SearchMeal[];
   busy: string | null;
+  /** which mode the sheet opens in; tracker users default to the food search */
+  defaultMode?: "fdc" | "search" | "quick";
   onLogDb: (mealId: string, note: string) => void;
   onLogEstimate: (fields: { name: string; kcal: number; proteinG: number; carbsG: number; fatG: number }, note: string) => void;
+  onLogFdc: (fields: FdcLogFields, note: string) => void;
 }
 
 /** Bottom sheet for logging something that wasn't on the plan. */
-export function LogSheet({ open, onClose, searchMeals, busy, onLogDb, onLogEstimate }: Props) {
-  const [mode, setMode] = useState<"search" | "quick">("search");
+export function LogSheet({ open, onClose, searchMeals, busy, defaultMode = "fdc", onLogDb, onLogEstimate, onLogFdc }: Props) {
+  const [mode, setMode] = useState<"fdc" | "search" | "quick">(defaultMode);
   const [query, setQuery] = useState("");
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [note, setNote] = useState("");
@@ -141,7 +145,7 @@ export function LogSheet({ open, onClose, searchMeals, busy, onLogDb, onLogEstim
         ) : (
           <>
             <div className="mb-4 flex gap-2">
-              {(["search", "quick"] as const).map((m) => (
+              {(["fdc", "search", "quick"] as const).map((m) => (
                 <button
                   key={m}
                   onClick={() => { setMode(m); setMessage(""); }}
@@ -151,12 +155,14 @@ export function LogSheet({ open, onClose, searchMeals, busy, onLogDb, onLogEstim
                       : "border-[#dce3d7] bg-white text-[#2c3a2e]"
                   }`}
                 >
-                  {m === "search" ? "Search meals" : "Quick add"}
+                  {m === "fdc" ? "Search foods" : m === "search" ? "Meals" : "Quick add"}
                 </button>
               ))}
             </div>
 
-            {mode === "search" ? (
+            {mode === "fdc" && <FoodSearch busy={busy} onLog={onLogFdc} />}
+
+            {mode === "fdc" ? null : mode === "search" ? (
               <div>
                 <input
                   type="text"
