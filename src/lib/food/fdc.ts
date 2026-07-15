@@ -172,6 +172,26 @@ export function matchesBarcode(gtin: string | null, code: string): boolean {
   return a.length > 0 && a === b;
 }
 
+/**
+ * Zero-padding forms of a scanned code to try against FDC's full-text search,
+ * which only matches the exact stored string. Storage padding is inconsistent
+ * (Cheerios sits at 14 digits, Orbit gum at 12, Trader Joe's store codes at
+ * 8), so a scan must probe the plausible paddings of the same digits.
+ */
+export function barcodeVariants(code: string): string[] {
+  const digits = code.replace(/\D/g, "");
+  const stripped = digits.replace(/^0+/, "");
+  if (stripped.length === 0) return [];
+  const variants = [
+    digits,
+    stripped,
+    stripped.padStart(12, "0"),
+    stripped.padStart(13, "0"),
+    stripped.padStart(14, "0"),
+  ];
+  return [...new Set(variants.filter((v) => v.length >= 8 && v.length <= 14))];
+}
+
 /** Scale per-100g macros to a gram amount, rounded for display and logging. */
 export function scaleMacros(per100g: FdcMacros, grams: number): FdcMacros {
   const f = grams / 100;

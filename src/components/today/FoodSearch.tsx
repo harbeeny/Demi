@@ -18,7 +18,9 @@ import { SLOT_LABELS, SLOT_ORDER, suggestSlot } from "@/lib/log/slots";
 import type { MealSlot } from "@/lib/supabase/types";
 
 export interface FdcLogFields {
+  /** USDA id; 0 for Open Food Facts items, which identify by barcode */
   fdcId: number;
+  barcode?: string;
   name: string;
   grams: number;
   kcal: number;
@@ -511,6 +513,7 @@ export function FoodSearch({ busy, forcedSlot = null, onLog, onLogDb, onLogEstim
             onLog(
               {
                 fdcId: selected.fdcId,
+                barcode: selected.gtinUpc ?? undefined,
                 name: selected.description,
                 grams,
                 verified,
@@ -667,7 +670,7 @@ export function FoodSearch({ busy, forcedSlot = null, onLog, onLogDb, onLogEstim
           const portionLabel = f.portions[0]?.label ?? "100 g";
           return (
             <div
-              key={f.fdcId}
+              key={f.fdcId || f.gtinUpc || f.description}
               className="flex items-center gap-2 rounded-2xl border border-[#dce3d7] bg-white p-3 hover:border-[#8aa06f]"
             >
               <button
@@ -693,6 +696,7 @@ export function FoodSearch({ busy, forcedSlot = null, onLog, onLogDb, onLogEstim
                     void onLog(
                       {
                         fdcId: f.fdcId,
+                        barcode: f.gtinUpc ?? undefined,
                         name: f.description,
                         grams: defaultGrams,
                         verified: isVerifiedSource(f.dataType),
@@ -726,7 +730,7 @@ export function FoodSearch({ busy, forcedSlot = null, onLog, onLogDb, onLogEstim
       </div>
 
       <p className="mt-4 text-center text-[10px] text-[#829084]">
-        Food data: USDA FoodData Central
+        Food data: USDA FoodData Central · Open Food Facts
       </p>
 
       {pendingAdd && (
