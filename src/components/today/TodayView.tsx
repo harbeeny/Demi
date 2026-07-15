@@ -11,6 +11,7 @@ import { MacroRings } from "./MacroRings";
 import { MealCard, type TodayMeal } from "./MealCard";
 import { LogSheet, type SearchMeal } from "./LogSheet";
 import { VerifiedBadge, type FdcLogFields } from "./FoodSearch";
+import { tapHaptic } from "@/lib/haptics";
 import { SummaryCard, type DaySummary } from "./SummaryCard";
 import { RecipeSheet, type RecipeData } from "@/components/kitchen/RecipeSheet";
 
@@ -365,7 +366,10 @@ export function TodayView({ hasPlan, daySummary, meals, targets, logs, summary, 
           z-40 backdrop covers it while open. */}
       {(hasPlan || dayMode === "track") && (
         <button
-          onClick={() => setSheetOpen(true)}
+          onClick={() => {
+            tapHaptic();
+            setSheetOpen(true);
+          }}
           disabled={busy !== null}
           aria-label="Log a food"
           className="press fixed bottom-[calc(env(safe-area-inset-bottom)+4.75rem)] right-[max(1.25rem,calc(50vw-14rem+1.25rem))] z-30 flex h-14 w-14 items-center justify-center rounded-full bg-[#2c3a2e] text-white shadow-[0_8px_24px_rgba(22,32,26,0.35)] hover:bg-[#243027] disabled:opacity-60"
