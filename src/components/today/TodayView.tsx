@@ -8,7 +8,7 @@ import { remainingBudget, sumLogged } from "@/lib/log/remaining";
 import { shouldOfferRebalance } from "@/lib/log/rebalance";
 import type { MealLogSource } from "@/lib/supabase/types";
 import { MacroRings } from "./MacroRings";
-import { MealCard, type TodayMeal } from "./MealCard";
+import { MealCard, timeLabel, type TodayMeal } from "./MealCard";
 import { LogSheet, type SearchMeal } from "./LogSheet";
 import { VerifiedBadge, type FdcLogFields } from "./FoodSearch";
 import { tapHaptic } from "@/lib/haptics";
@@ -49,6 +49,14 @@ export function TodayView({ hasPlan, daySummary, meals, targets, logs, summary, 
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [sheetOpen, setSheetOpen] = useState(false);
+  // Section the sheet was opened from; null when opened from the FAB, where
+  // the slot picker asks instead.
+  const [sheetSlot, setSheetSlot] = useState<MealSlot | null>(null);
+  const openSheetFor = (slot: MealSlot | null) => {
+    tapHaptic();
+    setSheetSlot(slot);
+    setSheetOpen(true);
+  };
   const [recipe, setRecipe] = useState<RecipeData | null>(null);
   // "plan" auto-builds a meal plan; "track" is the standalone macro tracker;
   // null means the user has never chosen (first no-plan visit shows a choice).
@@ -231,7 +239,21 @@ export function TodayView({ hasPlan, daySummary, meals, targets, logs, summary, 
         <>
           <MacroRings planned={{ kcal: 0, proteinG: 0, carbsG: 0, fatG: 0 }} eaten={eaten ?? { kcal: 0, proteinG: 0, carbsG: 0, fatG: 0 }} targets={targets} />
 
-          <LoggedSections logs={logs} busy={busy} onUndo={unlog} />
+          {SLOT_ORDER.map((s) => (
+            <MealSection
+              key={s}
+              slot={s}
+              plannedMeals={[]}
+              logs={logs.filter((l) => l.slot === s)}
+              busy={busy}
+              onConfirm={logPlanned}
+              onUndo={unlog}
+              onSwap={swap}
+              onRecipe={setRecipe}
+              onAdd={openSheetFor}
+            />
+          ))}
+          <OtherSection logs={logs} busy={busy} onUndo={unlog} />
 
           <SummaryCard
             logsCount={logs.length}
@@ -300,27 +322,23 @@ export function TodayView({ hasPlan, daySummary, meals, targets, logs, summary, 
             <p className="mb-6 rounded-3xl bg-[#e9efdd] p-4 text-sm leading-6 text-[#3c4a3e]">{daySummary}</p>
           )}
 
-          <section className="space-y-4">
-            {meals.map((meal) => (
-              <MealCard
-                key={meal.slotIndex}
-                meal={meal}
-                loggedId={loggedBySlotIndex.get(meal.slotIndex) ?? null}
-                busy={busy}
-                onConfirm={logPlanned}
-                onUndo={unlog}
-                onSwap={swap}
-                onRecipe={setRecipe}
-              />
-            ))}
-          </section>
-
-          <LoggedSections
-            logs={logs.filter((l) => l.source !== "planned")}
-            busy={busy}
-            onUndo={unlog}
-            className="mt-6"
-          />
+          {SLOT_ORDER.map((s) => (
+            <MealSection
+              key={s}
+              slot={s}
+              plannedMeals={meals.filter(
+                (m) => m.slot === s && !loggedBySlotIndex.has(m.slotIndex),
+              )}
+              logs={logs.filter((l) => l.slot === s)}
+              busy={busy}
+              onConfirm={logPlanned}
+              onUndo={unlog}
+              onSwap={swap}
+              onRecipe={setRecipe}
+              onAdd={openSheetFor}
+            />
+          ))}
+          <OtherSection logs={logs} busy={busy} onUndo={unlog} />
 
           <SummaryCard
             logsCount={logs.length}
@@ -342,10 +360,7 @@ export function TodayView({ hasPlan, daySummary, meals, targets, logs, summary, 
           z-40 backdrop covers it while open. */}
       {(hasPlan || dayMode === "track") && (
         <button
-          onClick={() => {
-            tapHaptic();
-            setSheetOpen(true);
-          }}
+          onClick={() => openSheetFor(null)}
           disabled={busy !== null}
           aria-label="Log a food"
           className="press fixed bottom-[calc(env(safe-area-inset-bottom)+4.75rem)] right-[max(1.25rem,calc(50vw-14rem+1.25rem))] z-30 flex h-14 w-14 items-center justify-center rounded-full bg-[#2c3a2e] text-white shadow-[0_8px_24px_rgba(22,32,26,0.35)] hover:bg-[#243027] disabled:opacity-60"
@@ -373,6 +388,7 @@ export function TodayView({ hasPlan, daySummary, meals, targets, logs, summary, 
         searchMeals={searchMeals}
         busy={busy}
         defaultMode="fdc"
+        forcedSlot={sheetSlot}
         onLogDb={logDb}
         onLogEstimate={logEstimate}
         onLogFdc={logFdc}
@@ -381,61 +397,125 @@ export function TodayView({ hasPlan, daySummary, meals, targets, logs, summary, 
   );
 }
 
-/** The day's logs grouped into meal sections; legacy unslotted logs fall under Other. */
-function LoggedSections({
+/** One meal's home: the suggested plan meal, the logged foods, and its Add. */
+function MealSection({
+  slot,
+  plannedMeals,
+  logs,
+  busy,
+  onConfirm,
+  onUndo,
+  onSwap,
+  onRecipe,
+  onAdd,
+}: {
+  slot: MealSlot;
+  plannedMeals: TodayMeal[];
+  logs: TodayLog[];
+  busy: string | null;
+  onConfirm: (slotIndex: number) => void;
+  onUndo: (id: string) => void;
+  onSwap: (slotIndex: number) => void;
+  onRecipe: (recipe: NonNullable<TodayMeal["recipe"]>) => void;
+  onAdd: (slot: MealSlot) => void;
+}) {
+  const sectionKcal = logs.reduce((sum, l) => sum + l.kcal, 0);
+  const time = plannedMeals[0]?.timeHour;
+
+  return (
+    <section className="mt-5">
+      <div className="mb-2 flex items-baseline justify-between">
+        <h2 className="text-xs font-medium uppercase tracking-wide text-[#829084]">
+          {SLOT_LABELS[slot]}
+          {time !== undefined ? ` · ${timeLabel(time)}` : ""}
+        </h2>
+        {sectionKcal > 0 && (
+          <span className="text-xs text-[#829084]">{Math.round(sectionKcal)} kcal</span>
+        )}
+      </div>
+      <div className="space-y-2">
+        {plannedMeals.map((meal) => (
+          <MealCard
+            key={meal.slotIndex}
+            meal={meal}
+            loggedId={null}
+            compact
+            busy={busy}
+            onConfirm={onConfirm}
+            onUndo={onUndo}
+            onSwap={onSwap}
+            onRecipe={onRecipe}
+          />
+        ))}
+        {logs.map((l) => (
+          <LogRow key={l.id} log={l} busy={busy} onUndo={onUndo} />
+        ))}
+        <button
+          onClick={() => onAdd(slot)}
+          disabled={busy !== null}
+          className="press w-full rounded-2xl border border-dashed border-[#c9d3c3] bg-transparent px-4 py-2.5 text-left text-sm text-[#829084] hover:border-[#8aa06f] hover:text-[#2c3a2e] disabled:opacity-50"
+        >
+          + Add
+        </button>
+      </div>
+    </section>
+  );
+}
+
+/** Logs from before meal sections existed; read-only home, no Add. */
+function OtherSection({
   logs,
   busy,
   onUndo,
-  className = "mt-2",
 }: {
   logs: TodayLog[];
   busy: string | null;
   onUndo: (id: string) => void;
-  className?: string;
 }) {
-  const groups = [
-    ...SLOT_ORDER.map((s) => ({
-      key: s as string,
-      label: SLOT_LABELS[s],
-      items: logs.filter((l) => l.slot === s),
-    })),
-    {
-      key: "other",
-      label: "Other",
-      items: logs.filter((l) => !l.slot || !SLOT_ORDER.includes(l.slot as MealSlot)),
-    },
-  ].filter((g) => g.items.length > 0);
-
+  const items = logs.filter((l) => !l.slot || !SLOT_ORDER.includes(l.slot as MealSlot));
+  if (items.length === 0) return null;
   return (
-    <>
-      {groups.map((g) => (
-        <section key={g.key} className={`${className} space-y-2`}>
-          <h2 className="text-xs font-medium uppercase tracking-wide text-[#829084]">{g.label}</h2>
-          {g.items.map((l) => (
-            <div key={l.id} className="flex items-center justify-between rounded-2xl bg-white p-3 shadow-sm">
-              <div className="min-w-0">
-                <p className="flex items-center gap-1.5 text-sm font-medium text-[#2c3a2e]">
-                  <span className="truncate">{l.name}</span>
-                  {l.verified && <VerifiedBadge />}
-                  {l.source === "estimate" && (
-                    <span className="shrink-0 rounded-full bg-[#fdf3d7] px-2 py-0.5 text-[10px] text-[#7a6420]">estimate</span>
-                  )}
-                </p>
-                <p className="mt-0.5 text-xs text-[#5d6b5f]">
-                  {Math.round(l.kcal)} kcal · P {Math.round(l.proteinG)}g
-                </p>
-              </div>
-              <button
-                onClick={() => onUndo(l.id)}
-                disabled={busy !== null}
-                className="text-xs text-[#829084] underline-offset-2 hover:underline disabled:opacity-50"
-              >
-                Undo
-              </button>
-            </div>
-          ))}
-        </section>
-      ))}
-    </>
+    <section className="mt-5">
+      <h2 className="mb-2 text-xs font-medium uppercase tracking-wide text-[#829084]">Other</h2>
+      <div className="space-y-2">
+        {items.map((l) => (
+          <LogRow key={l.id} log={l} busy={busy} onUndo={onUndo} />
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function LogRow({
+  log,
+  busy,
+  onUndo,
+}: {
+  log: TodayLog;
+  busy: string | null;
+  onUndo: (id: string) => void;
+}) {
+  return (
+    <div className="flex items-center justify-between rounded-2xl bg-white p-3 shadow-sm">
+      <div className="min-w-0">
+        <p className="flex items-center gap-1.5 text-sm font-medium text-[#2c3a2e]">
+          <span className="truncate">{log.name}</span>
+          {log.verified && <VerifiedBadge />}
+          {log.source === "estimate" && (
+            <span className="shrink-0 rounded-full bg-[#fdf3d7] px-2 py-0.5 text-[10px] text-[#7a6420]">estimate</span>
+          )}
+        </p>
+        <p className="mt-0.5 text-xs text-[#5d6b5f]">
+          {Math.round(log.kcal)} kcal · P {Math.round(log.proteinG)}g
+        </p>
+      </div>
+      <button
+        onClick={() => onUndo(log.id)}
+        disabled={busy !== null}
+        className="text-xs text-[#829084] underline-offset-2 hover:underline disabled:opacity-50"
+      >
+        Undo
+      </button>
+    </div>
   );
 }
