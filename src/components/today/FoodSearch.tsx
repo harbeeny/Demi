@@ -2,9 +2,17 @@
 
 import { useEffect, useRef, useState } from "react";
 
+import { Capacitor } from "@capacitor/core";
+
 import { apiFetch } from "@/lib/api";
 import { createClient } from "@/lib/supabase/client";
-import { GRAMS_PER_OZ, isVerifiedSource, scaleMacros, type FdcFood } from "@/lib/food/fdc";
+import {
+  GRAMS_PER_OZ,
+  isBarcodeQuery,
+  isVerifiedSource,
+  scaleMacros,
+  type FdcFood,
+} from "@/lib/food/fdc";
 
 export interface FdcLogFields {
   fdcId: number;
@@ -98,6 +106,31 @@ export function FoodSearch({ busy, onLog }: Props) {
     inputRef.current?.focus();
   };
 
+  // The camera scanner only exists in the native shell; the button stays out
+  // of the web build. State (not a render-time check) avoids hydration drift.
+  const [canScan, setCanScan] = useState(false);
+  useEffect(() => {
+    setCanScan(Capacitor.isNativePlatform());
+  }, []);
+
+  const scanBarcode = async () => {
+    try {
+      const { CapacitorBarcodeScanner, CapacitorBarcodeScannerTypeHint } = await import(
+        "@capacitor/barcode-scanner"
+      );
+      const result = await CapacitorBarcodeScanner.scanBarcode({
+        hint: CapacitorBarcodeScannerTypeHint.ALL,
+        scanInstructions: "Point the camera at the barcode",
+      });
+      const code = result.ScanResult?.trim();
+      // The digits flow through the normal search pipeline; the route
+      // exact-matches the UPC and the effect below auto-opens the product.
+      if (code) setQuery(code);
+    } catch {
+      // scanner dismissed or camera permission denied; nothing to log
+    }
+  };
+
   // Recent FDC foods for one-tap re-logging (macros were snapshotted at log
   // time, so re-logging costs zero API calls).
   useEffect(() => {
@@ -160,9 +193,21 @@ export function FoodSearch({ busy, onLog }: Props) {
           setResults([]);
           setCorrectedTo(null);
         } else {
-          setMessage(data.foods?.length ? "" : "No matches. Try different words.");
+          setMessage(
+            data.foods?.length
+              ? ""
+              : isBarcodeQuery(q)
+                ? "That barcode isn't in the food database yet. Try searching by name."
+                : "No matches. Try different words.",
+          );
           setResults(data.foods ?? []);
           setCorrectedTo(data.foods?.length ? (data.correctedTo ?? null) : null);
+          // A scan should land on the product, not a list: open the top match.
+          if (isBarcodeQuery(q) && data.foods?.length) {
+            const top = data.foods[0];
+            setSelected(top);
+            setGrams(Math.round(top.portions[0]?.gramWeight ?? 100));
+          }
         }
       } catch {
         if (id !== searchSeq.current) return;
@@ -282,34 +327,57 @@ export function FoodSearch({ busy, onLog }: Props) {
 
   return (
     <div onTouchStart={dismissKeyboard}>
-      <div className="relative" data-search-controls>
-        <input
-          ref={inputRef}
-          type="text"
-          className={`${input} pr-10`}
-          placeholder="Search foods, e.g. greek yogurt"
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          autoFocus
-        />
-        {query.length > 0 && (
+      <div className="flex gap-2" data-search-controls>
+        <div className="relative min-w-0 flex-1">
+          <input
+            ref={inputRef}
+            type="text"
+            className={`${input} pr-10`}
+            placeholder="Search foods, e.g. greek yogurt"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            autoFocus
+          />
+          {query.length > 0 && (
+            <button
+              onClick={clearSearch}
+              onMouseDown={(e) => e.preventDefault()}
+              aria-label="Clear search"
+              className="press absolute right-2 top-1/2 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-full bg-[#eef1ea] text-[#5d6b5f] hover:bg-[#e2e8dc] hover:text-[#2c3a2e]"
+            >
+              <svg
+                width="12"
+                height="12"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2.5"
+                strokeLinecap="round"
+                aria-hidden="true"
+              >
+                <path d="M6 6l12 12M18 6L6 18" />
+              </svg>
+            </button>
+          )}
+        </div>
+        {canScan && (
           <button
-            onClick={clearSearch}
-            onMouseDown={(e) => e.preventDefault()}
-            aria-label="Clear search"
-            className="press absolute right-2 top-1/2 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-full bg-[#eef1ea] text-[#5d6b5f] hover:bg-[#e2e8dc] hover:text-[#2c3a2e]"
+            onClick={scanBarcode}
+            disabled={busy !== null}
+            aria-label="Scan a barcode"
+            className="press flex w-11 shrink-0 items-center justify-center self-stretch rounded-2xl border border-[#dce3d7] bg-white text-[#2c3a2e] hover:border-[#8aa06f] disabled:opacity-50"
           >
             <svg
-              width="12"
-              height="12"
+              width="20"
+              height="20"
               viewBox="0 0 24 24"
               fill="none"
               stroke="currentColor"
-              strokeWidth="2.5"
+              strokeWidth="2"
               strokeLinecap="round"
               aria-hidden="true"
             >
-              <path d="M6 6l12 12M18 6L6 18" />
+              <path d="M4 6v12M8 6v12M12 6v8M16 6v12M20 6v12" />
             </svg>
           </button>
         )}

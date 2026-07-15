@@ -2,7 +2,9 @@ import { describe, expect, test } from "bun:test";
 
 import {
   extractKcal,
+  isBarcodeQuery,
   isVerifiedSource,
+  matchesBarcode,
   normalizeSearchHit,
   rankResults,
   scaleMacros,
@@ -18,6 +20,7 @@ const brandedCheddar: RawSearchHit = {
   dataType: "Branded",
   brandOwner: "Grafton Village Cheese Co, LLC",
   brandName: "GRAFTON VILLAGE",
+  gtinUpc: "0023627777000",
   servingSize: 28.0,
   servingSizeUnit: "g",
   householdServingFullText: "1 ONZ",
@@ -143,6 +146,29 @@ describe("rankResults", () => {
     ];
     const ranked = rankResults(foods);
     expect(ranked.map((f) => f.dataType)).toEqual(["Survey (FNDDS)", "Foundation", "Branded"]);
+  });
+});
+
+describe("barcode helpers", () => {
+  test("isBarcodeQuery accepts 8-14 digit runs only", () => {
+    expect(isBarcodeQuery("038000138416")).toBe(true);
+    expect(isBarcodeQuery("0023627777000")).toBe(true);
+    expect(isBarcodeQuery("greek yogurt")).toBe(false);
+    expect(isBarcodeQuery("1234567")).toBe(false); // too short
+    expect(isBarcodeQuery("123456789012345")).toBe(false); // too long
+  });
+
+  test("matchesBarcode ignores leading zeros in either direction", () => {
+    expect(matchesBarcode("0023627777000", "23627777000")).toBe(true);
+    expect(matchesBarcode("038000138416", "0038000138416")).toBe(true);
+    expect(matchesBarcode("038000138416", "038000138417")).toBe(false);
+    expect(matchesBarcode(null, "038000138416")).toBe(false);
+    expect(matchesBarcode("", "038000138416")).toBe(false);
+  });
+
+  test("normalizeSearchHit carries the gtinUpc through", () => {
+    expect(normalizeSearchHit(brandedCheddar)!.gtinUpc).toBe("0023627777000");
+    expect(normalizeSearchHit(surveyApple)!.gtinUpc).toBeNull();
   });
 });
 
