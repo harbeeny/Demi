@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import { apiFetch } from "@/lib/api";
 import { FoodSearch, type FdcLogFields } from "./FoodSearch";
@@ -47,6 +47,12 @@ interface Props {
 /** Bottom sheet for logging something that wasn't on the plan. */
 export function LogSheet({ open, onClose, searchMeals, busy, defaultMode = "fdc", onLogDb, onLogEstimate, onLogFdc }: Props) {
   const [mode, setMode] = useState<"fdc" | "search" | "quick">(defaultMode);
+
+  // The sheet stays mounted while closed, so the initial state can capture a
+  // stale default (day mode loads async). Re-sync on every open.
+  useEffect(() => {
+    if (open) setMode(defaultMode);
+  }, [open, defaultMode]);
   const [query, setQuery] = useState("");
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [note, setNote] = useState("");

@@ -4,7 +4,7 @@
 // like personalize.ts. Pure parts stay testable; the provider loads lazily.
 
 import type { MacroTotals } from "@/lib/log/remaining";
-import { numbersAreGrounded } from "./validate";
+import { numbersAreGrounded, stripEmDashes } from "./validate";
 
 export interface ReflectionInput {
   targets: MacroTotals;
@@ -121,7 +121,11 @@ export async function reflect(input: ReflectionInput): Promise<DayReflection> {
       throw new Error("reflect: LLM invented numbers");
     }
 
-    return { reflection: parsed.reflection, tweak: parsed.tweak, fallbackUsed: false };
+    return {
+      reflection: stripEmDashes(parsed.reflection),
+      tweak: stripEmDashes(parsed.tweak),
+      fallbackUsed: false,
+    };
   } catch (err) {
     console.error("reflect: falling back to deterministic copy:", err);
     return deterministicReflection(input);

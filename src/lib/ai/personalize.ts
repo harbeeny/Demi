@@ -3,7 +3,7 @@ import "server-only";
 import type { SelectedMeal } from "@/lib/plan/select-meals";
 import type { MacroTargets, ProfileInput } from "@/lib/nutrition";
 import { getAIProvider } from "./anthropic";
-import { numbersAreGrounded } from "./validate";
+import { numbersAreGrounded, stripEmDashes } from "./validate";
 
 export interface PersonalizedPlan {
   daySummary: string;
@@ -117,11 +117,13 @@ export async function personalize(
     const explanations = new Map(
       (parsed.meals as Array<{ mealId: string; why?: unknown }>).map((m) => [
         m.mealId,
-        typeof m.why === "string" && numbersAreGrounded(m.why, inputText) ? m.why : "",
+        typeof m.why === "string" && numbersAreGrounded(m.why, inputText)
+          ? stripEmDashes(m.why)
+          : "",
       ]),
     );
     const daySummary = numbersAreGrounded(parsed.daySummary, inputText)
-      ? parsed.daySummary
+      ? stripEmDashes(parsed.daySummary)
       : deterministicFallback(selected, targets).daySummary;
 
     return {

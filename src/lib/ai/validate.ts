@@ -23,3 +23,11 @@ export function numbersAreGrounded(output: string, input: string): boolean {
   }
   return true;
 }
+
+/**
+ * App copy never uses em-dashes; the prompts say so but the model sometimes
+ * ignores it, so enforce deterministically on every LLM string we surface.
+ */
+export function stripEmDashes(text: string): string {
+  return text.replace(/\s*—\s*/g, ", ");
+}

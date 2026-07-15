@@ -2,6 +2,8 @@
 // provider (which is server-only and key-bearing) is imported lazily inside
 // estimateMacros, keeping it out of any client bundle.
 
+import { stripEmDashes } from "./validate";
+
 export interface MacroEstimate {
   name: string;
   kcal: number;
@@ -50,7 +52,8 @@ export function validateEstimate(e: unknown): MacroEstimate | null {
   const o = e as Record<string, unknown>;
 
   if (typeof o.name !== "string") return null;
-  const name = o.name.trim();
+  // strip before the length check: the replacement can lengthen the string
+  const name = stripEmDashes(o.name).trim();
   if (name.length === 0 || name.length > ESTIMATE_BOUNDS.nameMaxChars) return null;
 
   if (
@@ -78,7 +81,7 @@ export function validateEstimate(e: unknown): MacroEstimate | null {
     proteinG: Math.round(proteinG),
     carbsG: Math.round(carbsG),
     fatG: Math.round(fatG),
-    assumptions: typeof o.assumptions === "string" ? o.assumptions : "",
+    assumptions: typeof o.assumptions === "string" ? stripEmDashes(o.assumptions) : "",
   };
 }
 
