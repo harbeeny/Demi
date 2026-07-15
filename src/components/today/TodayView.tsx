@@ -122,23 +122,30 @@ export function TodayView({ hasPlan, daySummary, meals, targets, logs, summary, 
       { method: "DELETE", headers: { "content-type": "application/json" }, body: JSON.stringify({ logId }) },
       "unlog",
     );
-  const logDb = async (mealId: string, note: string) => {
-    if (await post("/api/log", { source: "db", mealId, note: note || undefined }, "log-db")) {
-      setSheetOpen(false);
-    }
+  // Each returns whether the log landed; keepOpen leaves the sheet up for
+  // rapid multi-adds (recents), which confirm inline instead of closing.
+  const logDb = async (mealId: string, note: string, opts?: { keepOpen?: boolean }) => {
+    const ok = await post("/api/log", { source: "db", mealId, note: note || undefined }, "log-db");
+    if (ok && !opts?.keepOpen) setSheetOpen(false);
+    return ok;
   };
   const logEstimate = async (
     fields: { name: string; kcal: number; proteinG: number; carbsG: number; fatG: number },
     note: string,
+    opts?: { keepOpen?: boolean },
   ) => {
-    if (await post("/api/log", { source: "estimate", ...fields, note: note || undefined }, "log-estimate")) {
-      setSheetOpen(false);
-    }
+    const ok = await post(
+      "/api/log",
+      { source: "estimate", ...fields, note: note || undefined },
+      "log-estimate",
+    );
+    if (ok && !opts?.keepOpen) setSheetOpen(false);
+    return ok;
   };
-  const logFdc = async (fields: FdcLogFields, note: string) => {
-    if (await post("/api/log", { source: "fdc", ...fields, note: note || undefined }, "log-fdc")) {
-      setSheetOpen(false);
-    }
+  const logFdc = async (fields: FdcLogFields, note: string, opts?: { keepOpen?: boolean }) => {
+    const ok = await post("/api/log", { source: "fdc", ...fields, note: note || undefined }, "log-fdc");
+    if (ok && !opts?.keepOpen) setSheetOpen(false);
+    return ok;
   };
   const rebalance = () => post("/api/plan/rebalance", {}, "rebalance");
   const finishDay = (energy: number | null, note: string) =>

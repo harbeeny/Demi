@@ -13,6 +13,7 @@ import {
   scaleMacros,
   type FdcFood,
 } from "@/lib/food/fdc";
+import { successHaptic } from "@/lib/haptics";
 
 export interface FdcLogFields {
   fdcId: number;
@@ -67,14 +68,15 @@ export function VerifiedBadge() {
 
 interface Props {
   busy: string | null;
-  onLog: (fields: FdcLogFields, note: string) => void;
+  onLog: (fields: FdcLogFields, note: string, opts?: { keepOpen?: boolean }) => Promise<boolean>;
   /** re-log a catalog/planned meal from recents */
-  onLogDb: (mealId: string, note: string) => void;
+  onLogDb: (mealId: string, note: string, opts?: { keepOpen?: boolean }) => Promise<boolean>;
   /** re-log a quick-add estimate from recents */
   onLogEstimate: (
     fields: { name: string; kcal: number; proteinG: number; carbsG: number; fatG: number },
     note: string,
-  ) => void;
+    opts?: { keepOpen?: boolean },
+  ) => Promise<boolean>;
 }
 
 const input =
@@ -204,11 +206,24 @@ export function FoodSearch({ busy, onLog, onLogDb, onLogEstimate }: Props) {
     })();
   }, []);
 
+  // A recents quick-add confirms inline (check morph + success haptic) and
+  // keeps the sheet open for the next add, unlike every other log path.
+  const [justLogged, setJustLogged] = useState<string | null>(null);
+  const confirmTimer = useRef<number | null>(null);
+  useEffect(
+    () => () => {
+      if (confirmTimer.current !== null) window.clearTimeout(confirmTimer.current);
+    },
+    [],
+  );
+
   // Route a recent food back through the matching log path with its
   // snapshotted macros; planned meals re-log as catalog picks.
-  const relogRecent = (r: RecentFood) => {
+  const relogRecent = async (r: RecentFood) => {
+    const keep = { keepOpen: true };
+    let ok = false;
     if (r.source === "fdc" && r.fdcId !== null) {
-      onLog(
+      ok = await onLog(
         {
           fdcId: r.fdcId,
           name: r.name.replace(/ \(\d+ g\)$/, ""),
@@ -220,14 +235,22 @@ export function FoodSearch({ busy, onLog, onLogDb, onLogEstimate }: Props) {
           verified: r.verified,
         },
         "",
+        keep,
       );
     } else if (r.mealId) {
-      onLogDb(r.mealId, "");
+      ok = await onLogDb(r.mealId, "", keep);
     } else {
-      onLogEstimate(
+      ok = await onLogEstimate(
         { name: r.name, kcal: r.kcal, proteinG: r.proteinG, carbsG: r.carbsG, fatG: r.fatG },
         "",
+        keep,
       );
+    }
+    if (ok) {
+      successHaptic();
+      setJustLogged(r.key);
+      if (confirmTimer.current !== null) window.clearTimeout(confirmTimer.current);
+      confirmTimer.current = window.setTimeout(() => setJustLogged(null), 1400);
     }
   };
 
@@ -459,46 +482,58 @@ export function FoodSearch({ busy, onLog, onLogDb, onLogEstimate }: Props) {
             Recent foods
           </h3>
           <div className="space-y-2">
-            {recents.map((r) => (
-              <button
-                key={r.key}
-                onClick={() => relogRecent(r)}
-                disabled={busy !== null}
-                aria-label={`Quick add ${r.name}`}
-                className="press flex w-full items-center gap-2 rounded-2xl border border-[#dce3d7] bg-white p-3 text-left hover:border-[#8aa06f] disabled:opacity-50"
-              >
-                <span className="min-w-0 flex-1">
-                  <span className="flex items-center gap-1.5 text-sm font-medium text-[#2c3a2e]">
-                    <span className="truncate">{r.name}</span>
-                    {r.verified && <VerifiedBadge />}
-                    {r.source === "estimate" && (
-                      <span className="shrink-0 rounded-full bg-[#fdf3d7] px-2 py-0.5 text-[10px] text-[#7a6420]">
-                        estimate
-                      </span>
-                    )}
-                  </span>
-                  <span className="mt-0.5 block text-xs text-[#5d6b5f]">
-                    {Math.round(r.kcal)} kcal · P {Math.round(r.proteinG)}g
-                  </span>
-                </span>
-                <span
-                  aria-hidden="true"
-                  className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-[#dce3d7] text-[#2c3a2e]"
+            {recents.map((r) => {
+              const confirmed = justLogged === r.key;
+              return (
+                <button
+                  key={r.key}
+                  onClick={() => relogRecent(r)}
+                  disabled={busy !== null}
+                  aria-label={confirmed ? `Logged ${r.name}` : `Quick add ${r.name}`}
+                  className={`press flex w-full items-center gap-2 rounded-2xl border p-3 text-left transition-[background-color,border-color] duration-200 disabled:opacity-50 ${
+                    confirmed
+                      ? "border-[#3e7a46] bg-[#eef6ee]"
+                      : "border-[#dce3d7] bg-white hover:border-[#8aa06f]"
+                  }`}
                 >
-                  <svg
-                    width="16"
-                    height="16"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2.25"
-                    strokeLinecap="round"
+                  <span className="min-w-0 flex-1">
+                    <span className="flex items-center gap-1.5 text-sm font-medium text-[#2c3a2e]">
+                      <span className="truncate">{r.name}</span>
+                      {r.verified && <VerifiedBadge />}
+                      {r.source === "estimate" && (
+                        <span className="shrink-0 rounded-full bg-[#fdf3d7] px-2 py-0.5 text-[10px] text-[#7a6420]">
+                          estimate
+                        </span>
+                      )}
+                    </span>
+                    <span className="mt-0.5 block text-xs text-[#5d6b5f]">
+                      {confirmed ? "Added to today" : `${Math.round(r.kcal)} kcal · P ${Math.round(r.proteinG)}g`}
+                    </span>
+                  </span>
+                  <span
+                    aria-hidden="true"
+                    className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full border transition-[background-color,border-color,color,transform] duration-200 ease-out ${
+                      confirmed
+                        ? "scale-110 border-[#3e7a46] bg-[#3e7a46] text-white"
+                        : "border-[#dce3d7] bg-transparent text-[#2c3a2e]"
+                    }`}
                   >
-                    <path d="M12 5v14M5 12h14" />
-                  </svg>
-                </span>
-              </button>
-            ))}
+                    <svg
+                      width="16"
+                      height="16"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2.25"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    >
+                      {confirmed ? <path d="M4 12l6 6L20 6" /> : <path d="M12 5v14M5 12h14" />}
+                    </svg>
+                  </span>
+                </button>
+              );
+            })}
           </div>
         </div>
       )}

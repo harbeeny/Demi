@@ -40,9 +40,13 @@ interface Props {
   busy: string | null;
   /** which mode the sheet opens in; tracker users default to the food search */
   defaultMode?: "fdc" | "search" | "quick";
-  onLogDb: (mealId: string, note: string) => void;
-  onLogEstimate: (fields: { name: string; kcal: number; proteinG: number; carbsG: number; fatG: number }, note: string) => void;
-  onLogFdc: (fields: FdcLogFields, note: string) => void;
+  onLogDb: (mealId: string, note: string, opts?: { keepOpen?: boolean }) => Promise<boolean>;
+  onLogEstimate: (
+    fields: { name: string; kcal: number; proteinG: number; carbsG: number; fatG: number },
+    note: string,
+    opts?: { keepOpen?: boolean },
+  ) => Promise<boolean>;
+  onLogFdc: (fields: FdcLogFields, note: string, opts?: { keepOpen?: boolean }) => Promise<boolean>;
 }
 
 /** Bottom sheet for logging something that wasn't on the plan. */

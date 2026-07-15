@@ -16,3 +16,16 @@ export function tapHaptic(): void {
     }
   })();
 }
+
+/** Success notification haptic for a completed action (e.g. food logged). */
+export function successHaptic(): void {
+  if (!Capacitor.isNativePlatform()) return;
+  void (async () => {
+    try {
+      const { Haptics, NotificationType } = await import("@capacitor/haptics");
+      await Haptics.notification({ type: NotificationType.Success });
+    } catch {
+      // haptics unavailable; the confirmation animation still shows
+    }
+  })();
+}
