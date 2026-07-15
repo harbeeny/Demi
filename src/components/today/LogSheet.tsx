@@ -136,13 +136,28 @@ export function LogSheet({ open, onClose, searchMeals, busy, defaultMode = "fdc"
   return (
     <div className="fixed inset-0 z-40 flex items-end justify-center bg-black/30" onClick={onClose}>
       <div
-        className="max-h-[85dvh] w-full max-w-md overflow-y-auto rounded-t-3xl bg-[#f4f6f2] p-5 pb-8"
+        className="h-[90dvh] w-full max-w-md overflow-y-auto rounded-t-3xl bg-[#f4f6f2] p-5 pb-8"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="mb-4 flex items-center justify-between">
           <h2 className="text-lg font-semibold text-[#2c3a2e]">Log something else</h2>
-          <button onClick={onClose} className="text-sm text-[#829084] hover:text-[#2c3a2e]">
-            Close
+          <button
+            onClick={onClose}
+            aria-label="Close"
+            className="press -mr-1 flex h-9 w-9 items-center justify-center rounded-full text-[#829084] hover:bg-[#e6ebe0] hover:text-[#2c3a2e]"
+          >
+            <svg
+              width="18"
+              height="18"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              aria-hidden="true"
+            >
+              <path d="M6 6l12 12M18 6L6 18" />
+            </svg>
           </button>
         </div>
 
