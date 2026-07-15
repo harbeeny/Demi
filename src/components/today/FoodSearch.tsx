@@ -44,9 +44,27 @@ export function FoodSearch({ busy, onLog }: Props) {
   const [note, setNote] = useState("");
   const [recents, setRecents] = useState<RecentFood[]>([]);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
   // Monotonic id per query: a slow, older fetch must never clobber the
   // results of a newer one (it read as "search didn't recognize the word").
   const searchSeq = useRef(0);
+
+  // Touching the results area drops the keyboard so more of the list shows;
+  // the OS animates it down on blur. Touches on the field or its clear button
+  // are exempt, and desktop pointers never blur (no keyboard to dismiss).
+  const dismissKeyboard = (e: React.TouchEvent) => {
+    const input = inputRef.current;
+    if (!input || document.activeElement !== input) return;
+    if ((e.target as HTMLElement).closest("[data-search-controls]")) return;
+    input.blur();
+  };
+
+  const clearSearch = () => {
+    setQuery("");
+    setMessage("");
+    // Refocus in the same tap so iOS reopens the keyboard for the next word.
+    inputRef.current?.focus();
+  };
 
   // Recent FDC foods for one-tap re-logging (macros were snapshotted at log
   // time, so re-logging costs zero API calls).
@@ -195,15 +213,39 @@ export function FoodSearch({ busy, onLog }: Props) {
   }
 
   return (
-    <div>
-      <input
-        type="text"
-        className={input}
-        placeholder="Search foods, e.g. greek yogurt"
-        value={query}
-        onChange={(e) => setQuery(e.target.value)}
-        autoFocus
-      />
+    <div onTouchStart={dismissKeyboard}>
+      <div className="relative" data-search-controls>
+        <input
+          ref={inputRef}
+          type="text"
+          className={`${input} pr-10`}
+          placeholder="Search foods, e.g. greek yogurt"
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          autoFocus
+        />
+        {query.length > 0 && (
+          <button
+            onClick={clearSearch}
+            onMouseDown={(e) => e.preventDefault()}
+            aria-label="Clear search"
+            className="press absolute right-2 top-1/2 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-full bg-[#eef1ea] text-[#5d6b5f] hover:bg-[#e2e8dc] hover:text-[#2c3a2e]"
+          >
+            <svg
+              width="12"
+              height="12"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2.5"
+              strokeLinecap="round"
+              aria-hidden="true"
+            >
+              <path d="M6 6l12 12M18 6L6 18" />
+            </svg>
+          </button>
+        )}
+      </div>
       {searching && <p className="mt-2 text-xs text-[#829084]">Searching...</p>}
       {message && !searching && <p className="mt-2 text-sm text-[#829084]">{message}</p>}
 
