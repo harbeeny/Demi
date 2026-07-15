@@ -394,6 +394,7 @@ export interface Database {
           slot: MealSlot | null;
           plan_slot_index: number | null;
           fdc_id: number | null;
+          verified: boolean;
           meal_id: string | null;
           name: string;
           kcal: number;
@@ -411,6 +412,7 @@ export interface Database {
           slot?: MealSlot | null;
           plan_slot_index?: number | null;
           fdc_id?: number | null;
+          verified?: boolean;
           meal_id?: string | null;
           name: string;
           kcal: number;
@@ -428,6 +430,7 @@ export interface Database {
           slot?: MealSlot | null;
           plan_slot_index?: number | null;
           fdc_id?: number | null;
+          verified?: boolean;
           meal_id?: string | null;
           name?: string;
           kcal?: number;

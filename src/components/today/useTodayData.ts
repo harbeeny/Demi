@@ -72,7 +72,7 @@ export function useTodayData(): { loading: boolean; data: TodayData | null; relo
           .single(),
         supabase
           .from("meal_logs")
-          .select("id, slot, plan_slot_index, name, kcal, protein_g, carbs_g, fat_g, source")
+          .select("id, slot, plan_slot_index, name, kcal, protein_g, carbs_g, fat_g, source, verified")
           .eq("user_id", user.id)
           .eq("date", today)
           .order("logged_at", { ascending: true }),
@@ -146,6 +146,7 @@ export function useTodayData(): { loading: boolean; data: TodayData | null; relo
         carbsG: Number(l.carbs_g),
         fatG: Number(l.fat_g),
         source: l.source,
+        verified: l.verified === true,
       })),
       summary:
         dailyLog && dailyLog.finished_at && dailyLog.reflection && dailyLog.tweak

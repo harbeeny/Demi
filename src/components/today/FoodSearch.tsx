@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 
 import { apiFetch } from "@/lib/api";
 import { createClient } from "@/lib/supabase/client";
-import { scaleMacros, type FdcFood } from "@/lib/food/fdc";
+import { GRAMS_PER_OZ, isVerifiedSource, scaleMacros, type FdcFood } from "@/lib/food/fdc";
 
 export interface FdcLogFields {
   fdcId: number;
@@ -14,6 +14,7 @@ export interface FdcLogFields {
   proteinG: number;
   carbsG: number;
   fatG: number;
+  verified: boolean;
 }
 
 interface RecentFood {
@@ -23,6 +24,33 @@ interface RecentFood {
   proteinG: number;
   carbsG: number;
   fatG: number;
+  verified: boolean;
+}
+
+/** Green check for nutrition data from a curated, dietitian-grade source. */
+export function VerifiedBadge() {
+  return (
+    <span
+      role="img"
+      aria-label="Verified nutrition data"
+      title="Verified nutrition data"
+      className="inline-flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded-full bg-[#3e7a46] align-[-2px]"
+    >
+      <svg
+        width="8"
+        height="8"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="white"
+        strokeWidth="4"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        aria-hidden="true"
+      >
+        <path d="M4 12l6 6L20 6" />
+      </svg>
+    </span>
+  );
 }
 
 interface Props {
@@ -42,6 +70,9 @@ export function FoodSearch({ busy, onLog }: Props) {
   const [correctedTo, setCorrectedTo] = useState<string | null>(null);
   const [selected, setSelected] = useState<FdcFood | null>(null);
   const [grams, setGrams] = useState(100);
+  // Amount entry unit. Grams stay canonical internally; oz only changes what
+  // the user types and reads, so macros and the server payload never drift.
+  const [unit, setUnit] = useState<"g" | "oz">("g");
   const [note, setNote] = useState("");
   const [recents, setRecents] = useState<RecentFood[]>([]);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -78,7 +109,7 @@ export function FoodSearch({ busy, onLog }: Props) {
       if (!user) return;
       const { data } = await supabase
         .from("meal_logs")
-        .select("fdc_id, name, kcal, protein_g, carbs_g, fat_g")
+        .select("fdc_id, name, kcal, protein_g, carbs_g, fat_g, verified")
         .eq("user_id", user.id)
         .eq("source", "fdc")
         .order("logged_at", { ascending: false })
@@ -95,6 +126,7 @@ export function FoodSearch({ busy, onLog }: Props) {
           proteinG: Number(row.protein_g),
           carbsG: Number(row.carbs_g),
           fatG: Number(row.fat_g),
+          verified: row.verified === true,
         });
         if (distinct.length >= 8) break;
       }
@@ -146,6 +178,8 @@ export function FoodSearch({ busy, onLog }: Props) {
 
   if (selected) {
     const macros = scaleMacros(selected.per100g, grams);
+    const verified = isVerifiedSource(selected.dataType);
+    const ozAmount = Math.round((grams / GRAMS_PER_OZ) * 10) / 10;
     return (
       <div>
         <button
@@ -154,7 +188,10 @@ export function FoodSearch({ busy, onLog }: Props) {
         >
           Back to results
         </button>
-        <p className="text-sm font-medium text-[#2c3a2e]">{selected.description}</p>
+        <p className="flex items-center gap-1.5 text-sm font-medium text-[#2c3a2e]">
+          {selected.description}
+          {verified && <VerifiedBadge />}
+        </p>
         {selected.brand && <p className="text-xs text-[#829084]">{selected.brand}</p>}
 
         <div className="mt-3 flex flex-wrap gap-2">
@@ -172,18 +209,39 @@ export function FoodSearch({ busy, onLog }: Props) {
             </button>
           ))}
         </div>
-        <label className="mt-2 block text-xs text-[#829084]">
-          Grams
-          <input
-            type="number"
-            min={1}
-            max={2000}
-            inputMode="numeric"
-            className={`${input} mt-1`}
-            value={grams}
-            onChange={(e) => setGrams(Math.max(1, Math.min(2000, Number(e.target.value) || 0)))}
-          />
-        </label>
+        <div className="mt-2 flex items-end gap-2">
+          <label className="block flex-1 text-xs text-[#829084]">
+            Amount
+            <input
+              type="number"
+              min={unit === "g" ? 1 : 0.1}
+              max={unit === "g" ? 2000 : 70}
+              step={unit === "g" ? 1 : 0.1}
+              inputMode="decimal"
+              className={`${input} mt-1`}
+              value={unit === "g" ? grams : ozAmount}
+              onChange={(e) => {
+                const raw = Number(e.target.value) || 0;
+                const g = unit === "g" ? raw : raw * GRAMS_PER_OZ;
+                setGrams(Math.max(1, Math.min(2000, Math.round(g))));
+              }}
+            />
+          </label>
+          <div className="flex overflow-hidden rounded-2xl border border-[#dce3d7]" role="group" aria-label="Amount unit">
+            {(["g", "oz"] as const).map((u) => (
+              <button
+                key={u}
+                onClick={() => setUnit(u)}
+                aria-pressed={unit === u}
+                className={`press px-3 py-2 text-sm ${
+                  unit === u ? "bg-[#2c3a2e] text-white" : "bg-white text-[#2c3a2e]"
+                }`}
+              >
+                {u}
+              </button>
+            ))}
+          </div>
+        </div>
 
         <p className="mt-2 text-sm text-[#5d6b5f]">
           {macros.kcal} kcal · P {macros.proteinG}g · C {macros.carbsG}g · F {macros.fatG}g
@@ -203,6 +261,7 @@ export function FoodSearch({ busy, onLog }: Props) {
                 fdcId: selected.fdcId,
                 name: selected.description,
                 grams,
+                verified,
                 ...macros,
               },
               note,
@@ -211,7 +270,11 @@ export function FoodSearch({ busy, onLog }: Props) {
           disabled={busy !== null || macros.kcal <= 0}
           className="press mt-3 w-full rounded-2xl bg-[#2c3a2e] px-5 py-3 font-medium text-white disabled:opacity-60"
         >
-          {busy === "log-fdc" ? "Logging..." : `Log ${grams} g`}
+          {busy === "log-fdc"
+            ? "Logging..."
+            : unit === "g"
+              ? `Log ${grams} g`
+              : `Log ${ozAmount} oz`}
         </button>
       </div>
     );
@@ -279,6 +342,7 @@ export function FoodSearch({ busy, onLog }: Props) {
                       proteinG: r.proteinG,
                       carbsG: r.carbsG,
                       fatG: r.fatG,
+                      verified: r.verified,
                     },
                     "",
                   )
@@ -286,7 +350,10 @@ export function FoodSearch({ busy, onLog }: Props) {
                 disabled={busy !== null}
                 className="press w-full rounded-2xl border border-[#dce3d7] bg-white p-3 text-left disabled:opacity-50"
               >
-                <span className="block text-sm font-medium text-[#2c3a2e]">{r.name}</span>
+                <span className="flex items-center gap-1.5 text-sm font-medium text-[#2c3a2e]">
+                  <span className="truncate">{r.name}</span>
+                  {r.verified && <VerifiedBadge />}
+                </span>
                 <span className="mt-0.5 block text-xs text-[#5d6b5f]">
                   {Math.round(r.kcal)} kcal · P {Math.round(r.proteinG)}g · log again
                 </span>
@@ -315,8 +382,9 @@ export function FoodSearch({ busy, onLog }: Props) {
                 disabled={busy !== null}
                 className="press min-w-0 flex-1 text-left disabled:opacity-50"
               >
-                <span className="block truncate text-sm font-medium text-[#2c3a2e]">
-                  {f.description}
+                <span className="flex items-center gap-1.5 text-sm font-medium text-[#2c3a2e]">
+                  <span className="truncate">{f.description}</span>
+                  {isVerifiedSource(f.dataType) && <VerifiedBadge />}
                 </span>
                 <span className="mt-0.5 block text-xs text-[#5d6b5f]">
                   {f.brand ? `${f.brand} · ` : ""}
@@ -330,6 +398,7 @@ export function FoodSearch({ busy, onLog }: Props) {
                       fdcId: f.fdcId,
                       name: f.description,
                       grams: defaultGrams,
+                      verified: isVerifiedSource(f.dataType),
                       ...scaleMacros(f.per100g, defaultGrams),
                     },
                     "",

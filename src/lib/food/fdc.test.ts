@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test";
 
 import {
   extractKcal,
+  isVerifiedSource,
   normalizeSearchHit,
   rankResults,
   scaleMacros,
@@ -142,6 +143,16 @@ describe("rankResults", () => {
     ];
     const ranked = rankResults(foods);
     expect(ranked.map((f) => f.dataType)).toEqual(["Survey (FNDDS)", "Foundation", "Branded"]);
+  });
+});
+
+describe("isVerifiedSource", () => {
+  test("curated USDA sources are verified, Branded is not", () => {
+    expect(isVerifiedSource("Foundation")).toBe(true);
+    expect(isVerifiedSource("SR Legacy")).toBe(true);
+    expect(isVerifiedSource("Survey (FNDDS)")).toBe(true);
+    expect(isVerifiedSource("Branded")).toBe(false);
+    expect(isVerifiedSource("")).toBe(false);
   });
 });
 

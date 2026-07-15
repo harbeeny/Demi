@@ -30,6 +30,8 @@ type LogBody =
       proteinG: number;
       carbsG: number;
       fatG: number;
+      /** curated-source provenance badge; cosmetic, never trust-bearing */
+      verified?: boolean;
       note?: string;
     };
 
@@ -58,6 +60,7 @@ async function post(request: Request): Promise<Response> {
     slot: MealSlot | null;
     plan_slot_index: number | null;
     fdc_id?: number | null;
+    verified?: boolean;
     meal_id: string | null;
     name: string;
     kcal: number;
@@ -137,6 +140,7 @@ async function post(request: Request): Promise<Response> {
       slot: null,
       plan_slot_index: null,
       fdc_id: body.fdcId,
+      verified: body.verified === true,
       meal_id: null,
       name: grams ? `${baseName} (${grams} g)` : checked.name,
       kcal: checked.kcal,
