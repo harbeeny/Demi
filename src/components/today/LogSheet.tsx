@@ -3,7 +3,9 @@
 import { useEffect, useMemo, useState } from "react";
 
 import { apiFetch } from "@/lib/api";
-import { FoodSearch, type FdcLogFields } from "./FoodSearch";
+import { FoodSearch, SlotChips, type FdcLogFields } from "./FoodSearch";
+import { suggestSlot } from "@/lib/log/slots";
+import type { MealSlot } from "@/lib/supabase/types";
 import { useSwipeToDismiss } from "./useSwipeToDismiss";
 
 export interface SearchMeal {
@@ -40,9 +42,20 @@ interface Props {
   busy: string | null;
   /** which mode the sheet opens in; tracker users default to the food search */
   defaultMode?: "fdc" | "search" | "quick";
-  onLogDb: (mealId: string, note: string, opts?: { keepOpen?: boolean }) => Promise<boolean>;
+  onLogDb: (
+    mealId: string,
+    note: string,
+    opts?: { keepOpen?: boolean; slot?: MealSlot },
+  ) => Promise<boolean>;
   onLogEstimate: (
-    fields: { name: string; kcal: number; proteinG: number; carbsG: number; fatG: number },
+    fields: {
+      name: string;
+      kcal: number;
+      proteinG: number;
+      carbsG: number;
+      fatG: number;
+      slot?: MealSlot;
+    },
     note: string,
     opts?: { keepOpen?: boolean },
   ) => Promise<boolean>;
@@ -52,6 +65,10 @@ interface Props {
 /** Bottom sheet for logging something that wasn't on the plan. */
 export function LogSheet({ open, onClose, searchMeals, busy, defaultMode = "fdc", onLogDb, onLogEstimate, onLogFdc }: Props) {
   const [mode, setMode] = useState<"fdc" | "search" | "quick">(defaultMode);
+  // Meal section for the Meals and Quick add forms, defaulting from the clock.
+  const [slot, setSlot] = useState<MealSlot>(() =>
+    suggestSlot(new Date().getHours(), new Date().getMinutes()),
+  );
 
   // The sheet stays mounted while closed, so the initial state can capture a
   // stale default (day mode loads async). Re-sync on every open.
@@ -128,13 +145,14 @@ export function LogSheet({ open, onClose, searchMeals, busy, defaultMode = "fdc"
 
   function saveEstimate() {
     if (!fields) return;
-    onLogEstimate(
+    void onLogEstimate(
       {
         name: fields.name.trim(),
         kcal: Number(fields.kcal),
         proteinG: Number(fields.proteinG) || 0,
         carbsG: Number(fields.carbsG) || 0,
         fatG: Number(fields.fatG) || 0,
+        slot,
       },
       note,
     );
@@ -252,6 +270,9 @@ export function LogSheet({ open, onClose, searchMeals, busy, defaultMode = "fdc"
                 </div>
                 {selected && (
                   <div className="mt-3">
+                    <div className="mb-3">
+                      <SlotChips value={slot} onChange={setSlot} />
+                    </div>
                     <input
                       type="text"
                       className={input}
@@ -260,7 +281,7 @@ export function LogSheet({ open, onClose, searchMeals, busy, defaultMode = "fdc"
                       onChange={(e) => setNote(e.target.value)}
                     />
                     <button
-                      onClick={() => onLogDb(selected.id, note)}
+                      onClick={() => void onLogDb(selected.id, note, { slot })}
                       disabled={busy !== null}
                       className="press mt-3 w-full rounded-2xl bg-[#2c3a2e] px-5 py-3 font-medium text-white disabled:opacity-60"
                     >
@@ -297,6 +318,7 @@ export function LogSheet({ open, onClose, searchMeals, busy, defaultMode = "fdc"
                       </p>
                     )}
                     {message && <p className="text-sm text-[#829084]">{message}</p>}
+                    <SlotChips value={slot} onChange={setSlot} />
                     <input type="text" className={input} placeholder="Name" value={fields.name}
                       onChange={(e) => setFields({ ...fields, name: e.target.value })} />
                     <div className="grid grid-cols-4 gap-2">

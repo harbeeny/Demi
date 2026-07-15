@@ -14,6 +14,8 @@ import {
   type FdcFood,
 } from "@/lib/food/fdc";
 import { successHaptic } from "@/lib/haptics";
+import { SLOT_LABELS, SLOT_ORDER, suggestSlot } from "@/lib/log/slots";
+import type { MealSlot } from "@/lib/supabase/types";
 
 export interface FdcLogFields {
   fdcId: number;
@@ -24,6 +26,83 @@ export interface FdcLogFields {
   carbsG: number;
   fatG: number;
   verified: boolean;
+  slot?: MealSlot;
+}
+
+/** Chip row for choosing which meal section a log belongs to. */
+export function SlotChips({
+  value,
+  onChange,
+}: {
+  value: MealSlot;
+  onChange: (slot: MealSlot) => void;
+}) {
+  return (
+    <div className="flex flex-wrap gap-2" role="group" aria-label="Meal section">
+      {SLOT_ORDER.map((s) => (
+        <button
+          key={s}
+          onClick={() => onChange(s)}
+          aria-pressed={value === s}
+          className={`press rounded-full border px-3 py-1.5 text-xs ${
+            value === s
+              ? "border-[#2c3a2e] bg-[#2c3a2e] text-white"
+              : "border-[#dce3d7] bg-white text-[#2c3a2e]"
+          }`}
+        >
+          {SLOT_LABELS[s]}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+/**
+ * Mini action sheet for quick adds: one tap chose the food, this asks where
+ * it goes. The time-suggested section leads the list.
+ */
+function SlotPicker({
+  name,
+  onPick,
+  onCancel,
+}: {
+  name: string;
+  onPick: (slot: MealSlot) => void;
+  onCancel: () => void;
+}) {
+  const suggested = suggestSlot(new Date().getHours(), new Date().getMinutes());
+  const ordered = [suggested, ...SLOT_ORDER.filter((s) => s !== suggested)];
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-end justify-center bg-black/30 p-4 pb-8"
+      onClick={onCancel}
+    >
+      <div
+        className="w-full max-w-sm rounded-3xl bg-white p-4 shadow-[0_12px_48px_rgba(22,32,26,0.25)]"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <p className="mb-3 truncate text-sm font-medium text-[#2c3a2e]">Add {name} to...</p>
+        <div className="space-y-2">
+          {ordered.map((s) => (
+            <button
+              key={s}
+              onClick={() => onPick(s)}
+              className="press flex w-full items-center justify-between rounded-2xl border border-[#dce3d7] bg-white px-4 py-3 text-sm text-[#2c3a2e] hover:border-[#8aa06f]"
+            >
+              {SLOT_LABELS[s]}
+              {s === suggested && <span className="text-[10px] text-[#829084]">suggested</span>}
+            </button>
+          ))}
+        </div>
+        <button
+          onClick={onCancel}
+          className="press mt-2 w-full rounded-2xl px-4 py-2.5 text-sm text-[#829084] hover:text-[#2c3a2e]"
+        >
+          Cancel
+        </button>
+      </div>
+    </div>
+  );
 }
 
 interface RecentFood {
@@ -70,10 +149,21 @@ interface Props {
   busy: string | null;
   onLog: (fields: FdcLogFields, note: string, opts?: { keepOpen?: boolean }) => Promise<boolean>;
   /** re-log a catalog/planned meal from recents */
-  onLogDb: (mealId: string, note: string, opts?: { keepOpen?: boolean }) => Promise<boolean>;
+  onLogDb: (
+    mealId: string,
+    note: string,
+    opts?: { keepOpen?: boolean; slot?: MealSlot },
+  ) => Promise<boolean>;
   /** re-log a quick-add estimate from recents */
   onLogEstimate: (
-    fields: { name: string; kcal: number; proteinG: number; carbsG: number; fatG: number },
+    fields: {
+      name: string;
+      kcal: number;
+      proteinG: number;
+      carbsG: number;
+      fatG: number;
+      slot?: MealSlot;
+    },
     note: string,
     opts?: { keepOpen?: boolean },
   ) => Promise<boolean>;
@@ -94,6 +184,16 @@ export function FoodSearch({ busy, onLog, onLogDb, onLogEstimate }: Props) {
   // Amount entry unit. Grams stay canonical internally; oz only changes what
   // the user types and reads, so macros and the server payload never drift.
   const [unit, setUnit] = useState<"g" | "oz">("g");
+  // Meal section for the detail form, defaulting from the clock.
+  const [slot, setSlot] = useState<MealSlot>(() =>
+    suggestSlot(new Date().getHours(), new Date().getMinutes()),
+  );
+  // A quick add knows the food but not the section; this holds the log action
+  // while the slot picker asks where it goes.
+  const [pendingAdd, setPendingAdd] = useState<{
+    name: string;
+    run: (slot: MealSlot) => void;
+  } | null>(null);
   const [note, setNote] = useState("");
   const [recents, setRecents] = useState<RecentFood[]>([]);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -219,7 +319,7 @@ export function FoodSearch({ busy, onLog, onLogDb, onLogEstimate }: Props) {
 
   // Route a recent food back through the matching log path with its
   // snapshotted macros; planned meals re-log as catalog picks.
-  const relogRecent = async (r: RecentFood) => {
+  const performRelog = async (r: RecentFood, chosenSlot: MealSlot) => {
     const keep = { keepOpen: true };
     let ok = false;
     if (r.source === "fdc" && r.fdcId !== null) {
@@ -233,15 +333,23 @@ export function FoodSearch({ busy, onLog, onLogDb, onLogEstimate }: Props) {
           carbsG: r.carbsG,
           fatG: r.fatG,
           verified: r.verified,
+          slot: chosenSlot,
         },
         "",
         keep,
       );
     } else if (r.mealId) {
-      ok = await onLogDb(r.mealId, "", keep);
+      ok = await onLogDb(r.mealId, "", { ...keep, slot: chosenSlot });
     } else {
       ok = await onLogEstimate(
-        { name: r.name, kcal: r.kcal, proteinG: r.proteinG, carbsG: r.carbsG, fatG: r.fatG },
+        {
+          name: r.name,
+          kcal: r.kcal,
+          proteinG: r.proteinG,
+          carbsG: r.carbsG,
+          fatG: r.fatG,
+          slot: chosenSlot,
+        },
         "",
         keep,
       );
@@ -341,6 +449,10 @@ export function FoodSearch({ busy, onLog, onLogDb, onLogEstimate }: Props) {
             </button>
           ))}
         </div>
+        <div className="mt-3">
+          <SlotChips value={slot} onChange={setSlot} />
+        </div>
+
         <div className="mt-2 flex items-end gap-2">
           <label className="block flex-1 text-xs text-[#829084]">
             Amount
@@ -394,6 +506,7 @@ export function FoodSearch({ busy, onLog, onLogDb, onLogEstimate }: Props) {
                 name: selected.description,
                 grams,
                 verified,
+                slot,
                 ...macros,
               },
               note,
@@ -487,7 +600,7 @@ export function FoodSearch({ busy, onLog, onLogDb, onLogEstimate }: Props) {
               return (
                 <button
                   key={r.key}
-                  onClick={() => relogRecent(r)}
+                  onClick={() => setPendingAdd({ name: r.name, run: (s) => void performRelog(r, s) })}
                   disabled={busy !== null}
                   aria-label={confirmed ? `Logged ${r.name}` : `Quick add ${r.name}`}
                   className={`press flex w-full items-center gap-2 rounded-2xl border p-3 text-left transition-[background-color,border-color] duration-200 disabled:opacity-50 ${
@@ -568,16 +681,21 @@ export function FoodSearch({ busy, onLog, onLogDb, onLogEstimate }: Props) {
               </button>
               <button
                 onClick={() =>
-                  onLog(
-                    {
-                      fdcId: f.fdcId,
-                      name: f.description,
-                      grams: defaultGrams,
-                      verified: isVerifiedSource(f.dataType),
-                      ...scaleMacros(f.per100g, defaultGrams),
-                    },
-                    "",
-                  )
+                  setPendingAdd({
+                    name: f.description,
+                    run: (s) =>
+                      void onLog(
+                        {
+                          fdcId: f.fdcId,
+                          name: f.description,
+                          grams: defaultGrams,
+                          verified: isVerifiedSource(f.dataType),
+                          slot: s,
+                          ...scaleMacros(f.per100g, defaultGrams),
+                        },
+                        "",
+                      ),
+                  })
                 }
                 disabled={busy !== null}
                 aria-label={`Quick add ${f.description}, ${portionLabel}`}
@@ -604,6 +722,18 @@ export function FoodSearch({ busy, onLog, onLogDb, onLogEstimate }: Props) {
       <p className="mt-4 text-center text-[10px] text-[#829084]">
         Food data: USDA FoodData Central
       </p>
+
+      {pendingAdd && (
+        <SlotPicker
+          name={pendingAdd.name}
+          onPick={(s) => {
+            const run = pendingAdd.run;
+            setPendingAdd(null);
+            run(s);
+          }}
+          onCancel={() => setPendingAdd(null)}
+        />
+      )}
     </div>
   );
 }

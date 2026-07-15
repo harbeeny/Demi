@@ -19,6 +19,7 @@ type LogBody =
       proteinG: number;
       carbsG: number;
       fatG: number;
+      slot?: MealSlot;
       note?: string;
     }
   | {
@@ -32,6 +33,7 @@ type LogBody =
       fatG: number;
       /** curated-source provenance badge; cosmetic, never trust-bearing */
       verified?: boolean;
+      slot?: MealSlot;
       note?: string;
     };
 
@@ -137,7 +139,7 @@ async function post(request: Request): Promise<Response> {
     // the portion suffix must not push the name past the 120-char DB limit
     const baseName = grams ? checked.name.slice(0, 105) : checked.name;
     insert = {
-      slot: null,
+      slot: body.slot && SLOTS.includes(body.slot) ? body.slot : null,
       plan_slot_index: null,
       fdc_id: body.fdcId,
       verified: body.verified === true,
@@ -156,7 +158,7 @@ async function post(request: Request): Promise<Response> {
       return NextResponse.json({ error: "Those numbers look out of range." }, { status: 400 });
     }
     insert = {
-      slot: null,
+      slot: body.slot && SLOTS.includes(body.slot) ? body.slot : null,
       plan_slot_index: null,
       meal_id: null,
       name: estimate.name,
