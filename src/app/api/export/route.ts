@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 
-import { loadContext, todayISO } from "@/lib/plan/context";
+import { loadContext } from "@/lib/plan/context";
 import { preflight, withCors } from "@/lib/plan/cors";
 
 /**
@@ -37,7 +37,7 @@ async function get(request: Request): Promise<Response> {
   return new NextResponse(JSON.stringify(payload, null, 2), {
     headers: {
       "content-type": "application/json",
-      "content-disposition": `attachment; filename="demi-export-${todayISO()}.json"`,
+      "content-disposition": `attachment; filename="demi-export-${ctx.today}.json"`,
     },
   });
 }

@@ -6,7 +6,9 @@ import type { SupabaseClient, User } from "@supabase/supabase-js";
 import { createBearerClient, createClient } from "@/lib/supabase/server";
 import type { Database } from "@/lib/supabase/types";
 import type { Meal } from "@/lib/plan/select-meals";
+import { localDateISO } from "@/lib/dates";
 
+/** UTC date; only for user-agnostic contexts. Routes should use ctx.today. */
 export function todayISO(): string {
   return new Date().toISOString().slice(0, 10);
 }
@@ -21,6 +23,10 @@ export type RouteContext =
       user: User;
       onboarding: OnboardingRow;
       meals: Meal[];
+      /** the user's IANA timezone from their profile, null when unset */
+      timezone: string | null;
+      /** the user's local calendar day (falls back to UTC without a timezone) */
+      today: string;
     };
 
 /**
@@ -57,10 +63,21 @@ export async function loadContext(request: Request): Promise<RouteContext> {
     return { error: NextResponse.json({ error: "Finish onboarding first." }, { status: 400 }) };
   }
 
-  const { data: meals } = await supabase.from("meals").select("*");
+  const [{ data: meals }, { data: profile }] = await Promise.all([
+    supabase.from("meals").select("*"),
+    supabase.from("profiles").select("timezone").eq("id", user.id).maybeSingle(),
+  ]);
   if (!meals || meals.length === 0) {
     return { error: NextResponse.json({ error: "Meal database is empty." }, { status: 500 }) };
   }
 
-  return { supabase, user, onboarding, meals: meals as Meal[] };
+  const timezone = profile?.timezone ?? null;
+  return {
+    supabase,
+    user,
+    onboarding,
+    meals: meals as Meal[],
+    timezone,
+    today: localDateISO(timezone ?? "UTC"),
+  };
 }

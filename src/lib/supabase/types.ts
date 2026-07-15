@@ -43,16 +43,19 @@ export interface Database {
           id: string;
           created_at: string;
           onboarding_complete: boolean;
+          timezone: string | null;
         };
         Insert: {
           id: string;
           created_at?: string;
           onboarding_complete?: boolean;
+          timezone?: string | null;
         };
         Update: {
           id?: string;
           created_at?: string;
           onboarding_complete?: boolean;
+          timezone?: string | null;
         };
         Relationships: [];
       };

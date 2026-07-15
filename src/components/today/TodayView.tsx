@@ -197,9 +197,9 @@ export function TodayView({ hasPlan, daySummary, meals, targets, logs, summary, 
     logs.filter((l) => l.source === "planned" && l.planSlotIndex !== null).map((l) => [l.planSlotIndex, l.id]),
   );
 
-  // Upcoming = unlogged planned meals whose time hasn't passed. Hours compare
-  // in UTC to match the server's todayISO convention.
-  const nowHour = new Date().getUTCHours() + new Date().getUTCMinutes() / 60;
+  // Upcoming = unlogged planned meals whose time hasn't passed, in the
+  // device's local clock (the same timezone the day boundary now follows).
+  const nowHour = new Date().getHours() + new Date().getMinutes() / 60;
   const upcomingMeals = meals.filter(
     (m) => !loggedBySlotIndex.has(m.slotIndex) && m.timeHour >= nowHour,
   );

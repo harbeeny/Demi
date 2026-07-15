@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import type { SupabaseClient, User } from "@supabase/supabase-js";
 
-import { loadContext, todayISO } from "@/lib/plan/context";
+import { loadContext } from "@/lib/plan/context";
 import { preflight, withCors } from "@/lib/plan/cors";
 import { profileFromRow, type OnboardingRow } from "@/lib/plan/rows";
 import {
@@ -27,8 +27,7 @@ type Client = SupabaseClient<Database>;
  * row, so either automatically resets the window). Ends yesterday; today is
  * a partial day.
  */
-async function loadWindow(supabase: Client, user: User, onboarding: OnboardingRow) {
-  const today = todayISO();
+async function loadWindow(supabase: Client, user: User, onboarding: OnboardingRow, today: string) {
   const fourteenAgo = new Date(Date.parse(today) - 13 * DAY_MS).toISOString().slice(0, 10);
   const profileDate = onboarding.created_at.slice(0, 10);
   const windowStart = profileDate > fourteenAgo ? profileDate : fourteenAgo;
@@ -105,9 +104,9 @@ function proposalPayload(row: AdjustmentRow, onboarding: OnboardingRow) {
 async function get(request: Request): Promise<Response> {
   const ctx = await loadContext(request);
   if ("error" in ctx) return ctx.error;
-  const { supabase, user, onboarding } = ctx;
+  const { supabase, user, onboarding, today } = ctx;
 
-  const { weighIns, loggedDays } = await loadWindow(supabase, user, onboarding);
+  const { weighIns, loggedDays } = await loadWindow(supabase, user, onboarding, today);
   const progress = progressCounts(weighIns, loggedDays);
 
   const { data: open } = await supabase
@@ -237,7 +236,7 @@ async function post(request: Request): Promise<Response> {
     .maybeSingle();
   const weightKg = latestWeigh ? Number(latestWeigh.weight_kg) : Number(onboarding.weight_kg);
 
-  const { weighIns, loggedDays } = await loadWindow(supabase, user, onboarding);
+  const { weighIns, loggedDays } = await loadWindow(supabase, user, onboarding, ctx.today);
   const refreshedRow: OnboardingRow = { ...onboarding, weight_kg: weightKg };
   const recomputed = runDetection(refreshedRow, weighIns, loggedDays);
 
