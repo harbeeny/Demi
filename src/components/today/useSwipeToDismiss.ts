@@ -127,6 +127,32 @@ export function useSwipeToDismiss(open: boolean, onClose: () => void) {
     };
   }, [open]);
 
+  // The page behind an open sheet must not scroll. overflow:hidden is not
+  // enough in WKWebView/iOS Safari (touches on fixed overlays keep scrolling
+  // the body), so the lock is position:fixed with the current offset pinned
+  // via top, restored exactly on unlock. Keyed on mounted so the page also
+  // holds still through the exit animation. If an outer sheet already holds
+  // the lock, leave it in place; its own cleanup restores the real position.
+  useEffect(() => {
+    if (!mounted) return;
+    const body = document.body;
+    if (body.style.position === "fixed") return;
+    const scrollY = window.scrollY;
+    body.style.position = "fixed";
+    body.style.top = `-${scrollY}px`;
+    body.style.left = "0";
+    body.style.right = "0";
+    body.style.width = "100%";
+    return () => {
+      body.style.position = "";
+      body.style.top = "";
+      body.style.left = "";
+      body.style.right = "";
+      body.style.width = "";
+      window.scrollTo(0, scrollY);
+    };
+  }, [mounted]);
+
   // React's onTouchMove is passive, so cancel the scroll/rubber-band from a
   // native non-passive listener once a dismiss drag owns the gesture.
   useEffect(() => {
