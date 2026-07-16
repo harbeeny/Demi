@@ -26,6 +26,32 @@ const ROUGH_TIERS = [
   { label: "Went well past it", kcal: 2000 },
 ];
 
+/**
+ * Lucide "scale" (ISC): the weekly-balance glyph. Shared by the sheet
+ * header and both Today-screen triggers so the icon, not the copy, carries
+ * the "this opens the balancer" association.
+ */
+export function ScaleIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className={className}
+      aria-hidden="true"
+    >
+      <path d="m16 16 3-8 3 8c-.87.65-1.92 1-3 1s-2.13-.35-3-1Z" />
+      <path d="m2 16 3-8 3 8c-.87.65-1.92 1-3 1s-2.13-.35-3-1Z" />
+      <path d="M7 21h10" />
+      <path d="M12 3v18" />
+      <path d="M3 7h2c2 0 5-1 7-2 2 1 5 2 7 2h2" />
+    </svg>
+  );
+}
+
 /** Rough overages skew carbs and fat (alcohol counts as carbs); protein barely moves. */
 export function roughEstimateMacros(kcal: number): {
   proteinG: number;
@@ -232,7 +258,10 @@ export function BalanceSheet({
         <div data-drag-handle className="shrink-0 px-5 pt-3" style={{ touchAction: "none" }}>
           <div className="mx-auto mb-3 h-1.5 w-10 rounded-full bg-[#cdd6c8]" aria-hidden="true" />
           <div className="mb-1 flex items-start justify-between gap-3">
-            <h2 className="text-lg font-semibold leading-snug text-[#2c3a2e]">Balance my week</h2>
+            <h2 className="flex items-center gap-2 text-lg font-semibold leading-snug text-[#2c3a2e]">
+              <ScaleIcon className="h-[18px] w-[18px] shrink-0 text-[#829084]" />
+              Balance my week
+            </h2>
             <button
               onClick={onClose}
               aria-label="Close"

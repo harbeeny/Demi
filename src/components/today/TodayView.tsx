@@ -15,7 +15,7 @@ import { LogSheet, type SearchMeal } from "./LogSheet";
 import { VerifiedBadge, type FdcLogFields } from "./FoodSearch";
 import { goalHaptic, successHaptic, tapHaptic } from "@/lib/haptics";
 import { kcalGoalMet } from "@/lib/log/goal";
-import { BalanceSheet, roughEstimateMacros } from "./BalanceSheet";
+import { BalanceSheet, roughEstimateMacros, ScaleIcon } from "./BalanceSheet";
 import type { BalanceInfo } from "./useTodayData";
 import { SLOT_LABELS, SLOT_ORDER, suggestSlot } from "@/lib/log/slots";
 import type { MealSlot } from "@/lib/supabase/types";
@@ -305,18 +305,23 @@ export function TodayView({ hasPlan, daySummary, meals, targets, logs, summary, 
               setBalanceOpen(true);
             }}
             disabled={busy !== null}
-            className="press mt-3 w-full rounded-2xl border border-[#8aa06f] bg-white px-4 py-3 text-sm text-[#2c3a2e] disabled:opacity-50"
+            className="press mt-3 flex w-full items-center justify-center gap-2 rounded-2xl border border-[#8aa06f] bg-white px-4 py-3 text-sm text-[#2c3a2e] disabled:opacity-50"
           >
+            <ScaleIcon className="h-4 w-4 shrink-0 text-[#829084]" />
             {overKcal} kcal over? Balance my week
           </button>
         ) : (
+          // The same shape as every other tappable row on this screen; the
+          // old bare-text version read as a caption, not a control.
           <button
             onClick={() => {
               tapHaptic();
               setBalanceOpen(true);
             }}
-            className="mt-2 w-full text-center text-xs text-[#829084] underline-offset-2 hover:underline"
+            disabled={busy !== null}
+            className="press mt-3 flex w-full items-center justify-center gap-2 rounded-2xl border border-[#dce3d7] bg-white px-4 py-3 text-sm text-[#2c3a2e] hover:border-[#8aa06f] disabled:opacity-50"
           >
+            <ScaleIcon className="h-4 w-4 shrink-0 text-[#829084]" />
             Had a big night? Balance my week
           </button>
         )
