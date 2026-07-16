@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { loadContext } from "@/lib/plan/context";
 import { syncDailyRollup } from "@/lib/log/persist";
 import { validateEstimate } from "@/lib/ai/estimate";
+import { stripEmDashes } from "@/lib/ai/validate";
 import { containsDisorderedEatingSignal, SUPPORTIVE_RESPONSE } from "@/lib/ai/safety-filter";
 import type { MealPlanEntry, MealSlot } from "@/lib/supabase/types";
 import { preflight, withCors } from "@/lib/plan/cors";
@@ -32,6 +33,8 @@ type LogBody =
       grams?: number;
       /** display unit for the portion suffix; ml for liquids, default g */
       unit?: "g" | "ml";
+      /** counted household portion for the suffix, e.g. "2 eggs" */
+      portion?: string;
       kcal: number;
       proteinG: number;
       carbsG: number;
@@ -146,15 +149,22 @@ async function post(request: Request): Promise<Response> {
       Number.isFinite(body.grams) && Number(body.grams) > 0 ? Math.round(Number(body.grams)) : null;
     // liquids read in ml (stored 1:1 as grams); anything else says g
     const unit = body.unit === "ml" ? "ml" : "g";
+    // A counted household portion ("2 eggs") beats the raw weight in the
+    // suffix. Client-supplied text: sanitize and cap at the boundary.
+    const portion =
+      typeof body.portion === "string"
+        ? stripEmDashes(body.portion).replace(/[()]/g, "").replace(/\s+/g, " ").trim().slice(0, 40)
+        : "";
+    const suffix = portion || (grams ? `${grams} ${unit}` : null);
     // the portion suffix must not push the name past the 120-char DB limit
-    const baseName = grams ? checked.name.slice(0, 105) : checked.name;
+    const baseName = suffix ? checked.name.slice(0, 117 - suffix.length) : checked.name;
     insert = {
       slot: body.slot && SLOTS.includes(body.slot) ? body.slot : null,
       plan_slot_index: null,
       fdc_id: hasFdcId ? (body.fdcId as number) : null,
       verified: body.verified === true,
       meal_id: null,
-      name: grams ? `${baseName} (${grams} ${unit})` : checked.name,
+      name: suffix ? `${baseName} (${suffix})` : checked.name,
       kcal: checked.kcal,
       protein_g: checked.proteinG,
       carbs_g: checked.carbsG,
