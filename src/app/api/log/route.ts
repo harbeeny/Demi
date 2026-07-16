@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 
 import { loadContext } from "@/lib/plan/context";
 import { syncDailyRollup } from "@/lib/log/persist";
+import { addDaysISO } from "@/lib/log/balance";
 import { validateEstimate } from "@/lib/ai/estimate";
 import { stripEmDashes } from "@/lib/ai/validate";
 import { containsDisorderedEatingSignal, SUPPORTIVE_RESPONSE } from "@/lib/ai/safety-filter";
@@ -22,6 +23,14 @@ type LogBody =
       fatG: number;
       slot?: MealSlot;
       note?: string;
+      /**
+       * "yesterday" back-dates the entry one day: the big-night flow logs a
+       * night nobody measured the morning after, and the calories must land
+       * on the night they happened or they consume today's budget instead
+       * (the restrict trap "Balance my week" exists to prevent). Intent flag,
+       * not a date: the server derives the date itself.
+       */
+      when?: "today" | "yesterday";
     }
   | {
       source: "fdc";
@@ -65,7 +74,10 @@ async function post(request: Request): Promise<Response> {
     note = null;
   }
 
-  const date = today;
+  const date =
+    body.source === "estimate" && "when" in body && body.when === "yesterday"
+      ? addDaysISO(today, -1)
+      : today;
   let insert: {
     slot: MealSlot | null;
     plan_slot_index: number | null;
@@ -223,6 +235,15 @@ async function del(request: Request): Promise<Response> {
     return NextResponse.json({ error: "logId is required." }, { status: 400 });
   }
 
+  // The rollup must follow the log's own date: back-dated big-night entries
+  // mean "the log being removed is today's" no longer holds.
+  const { data: logRow } = await supabase
+    .from("meal_logs")
+    .select("date")
+    .eq("id", body.logId)
+    .eq("user_id", user.id)
+    .single();
+
   const { error: deleteError } = await supabase
     .from("meal_logs")
     .delete()
@@ -233,7 +254,7 @@ async function del(request: Request): Promise<Response> {
     return NextResponse.json({ error: "Couldn't remove the log." }, { status: 500 });
   }
 
-  const { error: rollupError } = await syncDailyRollup(supabase, user.id, ctx.today);
+  const { error: rollupError } = await syncDailyRollup(supabase, user.id, logRow?.date ?? ctx.today);
   if (rollupError) {
     return NextResponse.json({ error: rollupError }, { status: 500 });
   }

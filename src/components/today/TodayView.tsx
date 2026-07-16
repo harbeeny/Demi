@@ -178,6 +178,7 @@ export function TodayView({ hasPlan, daySummary, meals, targets, logs, summary, 
       carbsG: number;
       fatG: number;
       slot?: MealSlot;
+      when?: "today" | "yesterday";
     },
     note: string,
     opts?: { keepOpen?: boolean },
@@ -249,14 +250,20 @@ export function TodayView({ hasPlan, daySummary, meals, targets, logs, summary, 
     shouldOfferRebalance(remainingBudget(targets, eaten), sumLogged(upcomingMeals), upcomingMeals.length);
 
   // A rough estimate for a night nobody measured: mostly carbs and fat,
-  // logged as a normal editable estimate entry in the clock-suggested slot.
-  const logRough = (kcal: number) =>
+  // logged as a normal editable estimate entry. Logged to today it takes
+  // the clock-suggested slot; logged to last night it lands in snack (the
+  // after-dinner hours the night actually happened in).
+  const logRough = (kcal: number, when: "today" | "yesterday") =>
     logEstimate(
       {
         name: "Big night (rough estimate)",
         kcal,
         ...roughEstimateMacros(kcal),
-        slot: suggestSlot(new Date().getHours(), new Date().getMinutes()),
+        slot:
+          when === "yesterday"
+            ? "snack"
+            : suggestSlot(new Date().getHours(), new Date().getMinutes()),
+        when,
       },
       "",
       { keepOpen: true },

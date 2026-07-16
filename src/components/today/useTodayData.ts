@@ -8,7 +8,7 @@ import { registerPush } from "@/lib/push";
 import { deviceTimeZone, localDateISO } from "@/lib/dates";
 import { loggingStreak, trailingDates } from "@/lib/log/streak";
 import { calorieFloor, targets } from "@/lib/nutrition";
-import { applyKcalDelta } from "@/lib/log/balance";
+import { addDaysISO, applyKcalDelta } from "@/lib/log/balance";
 import { profileFromRow, prefsFromRow } from "@/lib/plan/rows";
 import { isEligible, type Meal } from "@/lib/plan/select-meals";
 import type { MealPlanEntry } from "@/lib/supabase/types";
@@ -28,6 +28,20 @@ export interface BalanceInfo {
   floorKcal: number;
   /** kcal already being reduced on days after today by OTHER source days */
   existingReductionByDate: Record<string, number>;
+  /**
+   * Last night's picture, always relative to the real today (not the viewed
+   * day): the retroactive big-night flow logs and balances yesterday from
+   * the today screen. Its spread starts AT today, so its capacity map keys
+   * today and later and excludes yesterday-sourced rows (they get replaced).
+   */
+  yesterday: {
+    date: string;
+    eatenKcal: number;
+    /** yesterday's adjusted target, the number its overage is measured against */
+    targetKcal: number;
+    outgoing: { absorbed: number; days: number } | null;
+    existingReductionByDate: Record<string, number>;
+  };
 }
 
 export interface TodayData {
@@ -210,6 +224,34 @@ export function useTodayData(viewDate?: string | null): {
       }
     }
 
+    const yesterdayDate = addDaysISO(today, -1);
+    const yesterdayOutgoingRows = (adjustmentRows ?? []).filter(
+      (r) => r.source_date === yesterdayDate,
+    );
+    const yesterdayExistingReduction: Record<string, number> = {};
+    for (const r of adjustmentRows ?? []) {
+      if (r.date >= today && r.source_date !== yesterdayDate) {
+        yesterdayExistingReduction[r.date] =
+          (yesterdayExistingReduction[r.date] ?? 0) + Math.max(0, -Number(r.kcal_delta));
+      }
+    }
+    const yesterdayInfo: BalanceInfo["yesterday"] = {
+      date: yesterdayDate,
+      eatenKcal: Math.round(kcalByDate.get(yesterdayDate) ?? 0),
+      targetKcal: adjustedKcalFor(yesterdayDate),
+      outgoing:
+        yesterdayOutgoingRows.length > 0
+          ? {
+              absorbed: yesterdayOutgoingRows.reduce(
+                (sum, r) => sum + Math.max(0, -Number(r.kcal_delta)),
+                0,
+              ),
+              days: yesterdayOutgoingRows.length,
+            }
+          : null,
+      existingReductionByDate: yesterdayExistingReduction,
+    };
+
     let mealsData: TodayMeal[] = [];
     let daySummary = "";
     if (planRow) {
@@ -296,6 +338,7 @@ export function useTodayData(viewDate?: string | null): {
         baseKcal: baseTotals.kcal,
         floorKcal,
         existingReductionByDate,
+        yesterday: yesterdayInfo,
       },
     });
     setLoading(false);
