@@ -63,7 +63,7 @@ export function TodayView({ hasPlan, daySummary, meals, targets, logs, summary, 
     setSheetSlot(slot);
     setSheetOpen(true);
   };
-  const [recipe, setRecipe] = useState<RecipeData | null>(null);
+  const [recipe, setRecipe] = useState<{ data: RecipeData; slotIndex: number | null } | null>(null);
   // "plan" auto-builds a meal plan; "track" is the standalone macro tracker;
   // null means the user has never chosen (first no-plan visit shows a choice).
   const [dayMode, setDayMode] = useState<"plan" | "track" | null>(null);
@@ -289,7 +289,7 @@ export function TodayView({ hasPlan, daySummary, meals, targets, logs, summary, 
               onConfirm={logPlanned}
               onUndo={unlog}
               onSwap={swap}
-              onRecipe={setRecipe}
+              onRecipe={(r, slotIndex) => setRecipe({ data: r, slotIndex })}
               onAdd={openSheetFor}
             />
           ))}
@@ -320,7 +320,7 @@ export function TodayView({ hasPlan, daySummary, meals, targets, logs, summary, 
               onConfirm={logPlanned}
               onUndo={unlog}
               onSwap={swap}
-              onRecipe={setRecipe}
+              onRecipe={(r, slotIndex) => setRecipe({ data: r, slotIndex })}
               onAdd={openSheetFor}
             />
           ))}
@@ -405,7 +405,7 @@ export function TodayView({ hasPlan, daySummary, meals, targets, logs, summary, 
               onConfirm={logPlanned}
               onUndo={unlog}
               onSwap={swap}
-              onRecipe={setRecipe}
+              onRecipe={(r, slotIndex) => setRecipe({ data: r, slotIndex })}
               onAdd={openSheetFor}
             />
           ))}
@@ -451,7 +451,22 @@ export function TodayView({ hasPlan, daySummary, meals, targets, logs, summary, 
         </button>
       )}
 
-      <RecipeSheet recipe={recipe} onClose={() => setRecipe(null)} />
+      <RecipeSheet
+        recipe={recipe?.data ?? null}
+        action={
+          recipe && isToday && recipe.slotIndex !== null && !loggedBySlotIndex.has(recipe.slotIndex)
+            ? {
+                label: "I ate this",
+                busyLabel: "Logging...",
+                run: async () => {
+                  const idx = recipe.slotIndex as number;
+                  if (await logPlanned(idx)) setRecipe(null);
+                },
+              }
+            : null
+        }
+        onClose={() => setRecipe(null)}
+      />
 
       <LogSheet
         open={sheetOpen}
@@ -500,7 +515,7 @@ function MealSection({
   onConfirm: (slotIndex: number) => void;
   onUndo: (id: string) => void;
   onSwap: (slotIndex: number) => void;
-  onRecipe: (recipe: NonNullable<TodayMeal["recipe"]>) => void;
+  onRecipe: (recipe: NonNullable<TodayMeal["recipe"]>, slotIndex: number) => void;
   onAdd: (slot: MealSlot) => void;
 }) {
   const sectionKcal = logs.reduce((sum, l) => sum + l.kcal, 0);
