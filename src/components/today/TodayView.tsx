@@ -8,6 +8,7 @@ import { remainingBudget, sumLogged } from "@/lib/log/remaining";
 import { shouldOfferRebalance } from "@/lib/log/rebalance";
 import type { MealLogSource } from "@/lib/supabase/types";
 import { DayStrip } from "./DayStrip";
+import { DaySummaryNote } from "./DaySummaryNote";
 import { MacroSummary } from "./MacroSummary";
 import { MealCard, timeLabel, type TodayMeal } from "./MealCard";
 import { LogSheet, type SearchMeal } from "./LogSheet";
@@ -402,9 +403,7 @@ export function TodayView({ hasPlan, daySummary, meals, targets, logs, summary, 
             </button>
           )}
 
-          {daySummary && (
-            <p className="mb-6 rounded-3xl bg-[#e9efdd] p-4 text-sm leading-6 text-[#3c4a3e]">{daySummary}</p>
-          )}
+          {daySummary && <DaySummaryNote text={daySummary} />}
 
           {SLOT_ORDER.map((s) => (
             <MealSection
