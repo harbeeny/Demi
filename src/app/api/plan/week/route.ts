@@ -1,21 +1,19 @@
-import { NextResponse } from "next/server";
+import { NextResponse, after } from "next/server";
 
 import { loadContext } from "@/lib/plan/context";
 import { preflight, withCors } from "@/lib/plan/cors";
-import { generatePlan } from "@/lib/plan/generate";
-import { prefsFromRow } from "@/lib/plan/rows";
-import { isEligible } from "@/lib/plan/select-meals";
-import { recentIdsFor, weekDates } from "@/lib/plan/week";
-import { consumeQuota, llmEnabled } from "@/lib/plan/quota";
-import { withUsageMeter } from "@/lib/ai/meter";
-import { dbPhrasingCache } from "@/lib/plan/phrasing-cache";
-import { fetchDeltasByDate } from "@/lib/log/adjustments";
-import type { MealPlanEntry, MealSlot } from "@/lib/supabase/types";
+import { enqueueJob } from "@/lib/plan/jobs";
+import { processJob } from "@/lib/plan/worker";
+import { weekPrepCapViable } from "@/lib/plan/run";
 
-// Up to two LLM personalize calls plus six deterministic generations.
+// The response returns instantly, but the post-response worker may run up
+// to two LLM personalize calls plus six deterministic generations.
 export const maxDuration = 60;
 
-/** Generate plans for the next 7 days, skipping days that already have one. */
+/**
+ * Enqueue the 7-day build and return immediately; the client polls
+ * GET /api/plan/job. Days that already have plans are skipped by the worker.
+ */
 async function post(request: Request): Promise<Response> {
   const ctx = await loadContext(request);
   if ("error" in ctx) return ctx.error;
@@ -27,97 +25,26 @@ async function post(request: Request): Promise<Response> {
       ? Number(body.maxPrepMin)
       : undefined;
 
-  // Fail fast when the prep cap leaves nothing to pick from.
-  if (maxPrepMin !== undefined) {
-    const prefs = { ...prefsFromRow(onboarding), maxPrepMin };
-    if (!meals.some((m) => isEligible(m, prefs))) {
-      return NextResponse.json(
-        { error: `No meals fit under ${maxPrepMin} minutes with your preferences.` },
-        { status: 409 },
-      );
-    }
+  // Fail fast (and synchronously) when the prep cap leaves nothing to pick.
+  if (!weekPrepCapViable(onboarding, meals, maxPrepMin)) {
+    return NextResponse.json(
+      { error: `No meals fit under ${maxPrepMin} minutes with your preferences.` },
+      { status: 409 },
+    );
   }
 
-  const dates = weekDates(ctx.today);
-  const { data: existing } = await supabase
-    .from("meal_plans")
-    .select("date, meals")
-    .eq("user_id", user.id)
-    .gte("date", new Date(Date.parse(dates[0]) - 2 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10))
-    .lte("date", dates[6]);
+  const job = await enqueueJob(supabase, user.id, "week", {
+    ...(maxPrepMin !== undefined ? { maxPrepMin } : {}),
+  });
+  if (!job) {
+    return NextResponse.json({ error: "Couldn't queue the week build." }, { status: 500 });
+  }
 
-  const plansByDate = new Map<string, MealPlanEntry[]>(
-    (existing ?? []).map((p) => [p.date, p.meals as MealPlanEntry[]]),
+  after(() =>
+    processJob({ supabase, userId: user.id, onboarding, meals, today: ctx.today }, job.id),
   );
 
-  // Weekly balancing: days carrying a reduction plan smaller on purpose.
-  const deltasByDate = await fetchDeltasByDate(supabase, user.id, dates);
-
-  // One kill-switch read for the whole week build.
-  const llmOn = await llmEnabled(supabase);
-
-  const generated: string[] = [];
-  const skipped: string[] = [];
-
-  // Sequential on purpose: each day's picks feed the next day's recency window.
-  for (const [offset, date] of dates.entries()) {
-    if (plansByDate.has(date)) {
-      skipped.push(date);
-      continue;
-    }
-
-    // LLM copy only for today and tomorrow: farther days go stale before they
-    // arrive, and Regenerate restores the copy when the day comes. Meter each
-    // personalize call; when the daily cap is hit (or the kill switch is on),
-    // fall back to deterministic copy for that day instead of failing the week.
-    const personalizeWithLLM = offset <= 1 && llmOn && (await consumeQuota(supabase, "llm"));
-
-    const plan = await withUsageMeter({ supabase, userId: user.id, kind: "week" }, () =>
-      generatePlan(
-        onboarding,
-        meals,
-        new Date(`${date}T12:00:00Z`),
-        recentIdsFor(date, plansByDate),
-        {
-          maxPrepMin,
-          personalizeWithLLM,
-          kcalDelta: deltasByDate[date] ?? 0,
-          phrasingCache: dbPhrasingCache(supabase, user.id),
-        },
-      ),
-    );
-
-    const entries: MealPlanEntry[] = plan.slots.map((s) => ({
-      meal_id: s.mealId,
-      slot: s.slot as MealSlot,
-      servings: 1,
-      time_hour: s.timeHour,
-      why: s.why,
-    }));
-
-    const { error: saveError } = await supabase.from("meal_plans").upsert(
-      {
-        user_id: user.id,
-        date,
-        llm_rationale: plan.rationale.daySummary,
-        meals: entries,
-        generated_at: new Date().toISOString(),
-      },
-      { onConflict: "user_id,date" },
-    );
-
-    if (saveError) {
-      return NextResponse.json(
-        { error: "Couldn't save the whole week.", generated, skipped },
-        { status: 500 },
-      );
-    }
-
-    plansByDate.set(date, entries);
-    generated.push(date);
-  }
-
-  return NextResponse.json({ ok: true, generated, skipped });
+  return NextResponse.json({ ok: true, queued: true, jobId: job.id }, { status: 202 });
 }
 
 export const POST = withCors(post);

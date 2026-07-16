@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 
-import { apiFetch } from "@/lib/api";
+import { apiFetch, awaitPlanJob } from "@/lib/api";
 import { listHash, rollupGroceries } from "@/lib/plan/grocery";
 import type { Budget } from "@/lib/supabase/types";
 import { WeekStrip } from "./WeekStrip";
@@ -103,9 +103,22 @@ export function KitchenView({ data, onMutated }: Props) {
         headers: { "content-type": "application/json" },
         body: JSON.stringify(maxPrepMin ? { maxPrepMin } : {}),
       });
-      const body = (await res.json().catch(() => ({}))) as { error?: string };
-      if (!res.ok) setError(body.error ?? "Couldn't plan the week.");
-      else await onMutated();
+      const body = (await res.json().catch(() => ({}))) as {
+        error?: string;
+        queued?: boolean;
+        jobId?: string;
+      };
+      if (!res.ok) {
+        setError(body.error ?? "Couldn't plan the week.");
+      } else if (body.queued && body.jobId) {
+        // The build runs server-side now; keep "Planning..." up while the
+        // job finishes so the button stays honest.
+        const job = await awaitPlanJob(body.jobId);
+        if (!job.ok) setError(job.error ?? "Couldn't plan the week.");
+        await onMutated();
+      } else {
+        await onMutated();
+      }
     } catch {
       setError("Network hiccup. Try again.");
     } finally {

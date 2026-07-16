@@ -518,6 +518,45 @@ export interface Database {
         };
         Relationships: [];
       };
+      jobs: {
+        Row: {
+          id: string;
+          user_id: string;
+          kind: string;
+          payload: Json;
+          status: string;
+          attempts: number;
+          claimed_at: string | null;
+          finished_at: string | null;
+          error: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          user_id: string;
+          kind: string;
+          payload?: Json;
+          status?: string;
+          attempts?: number;
+          claimed_at?: string | null;
+          finished_at?: string | null;
+          error?: string | null;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          user_id?: string;
+          kind?: string;
+          payload?: Json;
+          status?: string;
+          attempts?: number;
+          claimed_at?: string | null;
+          finished_at?: string | null;
+          error?: string | null;
+          created_at?: string;
+        };
+        Relationships: [];
+      };
       food_search_cache: {
         Row: {
           user_id: string;

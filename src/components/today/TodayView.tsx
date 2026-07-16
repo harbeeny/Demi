@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 
-import { apiFetch } from "@/lib/api";
+import { apiFetch, awaitPlanJob } from "@/lib/api";
 import type { MacroTotals } from "@/lib/log/remaining";
 import { remainingBudget, sumLogged } from "@/lib/log/remaining";
 import { shouldOfferRebalance } from "@/lib/log/rebalance";
@@ -109,6 +109,8 @@ export function TodayView({ hasPlan, daySummary, meals, targets, logs, summary, 
       const data = (await res.json().catch(() => ({}))) as {
         error?: string;
         supportive?: { text: string };
+        queued?: boolean;
+        jobId?: string;
       };
       if (data.supportive) {
         setNotice(data.supportive.text);
@@ -116,6 +118,16 @@ export function TodayView({ hasPlan, daySummary, meals, targets, logs, summary, 
       if (!res.ok) {
         setError(data.error ?? "Something went wrong.");
         return false;
+      }
+      // Plan builds are queued now: hold the busy state through the poll so
+      // "Building your day..." stays honest until the worker lands it.
+      if (data.queued && data.jobId) {
+        const job = await awaitPlanJob(data.jobId);
+        if (!job.ok) {
+          setError(job.error ?? "Something went wrong.");
+          await onMutated();
+          return false;
+        }
       }
       await onMutated();
       return true;
