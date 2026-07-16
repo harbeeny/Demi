@@ -9,6 +9,7 @@ export interface OffProduct {
   product_name?: string;
   brands?: string;
   serving_quantity?: number | string;
+  serving_quantity_unit?: string;
   serving_size?: string;
   nutriments?: Record<string, number | string | undefined>;
 }
@@ -45,21 +46,26 @@ export function normalizeOffProduct(product: OffProduct, barcode: string): FdcFo
   const name = product.product_name?.trim();
   if (!name) return null;
 
+  // Beverages carry ml servings and per-100ml nutriments; amounts display in
+  // ml and store 1:1 as grams (density 1, the convention label data uses).
+  const liquid = (product.serving_quantity_unit ?? "g").trim().toLowerCase().startsWith("ml");
+  const unit = liquid ? "ml" : "g";
+
   const portions: FdcPortion[] = [];
   const servingG = num(product.serving_quantity);
   if (servingG !== null && servingG > 0) {
-    const grams = `${Math.round(servingG)} g`;
+    const amount = `${Math.round(servingG)} ${unit}`;
     const text = product.serving_size?.trim();
     const label =
       text && text.length <= 30
-        ? text.includes(grams)
+        ? text.toLowerCase().includes(amount.toLowerCase())
           ? text
-          : `${text} (${grams})`
-        : `1 serving (${grams})`;
+          : `${text} (${amount})`
+        : `1 serving (${amount})`;
     portions.push({ label, gramWeight: servingG });
   }
   if (!portions.some((p) => Math.abs(p.gramWeight - 100) < 0.01)) {
-    portions.push({ label: "100 g", gramWeight: 100 });
+    portions.push({ label: `100 ${unit}`, gramWeight: 100 });
   }
 
   return {
@@ -68,6 +74,7 @@ export function normalizeOffProduct(product: OffProduct, barcode: string): FdcFo
     brand: product.brands?.split(",")[0]?.trim() || null,
     dataType: "Open Food Facts",
     gtinUpc: barcode,
+    displayUnit: unit,
     per100g: {
       kcal: Math.round(kcal * 10) / 10,
       proteinG: Math.round(proteinG * 10) / 10,

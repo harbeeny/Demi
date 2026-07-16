@@ -28,9 +28,11 @@ export interface FdcFood {
   dataType: string;
   /** UPC/EAN digits for Branded foods; null elsewhere */
   gtinUpc: string | null;
-  /** always per 100 g */
+  /** always per 100 g (per 100 ml for liquids, density treated as 1) */
   per100g: FdcMacros;
   portions: FdcPortion[];
+  /** "ml" for liquids (OFF beverages); amounts display in ml, stored 1:1 as g */
+  displayUnit?: "g" | "ml";
 }
 
 interface RawNutrient {
@@ -117,25 +119,33 @@ export function normalizeSearchHit(hit: RawSearchHit): FdcFood | null {
   }
 
   // Branded: one serving chip from the label data (household text is often
-  // junk like "1 ONZ", so fall back to the gram amount).
+  // junk like "1 ONZ", so fall back to the amount). Beverages measure in ml,
+  // stored 1:1 as grams (density 1, the label-data convention).
+  let liquid = false;
   if (isBranded && typeof hit.servingSize === "number" && hit.servingSize > 0) {
     const unit = (hit.servingSizeUnit ?? "g").toLowerCase();
     if (unit === "g" || unit === "grm" || unit === "ml" || unit === "mlt") {
+      liquid = unit === "ml" || unit === "mlt";
+      const amount = `${Math.round(hit.servingSize)} ${liquid ? "ml" : "g"}`;
       const text = hit.householdServingFullText?.trim();
+      const cased = text ? titleCaseIfShouting(text) : "";
       const label =
         text && text.length <= 30
-          ? `${titleCaseIfShouting(text)} (${Math.round(hit.servingSize)} g)`
-          : `1 serving (${Math.round(hit.servingSize)} g)`;
+          ? cased.toLowerCase().includes(amount.toLowerCase())
+            ? cased
+            : `${cased} (${amount})`
+          : `1 serving (${amount})`;
       portions.push({ label, gramWeight: hit.servingSize });
     }
   }
 
-  // Everything gets a plain 100 g chip so no food is ever gram-less.
+  // Everything gets a plain 100-unit chip so no food is ever amount-less.
   if (!portions.some((p) => Math.abs(p.gramWeight - 100) < 0.01)) {
-    portions.push({ label: "100 g", gramWeight: 100 });
+    portions.push({ label: liquid ? "100 ml" : "100 g", gramWeight: 100 });
   }
 
   return {
+    displayUnit: liquid ? ("ml" as const) : undefined,
     fdcId: hit.fdcId,
     description: titleCaseIfShouting(hit.description),
     brand: hit.brandName?.trim()

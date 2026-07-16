@@ -23,6 +23,8 @@ export interface FdcLogFields {
   barcode?: string;
   name: string;
   grams: number;
+  /** how the amount reads to the user; grams stay canonical (ml stored 1:1) */
+  unit?: "g" | "ml";
   kcal: number;
   proteinG: number;
   carbsG: number;
@@ -333,11 +335,13 @@ export function FoodSearch({ busy, forcedSlot = null, onLog, onLogDb, onLogEstim
     const keep = { keepOpen: true };
     let ok = false;
     if (r.source === "fdc" && r.fdcId !== null) {
+      const suffix = r.name.match(/\((\d+) (g|ml)\)$/);
       ok = await onLog(
         {
           fdcId: r.fdcId,
-          name: r.name.replace(/ \(\d+ g\)$/, ""),
-          grams: Number(r.name.match(/\((\d+) g\)$/)?.[1] ?? 0) || 100,
+          name: r.name.replace(/ \(\d+ (?:g|ml)\)$/, ""),
+          grams: Number(suffix?.[1] ?? 0) || 100,
+          unit: suffix?.[2] === "ml" ? "ml" : "g",
           kcal: r.kcal,
           proteinG: r.proteinG,
           carbsG: r.carbsG,
@@ -429,6 +433,7 @@ export function FoodSearch({ busy, forcedSlot = null, onLog, onLogDb, onLogEstim
   if (selected) {
     const macros = scaleMacros(selected.per100g, grams);
     const verified = isVerifiedSource(selected.dataType);
+    const liquid = selected.displayUnit === "ml";
     const ozAmount = Math.round((grams / GRAMS_PER_OZ) * 10) / 10;
     return (
       <div>
@@ -465,7 +470,7 @@ export function FoodSearch({ busy, forcedSlot = null, onLog, onLogDb, onLogEstim
 
         <div className="mt-2 flex items-end gap-2">
           <label className="block flex-1 text-xs text-[#829084]">
-            Amount
+            {liquid ? "Amount (ml)" : "Amount"}
             <input
               type="number"
               min={unit === "g" ? 1 : 0.1}
@@ -481,20 +486,23 @@ export function FoodSearch({ busy, forcedSlot = null, onLog, onLogDb, onLogEstim
               }}
             />
           </label>
-          <div className="flex overflow-hidden rounded-2xl border border-[#dce3d7]" role="group" aria-label="Amount unit">
-            {(["g", "oz"] as const).map((u) => (
-              <button
-                key={u}
-                onClick={() => setUnit(u)}
-                aria-pressed={unit === u}
-                className={`press px-3 py-2 text-sm ${
-                  unit === u ? "bg-[#2c3a2e] text-white" : "bg-white text-[#2c3a2e]"
-                }`}
-              >
-                {u}
-              </button>
-            ))}
-          </div>
+          {/* Liquids read in ml only; a weight-oz toggle would mislead there. */}
+          {!liquid && (
+            <div className="flex overflow-hidden rounded-2xl border border-[#dce3d7]" role="group" aria-label="Amount unit">
+              {(["g", "oz"] as const).map((u) => (
+                <button
+                  key={u}
+                  onClick={() => setUnit(u)}
+                  aria-pressed={unit === u}
+                  className={`press px-3 py-2 text-sm ${
+                    unit === u ? "bg-[#2c3a2e] text-white" : "bg-white text-[#2c3a2e]"
+                  }`}
+                >
+                  {u}
+                </button>
+              ))}
+            </div>
+          )}
         </div>
 
         <p className="mt-2 text-sm text-[#5d6b5f]">
@@ -516,6 +524,7 @@ export function FoodSearch({ busy, forcedSlot = null, onLog, onLogDb, onLogEstim
                 barcode: selected.gtinUpc ?? undefined,
                 name: selected.description,
                 grams,
+                unit: liquid ? "ml" : "g",
                 verified,
                 slot,
                 ...macros,
@@ -523,14 +532,16 @@ export function FoodSearch({ busy, forcedSlot = null, onLog, onLogDb, onLogEstim
               note,
             )
           }
-          disabled={busy !== null || macros.kcal <= 0}
+          disabled={busy !== null}
           className="press mt-3 w-full rounded-2xl bg-[#2c3a2e] px-5 py-3 font-medium text-white disabled:opacity-60"
         >
           {busy === "log-fdc"
             ? "Logging..."
-            : unit === "g"
-              ? `Log ${grams} g`
-              : `Log ${ozAmount} oz`}
+            : liquid
+              ? `Log ${grams} ml`
+              : unit === "g"
+                ? `Log ${grams} g`
+                : `Log ${ozAmount} oz`}
         </button>
       </div>
     );
@@ -699,6 +710,7 @@ export function FoodSearch({ busy, forcedSlot = null, onLog, onLogDb, onLogEstim
                         barcode: f.gtinUpc ?? undefined,
                         name: f.description,
                         grams: defaultGrams,
+                        unit: f.displayUnit === "ml" ? "ml" : "g",
                         verified: isVerifiedSource(f.dataType),
                         slot: s,
                         ...scaleMacros(f.per100g, defaultGrams),

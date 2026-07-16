@@ -149,6 +149,37 @@ describe("rankResults", () => {
   });
 });
 
+describe("Branded liquids", () => {
+  const zeroSoda: RawSearchHit = {
+    fdcId: 999001,
+    description: "ZERO SUGAR",
+    dataType: "Branded",
+    brandOwner: "Dr Pepper",
+    gtinUpc: "0078000082401",
+    servingSize: 355,
+    servingSizeUnit: "MLT",
+    householdServingFullText: "1 CAN (355 ML)",
+    foodNutrients: [
+      { nutrientId: 1008, nutrientNumber: "208", unitName: "KCAL", value: 0 },
+      { nutrientId: 1003, nutrientNumber: "203", unitName: "G", value: 0 },
+      { nutrientId: 1005, nutrientNumber: "205", unitName: "G", value: 0 },
+      { nutrientId: 1004, nutrientNumber: "204", unitName: "G", value: 0 },
+    ],
+  };
+
+  test("ml servings mark displayUnit and never get a grams suffix", () => {
+    const food = normalizeSearchHit(zeroSoda)!;
+    expect(food.displayUnit).toBe("ml");
+    expect(food.portions[0]).toEqual({ label: "1 Can (355 Ml)", gramWeight: 355 });
+    expect(food.portions).toContainEqual({ label: "100 ml", gramWeight: 100 });
+    expect(food.per100g.kcal).toBe(0);
+  });
+
+  test("gram servings stay unmarked", () => {
+    expect(normalizeSearchHit(brandedCheddar)!.displayUnit).toBeUndefined();
+  });
+});
+
 describe("barcode helpers", () => {
   test("isBarcodeQuery accepts 8-14 digit runs only", () => {
     expect(isBarcodeQuery("038000138416")).toBe(true);

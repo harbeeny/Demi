@@ -66,7 +66,8 @@ export function validateEstimate(e: unknown): MacroEstimate | null {
   }
   const { kcal, proteinG, carbsG, fatG } = o as unknown as MacroEstimate;
 
-  if (kcal <= 0 || kcal > ESTIMATE_BOUNDS.kcalMax) return null;
+  // Zero is legitimate (diet soda, black coffee, gum); only negatives are out.
+  if (kcal < 0 || kcal > ESTIMATE_BOUNDS.kcalMax) return null;
   if (proteinG > ESTIMATE_BOUNDS.proteinMaxG) return null;
   if (carbsG > ESTIMATE_BOUNDS.carbsMaxG) return null;
   if (fatG > ESTIMATE_BOUNDS.fatMaxG) return null;
