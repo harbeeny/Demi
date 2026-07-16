@@ -254,6 +254,17 @@ export function TodayView({ hasPlan, daySummary, meals, targets, logs, summary, 
               {busy === "generate" ? "Working..." : "Regenerate"}
             </button>
           )}
+          {/* Track mode's way back to suggestions, in the same header slot
+              plan users know; the bottom text link alone was undiscoverable. */}
+          {isToday && !hasPlan && dayMode === "track" && (
+            <button
+              onClick={() => chooseMode("plan")}
+              disabled={busy !== null}
+              className="press rounded-full border border-[#dce3d7] bg-white px-4 py-2 text-sm text-[#2c3a2e] hover:border-[#8aa06f] disabled:opacity-50"
+            >
+              {busy === "generate" ? "Building..." : "Get meal ideas"}
+            </button>
+          )}
         </div>
       </header>
 
