@@ -17,6 +17,14 @@
   --font-mono: var(--font-geist-mono);
 }
 
+html {
+  /* Content height changes (day switching) must never resize the layout:
+     with classic scrollbars, the bar popping in and out shifts everything.
+     Always show the track; overlay-scrollbar platforms (iOS) ignore this. */
+  overflow-y: scroll;
+  scrollbar-gutter: stable;
+}
+
 body {
   background: var(--background);
   color: var(--foreground);

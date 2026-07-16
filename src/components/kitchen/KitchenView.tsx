@@ -152,7 +152,7 @@ export function KitchenView({ data, onMutated }: Props) {
     }`;
 
   return (
-    <main className="mx-auto min-h-dvh max-w-md bg-[#f4f6f2] px-5 pb-28 pt-8">
+    <main className="mx-auto w-full min-h-dvh max-w-md bg-[#f4f6f2] px-5 pb-28 pt-8">
       <header className="mb-6 flex items-center gap-3">
         <span className="flex h-9 w-9 items-center justify-center rounded-full bg-[#d3e29f] font-semibold text-[#2c3a2e]">D</span>
         <h1 className="text-lg font-semibold leading-tight text-[#2c3a2e]">Kitchen</h1>
