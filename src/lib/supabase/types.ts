@@ -518,6 +518,27 @@ export interface Database {
         };
         Relationships: [];
       };
+      food_search_cache: {
+        Row: {
+          user_id: string;
+          query_key: string;
+          payload: Json;
+          created_at: string;
+        };
+        Insert: {
+          user_id: string;
+          query_key: string;
+          payload: Json;
+          created_at?: string;
+        };
+        Update: {
+          user_id?: string;
+          query_key?: string;
+          payload?: Json;
+          created_at?: string;
+        };
+        Relationships: [];
+      };
       day_adjustments: {
         Row: {
           id: string;

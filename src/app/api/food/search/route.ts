@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { loadContext } from "@/lib/plan/context";
 import { preflight, withCors } from "@/lib/plan/cors";
 import { consumeQuota, quotaExceeded } from "@/lib/plan/quota";
+import { searchCacheGet, searchCachePut } from "@/lib/food/search-cache";
 import {
   barcodeVariants,
   isBarcodeQuery,
@@ -56,7 +57,7 @@ function cacheSet(key: string, body: unknown) {
 async function get(request: Request): Promise<Response> {
   const ctx = await loadContext(request);
   if ("error" in ctx) return ctx.error;
-  const { supabase } = ctx;
+  const { supabase, user } = ctx;
 
   const apiKey = process.env.FDC_API_KEY;
   if (!apiKey) {
@@ -74,6 +75,15 @@ async function get(request: Request): Promise<Response> {
   const cacheKey = q.toLowerCase();
   const cached = cacheGet(cacheKey);
   if (cached) return NextResponse.json({ ...(cached as object), cached: true });
+
+  // L2: the durable per-user cache. Instance memory (L1) evaporates on
+  // every cold start, so in production this is what actually catches
+  // repeat searches. Hits stay quota-free, same as L1.
+  const durable = await searchCacheGet(supabase, user.id, cacheKey);
+  if (durable) {
+    cacheSet(cacheKey, durable);
+    return NextResponse.json({ ...durable, cached: true });
+  }
 
   // Cache miss: this hits the shared 1,000 req/hr USDA key. Meter per user so
   // one account cache-busting distinct queries can't drain the quota for all.
@@ -145,6 +155,10 @@ async function get(request: Request): Promise<Response> {
 
   const body = { foods, correctedTo };
   cacheSet(cacheKey, body);
+  // Awaited on purpose: fire-and-forget work can be reaped when a
+  // serverless response ends, and this only adds ~50ms to a path that
+  // already paid the upstream round trip.
+  await searchCachePut(supabase, user.id, cacheKey, body).catch(() => undefined);
   return NextResponse.json({ ...body, cached: false });
 }
 
