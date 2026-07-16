@@ -149,10 +149,22 @@ export function VerifiedBadge() {
   );
 }
 
+export interface LabelReadingFields {
+  name: string;
+  kcal: number;
+  proteinG: number;
+  carbsG: number;
+  fatG: number;
+  servingGrams: number | null;
+  servingText: string | null;
+}
+
 interface Props {
   busy: string | null;
   /** section the sheet was opened from; quick adds skip the slot picker */
   forcedSlot?: MealSlot | null;
+  /** hands a photographed nutrition label to the editable quick-add form */
+  onLabelParsed: (reading: LabelReadingFields) => void;
   onLog: (fields: FdcLogFields, note: string, opts?: { keepOpen?: boolean }) => Promise<boolean>;
   /** re-log a catalog/planned meal from recents */
   onLogDb: (
@@ -179,7 +191,7 @@ const input =
   "w-full rounded-2xl border border-[#dce3d7] bg-white px-3 py-2 text-sm text-[#2c3a2e] outline-none focus:border-[#8aa06f]";
 
 /** USDA FoodData Central search with portion-aware logging. */
-export function FoodSearch({ busy, forcedSlot = null, onLog, onLogDb, onLogEstimate }: Props) {
+export function FoodSearch({ busy, forcedSlot = null, onLabelParsed, onLog, onLogDb, onLogEstimate }: Props) {
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<FdcFood[]>([]);
   const [searching, setSearching] = useState(false);
@@ -267,6 +279,55 @@ export function FoodSearch({ busy, forcedSlot = null, onLog, onLogDb, onLogEstim
       if (code) setQuery(code);
     } catch {
       // scanner dismissed or camera permission denied; nothing to log
+    }
+  };
+
+  // Chooser between the barcode scanner and the label camera, plus the
+  // photograph flow itself: the vision route reads the printed per-serving
+  // values and the parsed numbers land in the editable quick-add form.
+  const [scanChooser, setScanChooser] = useState(false);
+  const [labelBusy, setLabelBusy] = useState(false);
+  const [labelError, setLabelError] = useState("");
+
+  const captureLabel = async () => {
+    setLabelError("");
+    let photo: { base64String?: string; format?: string };
+    try {
+      const { Camera, CameraResultType, CameraSource } = await import("@capacitor/camera");
+      photo = await Camera.getPhoto({
+        resultType: CameraResultType.Base64,
+        source: CameraSource.Camera,
+        quality: 60,
+        width: 1024,
+        saveToGallery: false,
+      });
+    } catch {
+      return; // camera dismissed or permission denied
+    }
+    if (!photo.base64String) return;
+    setLabelBusy(true);
+    try {
+      const res = await apiFetch("/api/food/label", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          image: photo.base64String,
+          mediaType: photo.format === "png" ? "image/png" : "image/jpeg",
+        }),
+      });
+      const data = (await res.json().catch(() => ({}))) as {
+        reading?: LabelReadingFields;
+        error?: string;
+      };
+      if (!res.ok || !data.reading) {
+        setLabelError(data.error ?? "Couldn't read that label. Try again.");
+        return;
+      }
+      onLabelParsed(data.reading);
+    } catch {
+      setLabelError("Network hiccup. Try again.");
+    } finally {
+      setLabelBusy(false);
     }
   };
 
@@ -583,9 +644,9 @@ export function FoodSearch({ busy, forcedSlot = null, onLog, onLogDb, onLogEstim
         </div>
         {canScan && (
           <button
-            onClick={scanBarcode}
-            disabled={busy !== null}
-            aria-label="Scan a barcode"
+            onClick={() => setScanChooser(true)}
+            disabled={busy !== null || labelBusy}
+            aria-label="Scan a barcode or photograph the label"
             className="press flex w-11 shrink-0 items-center justify-center self-stretch rounded-2xl border border-[#dce3d7] bg-white text-[#2c3a2e] hover:border-[#8aa06f] disabled:opacity-50"
           >
             <svg
@@ -604,7 +665,18 @@ export function FoodSearch({ busy, forcedSlot = null, onLog, onLogDb, onLogEstim
         )}
       </div>
       {searching && <p className="mt-2 text-xs text-[#829084]">Searching...</p>}
+      {labelBusy && <p className="mt-2 text-xs text-[#829084]">Reading the label photo...</p>}
+      {labelError && !labelBusy && <p className="mt-2 text-sm text-[#829084]">{labelError}</p>}
       {message && !searching && <p className="mt-2 text-sm text-[#829084]">{message}</p>}
+      {message && !searching && canScan && isBarcodeQuery(query.trim()) && (
+        <button
+          onClick={captureLabel}
+          disabled={busy !== null || labelBusy}
+          className="press mt-2 w-full rounded-2xl border border-dashed border-[#8aa06f] bg-transparent px-4 py-2.5 text-sm text-[#2c3a2e] disabled:opacity-50"
+        >
+          Photograph the nutrition label instead
+        </button>
+      )}
       {correctedTo && !searching && results.length > 0 && (
         <p className="mt-2 text-xs text-[#829084]">
           Showing results for &quot;{correctedTo}&quot;
@@ -755,6 +827,51 @@ export function FoodSearch({ busy, forcedSlot = null, onLog, onLogDb, onLogEstim
           }}
           onCancel={() => setPendingAdd(null)}
         />
+      )}
+
+      {scanChooser && (
+        <div
+          className="fixed inset-0 z-50 flex items-end justify-center bg-black/30 p-4 pb-8"
+          onClick={() => setScanChooser(false)}
+        >
+          <div
+            className="w-full max-w-sm rounded-3xl bg-white p-4 shadow-[0_12px_48px_rgba(22,32,26,0.25)]"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="space-y-2">
+              <button
+                onClick={() => {
+                  setScanChooser(false);
+                  void scanBarcode();
+                }}
+                className="press w-full rounded-2xl border border-[#dce3d7] bg-white px-4 py-3 text-left text-sm text-[#2c3a2e] hover:border-[#8aa06f]"
+              >
+                Scan a barcode
+                <span className="mt-0.5 block text-xs text-[#829084]">
+                  Fastest when the product is in the database
+                </span>
+              </button>
+              <button
+                onClick={() => {
+                  setScanChooser(false);
+                  void captureLabel();
+                }}
+                className="press w-full rounded-2xl border border-[#dce3d7] bg-white px-4 py-3 text-left text-sm text-[#2c3a2e] hover:border-[#8aa06f]"
+              >
+                Photograph the nutrition label
+                <span className="mt-0.5 block text-xs text-[#829084]">
+                  For anything a barcode can&apos;t find
+                </span>
+              </button>
+            </div>
+            <button
+              onClick={() => setScanChooser(false)}
+              className="press mt-2 w-full rounded-2xl px-4 py-2.5 text-sm text-[#829084] hover:text-[#2c3a2e]"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
       )}
     </div>
   );

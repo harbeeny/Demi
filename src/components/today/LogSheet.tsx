@@ -239,6 +239,23 @@ export function LogSheet({ open, onClose, searchMeals, busy, defaultMode = "fdc"
               <FoodSearch
                 busy={busy}
                 forcedSlot={forcedSlot}
+                onLabelParsed={(r) => {
+                  // Photographed label: land the printed values in the
+                  // editable form so nothing is saved sight-unseen.
+                  setIsEstimate(true);
+                  setFields({
+                    name: r.name === "Label scan" ? "" : r.name,
+                    kcal: String(r.kcal),
+                    proteinG: String(r.proteinG),
+                    carbsG: String(r.carbsG),
+                    fatG: String(r.fatG),
+                    assumptions: r.servingText
+                      ? `Per ${r.servingText}${r.servingGrams ? ` (${r.servingGrams} g)` : ""}, read from the label photo.`
+                      : "Per one serving, read from the label photo.",
+                  });
+                  setMessage("");
+                  setMode("quick");
+                }}
                 onLog={onLogFdc}
                 onLogDb={onLogDb}
                 onLogEstimate={onLogEstimate}
