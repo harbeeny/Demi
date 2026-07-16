@@ -57,6 +57,8 @@ export interface GenerateOptions {
   kcalDelta?: number;
   /** reuse identical phrasing instead of re-billing the model for it */
   phrasingCache?: PhrasingCache;
+  /** clock preference for time labels in copy; null/absent means 12-hour */
+  prefers24h?: boolean | null;
 }
 
 /** Stable content hash of the personalize prompt payload. */
@@ -77,7 +79,7 @@ export async function generatePlan(
     opts.kcalDelta ?? 0,
     calorieFloor(profile),
   );
-  const slotTargets = distribute(dayTargets, profile, today);
+  const slotTargets = distribute(dayTargets, profile, today, opts.prefers24h);
   const prefs = { ...prefsFromRow(row), maxPrepMin: opts.maxPrepMin };
   const selected = selectMeals(allMeals, slotTargets, prefs, recentlyUsedIds);
 
@@ -86,7 +88,7 @@ export async function generatePlan(
   // problems must never break generation; they only cost a model call.
   const cacheKey =
     opts.personalizeWithLLM !== false && opts.phrasingCache
-      ? phrasingCacheKey(buildPersonalizePayload(selected, dayTargets, profile))
+      ? phrasingCacheKey(buildPersonalizePayload(selected, dayTargets, profile, opts.prefers24h))
       : null;
   let cached: PersonalizedPlan | null = null;
   if (cacheKey && opts.phrasingCache) {
@@ -95,8 +97,8 @@ export async function generatePlan(
 
   const rationale =
     opts.personalizeWithLLM === false
-      ? deterministicFallback(selected, dayTargets)
-      : (cached ?? (await personalize(selected, dayTargets, profile)));
+      ? deterministicFallback(selected, dayTargets, opts.prefers24h)
+      : (cached ?? (await personalize(selected, dayTargets, profile, opts.prefers24h)));
 
   // Only real model output is worth keeping (fallback copy is free).
   if (cacheKey && opts.phrasingCache && !cached && !rationale.fallbackUsed) {

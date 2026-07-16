@@ -44,18 +44,21 @@ export interface Database {
           created_at: string;
           onboarding_complete: boolean;
           timezone: string | null;
+          prefers_24h_time: boolean | null;
         };
         Insert: {
           id: string;
           created_at?: string;
           onboarding_complete?: boolean;
           timezone?: string | null;
+          prefers_24h_time?: boolean | null;
         };
         Update: {
           id?: string;
           created_at?: string;
           onboarding_complete?: boolean;
           timezone?: string | null;
+          prefers_24h_time?: boolean | null;
         };
         Relationships: [];
       };

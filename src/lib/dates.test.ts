@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 
-import { localDateISO, localHour } from "./dates";
+import { device24HourClock, formatTimeHour, localDateISO, localHour } from "./dates";
 
 // 02:00 UTC on July 16: still July 15 evening in New York, already July 16
 // afternoon in Kiritimati (UTC+14).
@@ -39,5 +39,36 @@ describe("localHour", () => {
   test("midnight stays 0, never 24", () => {
     const midnight = new Date("2026-07-16T00:00:00Z");
     expect(localHour("UTC", midnight)).toBe(0);
+  });
+});
+
+describe("formatTimeHour", () => {
+  test("defaults to 12-hour when the preference is unknown", () => {
+    expect(formatTimeHour(14)).toBe("2:00 pm");
+    expect(formatTimeHour(13.5, null)).toBe("1:30 pm");
+    expect(formatTimeHour(9.25, false)).toBe("9:15 am");
+  });
+
+  test("keeps 24-hour labels for users who prefer them", () => {
+    expect(formatTimeHour(14, true)).toBe("14:00");
+    expect(formatTimeHour(9.25, true)).toBe("9:15");
+  });
+
+  test("noon and midnight read as 12, not 0", () => {
+    expect(formatTimeHour(12)).toBe("12:00 pm");
+    expect(formatTimeHour(0)).toBe("12:00 am");
+    expect(formatTimeHour(0, true)).toBe("0:00");
+  });
+
+  test("minute rounding carries into the next hour instead of :60", () => {
+    expect(formatTimeHour(12.9999)).toBe("1:00 pm");
+    expect(formatTimeHour(23.9999, true)).toBe("0:00");
+  });
+});
+
+describe("device24HourClock", () => {
+  test("answers with a boolean or admits it can't say", () => {
+    const pref = device24HourClock();
+    expect(pref === null || typeof pref === "boolean").toBe(true);
   });
 });

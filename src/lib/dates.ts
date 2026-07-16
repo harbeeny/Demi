@@ -43,3 +43,37 @@ export function deviceTimeZone(): string | null {
     return null;
   }
 }
+
+/**
+ * Meal-time label for copy and UI: 13.5 -> "1:30 pm", or "13:30" for users
+ * whose clock runs 24-hour. A null/undefined preference means unknown and
+ * falls back to 12-hour, the app's default voice.
+ */
+export function formatTimeHour(timeHour: number, prefers24h?: boolean | null): string {
+  let h = Math.floor(timeHour);
+  let m = Math.round((timeHour % 1) * 60);
+  // Rounding can carry to a full hour (e.g. 12.999 -> 12:60).
+  if (m === 60) {
+    h += 1;
+    m = 0;
+  }
+  h %= 24;
+  const mm = String(m).padStart(2, "0");
+  if (prefers24h) return `${h}:${mm}`;
+  const h12 = h % 12 === 0 ? 12 : h % 12;
+  return `${h12}:${mm} ${h >= 12 ? "pm" : "am"}`;
+}
+
+/** True when the device clock prefers 24-hour time, null when unknowable. */
+export function device24HourClock(): boolean | null {
+  try {
+    const { hour12, hourCycle } = new Intl.DateTimeFormat(undefined, {
+      hour: "numeric",
+    }).resolvedOptions();
+    if (typeof hour12 === "boolean") return !hour12;
+    if (hourCycle) return hourCycle === "h23" || hourCycle === "h24";
+  } catch {
+    // no Intl clock info: callers treat null as unknown
+  }
+  return null;
+}

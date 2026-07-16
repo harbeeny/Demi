@@ -41,7 +41,10 @@ async function post(request: Request): Promise<Response> {
   }
 
   after(() =>
-    processJob({ supabase, userId: user.id, onboarding, meals, today: ctx.today }, job.id),
+    processJob(
+      { supabase, userId: user.id, onboarding, meals, today: ctx.today, prefers24h: ctx.prefers24h },
+      job.id,
+    ),
   );
 
   return NextResponse.json({ ok: true, queued: true, jobId: job.id }, { status: 202 });

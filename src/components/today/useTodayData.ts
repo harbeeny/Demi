@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 
 import { createClient } from "@/lib/supabase/client";
 import { registerPush } from "@/lib/push";
-import { deviceTimeZone, localDateISO } from "@/lib/dates";
+import { device24HourClock, deviceTimeZone, localDateISO } from "@/lib/dates";
 import { loggingStreak, trailingDates } from "@/lib/log/streak";
 import { calorieFloor, targets } from "@/lib/nutrition";
 import { addDaysISO, applyKcalDelta } from "@/lib/log/balance";
@@ -116,15 +116,23 @@ export function useTodayData(viewDate?: string | null): {
       void registerPush();
 
       // The app's day follows the device clock; keep the profile's timezone
-      // fresh so the server (routes, meal reminders) resolves the same day.
+      // and clock format fresh so the server (routes, meal reminders)
+      // resolves the same day and writes time labels the way the device does.
       const tz = deviceTimeZone();
       if (tz) {
-        // or-filter because a NULL timezone would never match a plain neq
+        const prefers24h = device24HourClock();
+        const patch: { timezone: string; prefers_24h_time?: boolean } = { timezone: tz };
+        // or-filter because a NULL column would never match a plain neq
+        const guards = [`timezone.neq.${tz}`, "timezone.is.null"];
+        if (prefers24h !== null) {
+          patch.prefers_24h_time = prefers24h;
+          guards.push(`prefers_24h_time.neq.${prefers24h}`, "prefers_24h_time.is.null");
+        }
         void supabase
           .from("profiles")
-          .update({ timezone: tz })
+          .update(patch)
           .eq("id", user.id)
-          .or(`timezone.neq.${tz},timezone.is.null`)
+          .or(guards.join(","))
           .then(() => undefined);
       }
     }
