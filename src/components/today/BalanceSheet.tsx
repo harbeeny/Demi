@@ -127,6 +127,13 @@ export function BalanceSheet({
   // Set after a rough log so the sheet can say what happened when the
   // entry fit inside its day's target and there's nothing to spread.
   const [roughLogged, setRoughLogged] = useState<SourceDay | null>(null);
+  // Being over target and having an unlogged big night are independent
+  // facts: a 74 kcal overage must not lock the rough path away. showRough
+  // is the escape hatch out of the preview/outgoing states; focus pins the
+  // sheet to the day a rough entry just landed on, overriding the
+  // today-first priority so the night's own spread is what comes up next.
+  const [showRough, setShowRough] = useState(false);
+  const [focus, setFocus] = useState<SourceDay | null>(null);
 
   useEffect(() => {
     if (open) {
@@ -136,6 +143,8 @@ export function BalanceSheet({
       setError("");
       setWhenChoice(new Date().getHours() < 12 ? "yesterday" : "today");
       setRoughLogged(null);
+      setShowRough(false);
+      setFocus(null);
     }
   }, [open]);
 
@@ -145,10 +154,12 @@ export function BalanceSheet({
   const overage = Math.max(0, Math.round(eatenKcal - targetKcal));
   const yOverage = Math.max(0, Math.round(y.eatenKcal - y.targetKcal));
 
-  // Which day this open serves. Today's live business (an overage or an
-  // existing spread) wins; otherwise last night's; otherwise the rough path.
+  // Which day this open serves. A just-logged rough entry pins its day;
+  // otherwise today's live business (an overage or an existing spread)
+  // wins; otherwise last night's; otherwise the rough path.
   const source: SourceDay =
-    overage > 0 || balance.outgoing ? "today" : yOverage > 0 || y.outgoing ? "yesterday" : "today";
+    focus ??
+    (overage > 0 || balance.outgoing ? "today" : yOverage > 0 || y.outgoing ? "yesterday" : "today");
   const sourceOverage = source === "yesterday" ? yOverage : overage;
   const sourceOutgoing = source === "yesterday" ? y.outgoing : balance.outgoing;
 
@@ -236,6 +247,8 @@ export function BalanceSheet({
         successHaptic();
         setCustomKcal("");
         setRoughLogged(whenChoice);
+        setShowRough(false);
+        setFocus(whenChoice);
       }
     } finally {
       setBusy(null);
@@ -305,7 +318,7 @@ export function BalanceSheet({
                 Done
               </button>
             </>
-          ) : sourceOutgoing ? (
+          ) : sourceOutgoing && !showRough ? (
             <>
               <p className="text-sm leading-6 text-[#3c4a3e]">
                 {source === "yesterday" ? "Last night" : "Today"} is already balanced:{" "}
@@ -329,8 +342,15 @@ export function BalanceSheet({
               >
                 {busy === "remove" ? "Removing..." : "Remove the balance"}
               </button>
+              <button
+                onClick={() => setShowRough(true)}
+                disabled={busy !== null}
+                className="press mt-2 w-full rounded-2xl border border-[#dce3d7] bg-white px-5 py-3 text-sm text-[#2c3a2e] disabled:opacity-60"
+              >
+                Big night not logged yet? Add it first
+              </button>
             </>
-          ) : preview ? (
+          ) : preview && !showRough ? (
             <>
               <p className="text-sm leading-6 text-[#3c4a3e]">
                 {source === "yesterday" ? (
@@ -387,12 +407,20 @@ export function BalanceSheet({
                   {busy === "apply" ? "Spreading..." : "Spread it out"}
                 </button>
               )}
+              <button
+                onClick={() => setShowRough(true)}
+                disabled={busy !== null}
+                className="press mt-2 w-full rounded-2xl border border-[#dce3d7] bg-white px-5 py-3 text-sm text-[#2c3a2e] disabled:opacity-60"
+              >
+                Big night not logged yet? Add it first
+              </button>
             </>
           ) : (
             <>
               <p className="text-sm leading-6 text-[#3c4a3e]">
-                You&apos;re not over your target right now. If a big night isn&apos;t logged yet,
-                say when it was, add a rough estimate, and we&apos;ll take it from there.
+                {overage > 0 || yOverage > 0
+                  ? "Add the night as a rough estimate first. Once it's logged, one spread covers all of it."
+                  : "You're not over your target right now. If a big night isn't logged yet, say when it was, add a rough estimate, and we'll take it from there."}
               </p>
               {roughLogged && (
                 <p className="mt-2 text-sm leading-6 text-[#5d6b5f]">
