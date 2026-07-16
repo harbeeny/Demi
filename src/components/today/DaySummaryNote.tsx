@@ -36,7 +36,7 @@ export function DaySummaryNote({ text }: { text: string }) {
   };
 
   return (
-    <div className="mb-6 rounded-3xl bg-[#e9efdd]">
+    <div className="my-5 rounded-3xl bg-[#e9efdd]">
       <button
         onClick={toggle}
         aria-expanded={expanded}
