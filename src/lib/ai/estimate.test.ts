@@ -26,9 +26,16 @@ describe("validateEstimate", () => {
     expect(validateEstimate({ ...good, name: "" })).toBeNull();
   });
 
-  test("rejects kcal out of (0, 3000]", () => {
-    expect(validateEstimate({ ...good, kcal: 0 })).toBeNull();
+  test("rejects kcal outside [0, 3000]", () => {
+    expect(validateEstimate({ ...good, kcal: -1 })).toBeNull();
     expect(validateEstimate({ ...good, kcal: 3001 })).toBeNull();
+  });
+
+  test("accepts zero-calorie items when the macros agree", () => {
+    const soda = { name: "Diet soda", kcal: 0, proteinG: 0, carbsG: 0, fatG: 0, assumptions: "" };
+    expect(validateEstimate(soda)).not.toBeNull();
+    // zero kcal against substantial macros is still inconsistent
+    expect(validateEstimate({ ...good, kcal: 0 })).toBeNull();
   });
 
   test("rejects negative or non-finite macros", () => {

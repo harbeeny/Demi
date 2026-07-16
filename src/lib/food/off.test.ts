@@ -31,6 +31,33 @@ describe("normalizeOffProduct", () => {
     expect(food.fdcId).toBe(0);
   });
 
+  test("liquids mark displayUnit ml with ml portion labels", () => {
+    const cola: OffProduct = {
+      product_name: "Coca-Cola",
+      serving_quantity: 330,
+      serving_quantity_unit: "ml",
+      serving_size: "1 portion (330 ml)",
+      nutriments: { "energy-kcal_100g": 42, proteins_100g: 0, carbohydrates_100g: 10.6, fat_100g: 0 },
+    };
+    const food = normalizeOffProduct(cola, "5449000000996")!;
+    expect(food.displayUnit).toBe("ml");
+    expect(food.portions[0]).toEqual({ label: "1 portion (330 ml)", gramWeight: 330 });
+    expect(food.portions).toContainEqual({ label: "100 ml", gramWeight: 100 });
+  });
+
+  test("zero-calorie liquids normalize with kcal 0", () => {
+    const dietSoda: OffProduct = {
+      product_name: "Zero Sugar",
+      brands: "Dr Pepper",
+      serving_quantity: 355,
+      serving_quantity_unit: "ml",
+      nutriments: { "energy-kcal_100g": 0, proteins_100g: 0, carbohydrates_100g: 0, fat_100g: 0 },
+    };
+    const food = normalizeOffProduct(dietSoda, "078000082166")!;
+    expect(food.per100g.kcal).toBe(0);
+    expect(food.displayUnit).toBe("ml");
+  });
+
   test("kJ-only energy converts to kcal", () => {
     const kj: OffProduct = {
       product_name: "Test bar",

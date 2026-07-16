@@ -30,6 +30,8 @@ type LogBody =
       barcode?: string;
       name: string;
       grams?: number;
+      /** display unit for the portion suffix; ml for liquids, default g */
+      unit?: "g" | "ml";
       kcal: number;
       proteinG: number;
       carbsG: number;
@@ -142,6 +144,8 @@ async function post(request: Request): Promise<Response> {
     }
     const grams =
       Number.isFinite(body.grams) && Number(body.grams) > 0 ? Math.round(Number(body.grams)) : null;
+    // liquids read in ml (stored 1:1 as grams); anything else says g
+    const unit = body.unit === "ml" ? "ml" : "g";
     // the portion suffix must not push the name past the 120-char DB limit
     const baseName = grams ? checked.name.slice(0, 105) : checked.name;
     insert = {
@@ -150,7 +154,7 @@ async function post(request: Request): Promise<Response> {
       fdc_id: hasFdcId ? (body.fdcId as number) : null,
       verified: body.verified === true,
       meal_id: null,
-      name: grams ? `${baseName} (${grams} g)` : checked.name,
+      name: grams ? `${baseName} (${grams} ${unit})` : checked.name,
       kcal: checked.kcal,
       protein_g: checked.proteinG,
       carbs_g: checked.carbsG,

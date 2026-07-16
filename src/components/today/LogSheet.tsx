@@ -357,7 +357,7 @@ export function LogSheet({ open, onClose, searchMeals, busy, defaultMode = "fdc"
                       </button>
                       <button
                         onClick={saveEstimate}
-                        disabled={busy !== null || !fields.name.trim() || Number(fields.kcal) <= 0}
+                        disabled={busy !== null || !fields.name.trim() || Number(fields.kcal) < 0}
                         className="press flex-1 rounded-2xl bg-[#2c3a2e] px-5 py-3 font-medium text-white disabled:opacity-60"
                       >
                         {busy === "log-estimate" ? "Saving..." : "Save log"}
