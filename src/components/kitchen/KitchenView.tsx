@@ -9,6 +9,15 @@ import type { Budget } from "@/lib/supabase/types";
 import { WeekStrip } from "./WeekStrip";
 import { GroceryList } from "./GroceryList";
 import { RecipeSheet, type RecipeData } from "./RecipeSheet";
+import type { Ingredient } from "@/lib/plan/grocery";
+
+const EXTRAS_KEY = "demi:grocery:extras";
+
+interface GroceryExtra {
+  name: string;
+  ingredients: Ingredient[];
+  servings: number;
+}
 import type { KitchenData, KitchenMeal } from "./useKitchenData";
 
 const PREP_CHOICES = [
@@ -40,6 +49,31 @@ export function KitchenView({ data, onMutated }: Props) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [recipe, setRecipe] = useState<RecipeData | null>(null);
+  // Recipes added to the list by hand from the recipe sheet, beyond what the
+  // plan rollup already covers. Device-local, like the check-offs.
+  const [extras, setExtras] = useState<GroceryExtra[]>([]);
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem(EXTRAS_KEY);
+      if (stored) setExtras(JSON.parse(stored) as GroceryExtra[]);
+    } catch {
+      // unreadable extras: start clean
+    }
+  }, []);
+  const saveExtras = (next: GroceryExtra[]) => {
+    setExtras(next);
+    try {
+      localStorage.setItem(EXTRAS_KEY, JSON.stringify(next));
+    } catch {
+      // storage unavailable: extras stay session-only
+    }
+  };
+  const addRecipeToGroceries = (r: RecipeData) =>
+    saveExtras([
+      ...extras,
+      { name: r.name, ingredients: r.ingredients, servings: r.servings },
+    ]);
+
 
   useEffect(() => {
     try {
@@ -83,10 +117,13 @@ export function KitchenView({ data, onMutated }: Props) {
 
   const groceryEntries = useMemo(() => {
     const days = range === "today" ? data.days.slice(0, 1) : data.days;
-    return days.flatMap((d) =>
-      d.entries.map((e) => ({ ingredients: e.ingredients, servings: e.servings })),
-    );
-  }, [data.days, range]);
+    return [
+      ...days.flatMap((d) =>
+        d.entries.map((e) => ({ ingredients: e.ingredients, servings: e.servings })),
+      ),
+      ...extras.map((x) => ({ ingredients: x.ingredients, servings: x.servings })),
+    ];
+  }, [data.days, range, extras]);
 
   const sections = useMemo(() => rollupGroceries(groceryEntries), [groceryEntries]);
   const storageKey = `demi:grocery:${range}:${today}:${listHash(sections)}`;
@@ -99,10 +136,13 @@ export function KitchenView({ data, onMutated }: Props) {
       cookMin: m.cookMin,
       kcal: m.kcal,
       proteinG: m.proteinG,
+      carbsG: m.carbsG,
+      fatG: m.fatG,
       ingredients: m.ingredients,
       instructions: m.instructions,
       source: m.source,
     });
+
 
   const chip = (selected: boolean) =>
     `press rounded-full border px-4 py-2 text-sm ${
@@ -192,6 +232,19 @@ export function KitchenView({ data, onMutated }: Props) {
             ))}
           </div>
         </div>
+        {extras.length > 0 && (
+          <p className="mb-2 flex items-center justify-between text-xs text-[#829084]">
+            <span>
+              Includes {extras.length} added {extras.length === 1 ? "recipe" : "recipes"}
+            </span>
+            <button
+              onClick={() => saveExtras([])}
+              className="text-[#7a9a4e] underline-offset-2 hover:underline"
+            >
+              Clear
+            </button>
+          </p>
+        )}
         <GroceryList sections={sections} storageKey={storageKey} />
       </section>
 
@@ -199,7 +252,20 @@ export function KitchenView({ data, onMutated }: Props) {
         Demi offers general wellness guidance, not medical advice.
       </p>
 
-      <RecipeSheet recipe={recipe} onClose={() => setRecipe(null)} />
+      <RecipeSheet
+        recipe={recipe}
+        action={
+          recipe
+            ? {
+                label: "Add ingredients to grocery list",
+                doneLabel: "On your grocery list",
+                done: extras.some((x) => x.name === recipe.name),
+                run: () => addRecipeToGroceries(recipe),
+              }
+            : null
+        }
+        onClose={() => setRecipe(null)}
+      />
     </main>
   );
 }

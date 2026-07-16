@@ -34,7 +34,7 @@ interface Props {
   onConfirm: (slotIndex: number) => void;
   onUndo: (logId: string) => void;
   onSwap: (slotIndex: number) => void;
-  onRecipe: (recipe: NonNullable<TodayMeal["recipe"]>) => void;
+  onRecipe: (recipe: NonNullable<TodayMeal["recipe"]>, slotIndex: number) => void;
 }
 
 export function MealCard({ meal, loggedId, busy, compact = false, onConfirm, onUndo, onSwap, onRecipe }: Props) {
@@ -53,7 +53,7 @@ export function MealCard({ meal, loggedId, busy, compact = false, onConfirm, onU
         <span className="flex gap-3">
           {meal.recipe && meal.recipe.instructions.length > 0 && (
             <button
-              onClick={() => onRecipe(meal.recipe!)}
+              onClick={() => onRecipe(meal.recipe!, meal.slotIndex)}
               disabled={busy !== null}
               className="text-xs text-[#7a9a4e] underline-offset-2 hover:underline disabled:opacity-50"
             >

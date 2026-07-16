@@ -17,6 +17,8 @@ export interface KitchenMeal {
   timeHour: number;
   kcal: number;
   proteinG: number;
+  carbsG: number;
+  fatG: number;
   prepMin: number;
   cookMin: number;
   ingredients: Ingredient[];
@@ -94,6 +96,8 @@ export function useKitchenData(): {
             timeHour: e.time_hour ?? 12,
             kcal: Number(meal.kcal),
             proteinG: Number(meal.protein_g),
+            carbsG: Number(meal.carbs_g),
+            fatG: Number(meal.fat_g),
             prepMin: Number(meal.prep_min),
             cookMin: Number(meal.cook_min),
             ingredients: (meal.ingredients as unknown as Ingredient[]) ?? [],

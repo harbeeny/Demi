@@ -166,6 +166,8 @@ export function useTodayData(viewDate?: string | null): {
               cookMin: Number(meal.cook_min),
               kcal: Number(meal.kcal),
               proteinG: Number(meal.protein_g),
+              carbsG: Number(meal.carbs_g),
+              fatG: Number(meal.fat_g),
               ingredients: (meal.ingredients as unknown as Ingredient[]) ?? [],
               instructions: meal.instructions ?? [],
               source: meal.source,
