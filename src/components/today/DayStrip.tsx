@@ -6,6 +6,8 @@
  * read-only review; tapping today returns home.
  */
 
+import { kcalGoalMet } from "@/lib/log/goal";
+
 interface Props {
   week: Array<{ date: string; kcal: number }>;
   targetKcal: number;
@@ -29,12 +31,13 @@ export function DayStrip({ week, targetKcal, selectedDate, onSelect }: Props) {
       {week.map((d) => {
         const selected = d.date === selectedDate;
         const progress = targetKcal > 0 ? Math.min(1, d.kcal / targetKcal) : 0;
+        const goalMet = kcalGoalMet(d.kcal, targetKcal);
         const dayNum = Number(d.date.slice(8, 10));
         return (
           <button
             key={d.date}
             onClick={() => onSelect(d.date)}
-            aria-label={`${d.date}, ${Math.round(d.kcal)} kcal logged`}
+            aria-label={`${d.date}, ${Math.round(d.kcal)} kcal logged${goalMet ? ", goal met" : ""}`}
             aria-pressed={selected}
             className="press flex flex-col items-center gap-0.5"
           >
@@ -44,7 +47,7 @@ export function DayStrip({ week, targetKcal, selectedDate, onSelect }: Props) {
                   cx="18"
                   cy="18"
                   r={RADIUS}
-                  fill={selected ? "#2c3a2e" : "white"}
+                  fill={selected ? "#2c3a2e" : goalMet ? "#eaf2dc" : "white"}
                   stroke="#dce3d7"
                   strokeWidth="3"
                 />
@@ -74,6 +77,16 @@ export function DayStrip({ week, targetKcal, selectedDate, onSelect }: Props) {
               >
                 {dayInitial(d.date)}
               </span>
+              {goalMet && (
+                <span
+                  className="pop-in absolute -right-0.5 -top-0.5 flex h-[14px] w-[14px] items-center justify-center rounded-full bg-[#7a9a4e] ring-2 ring-[#f4f6f2]"
+                  aria-hidden="true"
+                >
+                  <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round">
+                    <polyline points="20 6 9 17 4 12" />
+                  </svg>
+                </span>
+              )}
             </span>
             {/* Fixed width + tabular figures: the selected weight change must
                 never shift the row's layout. */}

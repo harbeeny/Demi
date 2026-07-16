@@ -13,7 +13,8 @@ import { MacroSummary } from "./MacroSummary";
 import { MealCard, timeLabel, type TodayMeal } from "./MealCard";
 import { LogSheet, type SearchMeal } from "./LogSheet";
 import { VerifiedBadge, type FdcLogFields } from "./FoodSearch";
-import { successHaptic, tapHaptic } from "@/lib/haptics";
+import { goalHaptic, successHaptic, tapHaptic } from "@/lib/haptics";
+import { kcalGoalMet } from "@/lib/log/goal";
 import { SLOT_LABELS, SLOT_ORDER } from "@/lib/log/slots";
 import type { MealSlot } from "@/lib/supabase/types";
 import { SummaryCard, type DaySummary } from "./SummaryCard";
@@ -209,6 +210,24 @@ export function TodayView({ hasPlan, daySummary, meals, targets, logs, summary, 
 
   const planned: MacroTotals = sumLogged(meals);
   const eaten: MacroTotals | null = logs.length > 0 ? sumLogged(logs) : null;
+
+  // Celebrate crossing INTO the goal band from below (a log, not an undo,
+  // and not on first load of an already-met day). The ref carries the date
+  // so switching days never compares two different days' totals.
+  const prevKcalRef = useRef<{ date: string; kcal: number } | null>(null);
+  const eatenKcal = eaten?.kcal ?? 0;
+  useEffect(() => {
+    const prev = prevKcalRef.current;
+    prevKcalRef.current = { date: viewedDate, kcal: eatenKcal };
+    if (!isToday || !prev || prev.date !== viewedDate) return;
+    if (
+      eatenKcal > prev.kcal &&
+      !kcalGoalMet(prev.kcal, targets.kcal) &&
+      kcalGoalMet(eatenKcal, targets.kcal)
+    ) {
+      goalHaptic();
+    }
+  }, [eatenKcal, viewedDate, isToday, targets.kcal]);
 
   // Logged planned slots, matched by index so duplicate slot names stay distinct.
   const loggedBySlotIndex = new Map(

@@ -29,3 +29,22 @@ export function successHaptic(): void {
     }
   })();
 }
+
+/**
+ * Double success buzz for the day's big moment (calorie goal reached).
+ * Deliberately bigger than successHaptic so the two read as different
+ * events when they fire back to back.
+ */
+export function goalHaptic(): void {
+  if (!Capacitor.isNativePlatform()) return;
+  void (async () => {
+    try {
+      const { Haptics, NotificationType } = await import("@capacitor/haptics");
+      await Haptics.notification({ type: NotificationType.Success });
+      await new Promise((r) => setTimeout(r, 180));
+      await Haptics.notification({ type: NotificationType.Success });
+    } catch {
+      // haptics unavailable; the badge pop still shows
+    }
+  })();
+}

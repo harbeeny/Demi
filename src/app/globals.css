@@ -105,10 +105,30 @@ body {
   animation-delay: calc(var(--rise-index, 0) * 90ms);
 }
 
+/* Goal-met badge entrance: small overshoot, one celebratory pop on mount. */
+@keyframes pop-in {
+  0% {
+    opacity: 0;
+    transform: scale(0);
+  }
+  70% {
+    opacity: 1;
+    transform: scale(1.2);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+.pop-in {
+  animation: pop-in 280ms cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .press,
   .step-in,
-  .rise-in {
+  .rise-in,
+  .pop-in {
     animation: none;
     transition: none;
   }
