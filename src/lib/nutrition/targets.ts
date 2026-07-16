@@ -63,6 +63,16 @@ export interface TargetOptions {
 
 const LBS_PER_KG_DISPLAY = 2.20462;
 
+/**
+ * The hard daily minimum for a profile: max(sex floor, 80% of BMR). Exposed
+ * so day-level adjustments (weekly balancing) can clamp against the same
+ * line targets() itself enforces.
+ */
+export function calorieFloor(profile: ProfileInput): number {
+  const basal = bmr(profile.sex, profile.age, profile.heightCm, profile.weightKg);
+  return Math.max(CALORIE_FLOORS[profile.sex], Math.round(basal.value * BMR_FLOOR_FRACTION));
+}
+
 export function targets(profile: ProfileInput, options: TargetOptions = {}): MacroTargets {
   const us = options.displayUnits === "us";
   const rateLabel = (kgPerWeek: number) =>

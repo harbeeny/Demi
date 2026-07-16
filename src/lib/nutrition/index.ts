@@ -2,6 +2,7 @@ export { bmr } from "./bmr";
 export { tdee, ACTIVITY_MULTIPLIERS } from "./tdee";
 export {
   targets,
+  calorieFloor,
   CALORIE_FLOORS,
   DEFAULT_GOAL_RATES,
   PROTEIN_G_PER_KG,

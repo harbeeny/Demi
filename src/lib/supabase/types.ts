@@ -446,6 +446,36 @@ export interface Database {
         };
         Relationships: [];
       };
+      day_adjustments: {
+        Row: {
+          id: string;
+          user_id: string;
+          date: string;
+          kcal_delta: number;
+          source_date: string;
+          reason: string;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          user_id: string;
+          date: string;
+          kcal_delta: number;
+          source_date: string;
+          reason?: string;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          user_id?: string;
+          date?: string;
+          kcal_delta?: number;
+          source_date?: string;
+          reason?: string;
+          created_at?: string;
+        };
+        Relationships: [];
+      };
     };
     Views: { [_ in never]: never };
     Functions: {

@@ -13,7 +13,7 @@ Stack: Next.js 15 (App Router) on Vercel, Supabase (Postgres + Auth), Capacitor 
 - `push_sends` is service-role-only: RLS enabled, zero policies, so users can neither read nor write it. This is intentional deny-all, not a missing policy.
 - Secret access goes through `public.get_push_secret()` (SECURITY DEFINER). EXECUTE is revoked from `anon` and `authenticated`; only the service role (used by the edge function) may call it. Any new SECURITY DEFINER function follows the same rule: revoke EXECUTE from `anon`/`authenticated` unless it is deliberately public and safe.
 - Guest accounts use Supabase anonymous sign-in, so `authenticated` includes anonymous users. Owner-scoped policies still isolate each guest; the Supabase "anonymous access policy" advisories are expected and accepted for this design.
-- Verification: a signed-in user must read zero rows of another user's `profiles`, `meal_logs`, `meal_plans`, `weight_logs`, `daily_logs`, or `device_tokens`. This is checked with a role-simulated cross-user probe (see the audit runbook below) and must stay at zero.
+- Verification: a signed-in user must read zero rows of another user's `profiles`, `meal_logs`, `meal_plans`, `weight_logs`, `daily_logs`, `device_tokens`, or `day_adjustments`. This is checked with a role-simulated cross-user probe (see the audit runbook below) and must stay at zero.
 
 ## 2. No secrets client-side
 

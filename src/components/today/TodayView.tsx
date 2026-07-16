@@ -15,7 +15,9 @@ import { LogSheet, type SearchMeal } from "./LogSheet";
 import { VerifiedBadge, type FdcLogFields } from "./FoodSearch";
 import { goalHaptic, successHaptic, tapHaptic } from "@/lib/haptics";
 import { kcalGoalMet } from "@/lib/log/goal";
-import { SLOT_LABELS, SLOT_ORDER } from "@/lib/log/slots";
+import { BalanceSheet, roughEstimateMacros } from "./BalanceSheet";
+import type { BalanceInfo } from "./useTodayData";
+import { SLOT_LABELS, SLOT_ORDER, suggestSlot } from "@/lib/log/slots";
 import type { MealSlot } from "@/lib/supabase/types";
 import { SummaryCard, type DaySummary } from "./SummaryCard";
 import { RecipeSheet, type RecipeData } from "@/components/kitchen/RecipeSheet";
@@ -47,7 +49,8 @@ interface Props {
   /** false when reviewing a past day: everything renders read-only */
   isToday: boolean;
   streak: number;
-  week: Array<{ date: string; kcal: number }>;
+  week: Array<{ date: string; kcal: number; targetKcal: number }>;
+  balance: BalanceInfo;
   /**
    * Switch the viewed day in place (null = today). State-driven on purpose:
    * a location change would reload the whole shell, flashing the UI and
@@ -58,7 +61,7 @@ interface Props {
   onMutated: () => Promise<void>;
 }
 
-export function TodayView({ hasPlan, daySummary, meals, targets, logs, summary, searchMeals, viewedDate, isToday, streak, week, onSelectDate, onMutated }: Props) {
+export function TodayView({ hasPlan, daySummary, meals, targets, logs, summary, searchMeals, viewedDate, isToday, streak, week, balance, onSelectDate, onMutated }: Props) {
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
@@ -72,6 +75,7 @@ export function TodayView({ hasPlan, daySummary, meals, targets, logs, summary, 
     setSheetOpen(true);
   };
   const [recipe, setRecipe] = useState<{ data: RecipeData; slotIndex: number | null } | null>(null);
+  const [balanceOpen, setBalanceOpen] = useState(false);
   // "plan" auto-builds a meal plan; "track" is the standalone macro tracker;
   // null means the user has never chosen (first no-plan visit shows a choice).
   const [dayMode, setDayMode] = useState<"plan" | "track" | null>(null);
@@ -244,6 +248,75 @@ export function TodayView({ hasPlan, daySummary, meals, targets, logs, summary, 
     eaten !== null &&
     shouldOfferRebalance(remainingBudget(targets, eaten), sumLogged(upcomingMeals), upcomingMeals.length);
 
+  // A rough estimate for a night nobody measured: mostly carbs and fat,
+  // logged as a normal editable estimate entry in the clock-suggested slot.
+  const logRough = (kcal: number) =>
+    logEstimate(
+      {
+        name: "Big night (rough estimate)",
+        kcal,
+        ...roughEstimateMacros(kcal),
+        slot: suggestSlot(new Date().getHours(), new Date().getMinutes()),
+      },
+      "",
+      { keepOpen: true },
+    );
+
+  const eatenTotals = eaten ?? { kcal: 0, proteinG: 0, carbsG: 0, fatG: 0 };
+  const overKcal = Math.max(0, Math.round(eatenTotals.kcal - targets.kcal));
+  const incomingDelta = balance.incoming.reduce((sum, a) => sum + a.deltaKcal, 0);
+
+  // Hero + weekly-balance context, identical in all three day layouts.
+  const budgetBlock = (
+    <>
+      <MacroSummary targets={targets} eaten={eatenTotals} />
+      {incomingDelta < 0 && (
+        <p className="mt-2 px-1 text-xs leading-5 text-[#829084]">
+          Target trimmed {-incomingDelta} kcal today, balancing{" "}
+          {balance.incoming.map((a) => dateShort(a.sourceDate)).join(" and ")}.
+        </p>
+      )}
+      {balance.outgoing && (
+        <button
+          onClick={() => {
+            tapHaptic();
+            setBalanceOpen(true);
+          }}
+          disabled={!isToday}
+          className="mt-2 px-1 text-left text-xs leading-5 text-[#829084] enabled:underline-offset-2 enabled:hover:underline"
+        >
+          This day&apos;s extra ({balance.outgoing.absorbed} kcal) is spread across{" "}
+          {balance.outgoing.days} {balance.outgoing.days === 1 ? "day" : "days"}.
+          {isToday ? " Adjust" : ""}
+        </button>
+      )}
+      {isToday && !balance.outgoing && (
+        overKcal > 0 ? (
+          <button
+            onClick={() => {
+              tapHaptic();
+              setBalanceOpen(true);
+            }}
+            disabled={busy !== null}
+            className="press mt-3 w-full rounded-2xl border border-[#8aa06f] bg-white px-4 py-3 text-sm text-[#2c3a2e] disabled:opacity-50"
+          >
+            {overKcal} kcal over? Balance my week
+          </button>
+        ) : (
+          <button
+            onClick={() => {
+              tapHaptic();
+              setBalanceOpen(true);
+            }}
+            className="mt-2 w-full text-center text-xs text-[#829084] underline-offset-2 hover:underline"
+          >
+            Had a big night? Balance my week
+          </button>
+        )
+      )}
+    </>
+  );
+
   return (
     <main className="mx-auto w-full min-h-dvh max-w-md bg-[#f4f6f2] px-5 pb-36 pt-8">
       <header className="mb-4 flex items-center justify-between">
@@ -288,7 +361,6 @@ export function TodayView({ hasPlan, daySummary, meals, targets, logs, summary, 
 
       <DayStrip
         week={week}
-        targetKcal={targets.kcal}
         selectedDate={viewedDate}
         onSelect={(d) => {
           const today = week[week.length - 1]?.date;
@@ -315,7 +387,7 @@ export function TodayView({ hasPlan, daySummary, meals, targets, logs, summary, 
       <div key={viewedDate} className="step-in">
       {!isToday ? (
         <>
-          <MacroSummary targets={targets} eaten={eaten ?? { kcal: 0, proteinG: 0, carbsG: 0, fatG: 0 }} />
+          {budgetBlock}
           {SLOT_ORDER.map((s) => (
             <MealSection
               key={s}
@@ -346,7 +418,7 @@ export function TodayView({ hasPlan, daySummary, meals, targets, logs, summary, 
 
       {isToday && !hasPlan && dayMode === "track" ? (
         <>
-          <MacroSummary targets={targets} eaten={eaten ?? { kcal: 0, proteinG: 0, carbsG: 0, fatG: 0 }} />
+          {budgetBlock}
 
           {SLOT_ORDER.map((s) => (
             <MealSection
@@ -413,7 +485,7 @@ export function TodayView({ hasPlan, daySummary, meals, targets, logs, summary, 
         </div>
       ) : isToday && hasPlan ? (
         <>
-          <MacroSummary targets={targets} eaten={eaten ?? { kcal: 0, proteinG: 0, carbsG: 0, fatG: 0 }} />
+          {budgetBlock}
 
           {offerRebalance && (
             <button
@@ -516,6 +588,17 @@ export function TodayView({ hasPlan, daySummary, meals, targets, logs, summary, 
         onLogEstimate={logEstimate}
         onLogFdc={logFdc}
       />
+
+      <BalanceSheet
+        open={balanceOpen}
+        onClose={() => setBalanceOpen(false)}
+        today={viewedDate}
+        eatenKcal={eatenTotals.kcal}
+        targetKcal={targets.kcal}
+        balance={balance}
+        onLogRough={logRough}
+        onMutated={onMutated}
+      />
     </main>
   );
 }
@@ -526,6 +609,16 @@ function dateHeading(iso: string): string {
   return new Date(`${iso}T12:00:00Z`).toLocaleDateString(undefined, {
     weekday: "long",
     month: "long",
+    day: "numeric",
+    timeZone: "UTC",
+  });
+}
+
+/** "Fri, Jul 17" style short date for the balance notes. */
+function dateShort(iso: string): string {
+  return new Date(`${iso}T12:00:00Z`).toLocaleDateString(undefined, {
+    weekday: "short",
+    month: "short",
     day: "numeric",
     timeZone: "UTC",
   });
