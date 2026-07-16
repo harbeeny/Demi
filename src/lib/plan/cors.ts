@@ -1,3 +1,5 @@
+import { captureError, logRequest, routePath } from "@/lib/obs";
+
 // CORS for API routes called cross-origin by the Capacitor shell.
 // Allowlist-based (never *): the iOS WebView origin plus localhost for the
 // static-export regression rig. Same-origin web requests carry no matching
@@ -30,13 +32,34 @@ export function preflight(methods: string) {
 
 /**
  * Wrap a handler so every response, including loadContext 401s and error
- * paths, carries CORS headers the WebView is allowed to read.
+ * paths, carries CORS headers the WebView is allowed to read. Doubles as
+ * the telemetry choke point: one structured log line per request, and any
+ * uncaught handler error is captured and answered with a generic 500
+ * instead of leaking a stack through the platform's default error page.
  */
 export function withCors<A extends unknown[]>(
   handler: (request: Request, ...args: A) => Promise<Response>,
 ) {
   return async (request: Request, ...args: A) => {
-    const res = await handler(request, ...args);
+    const started = Date.now();
+    const route = routePath(request.url);
+    let res: Response;
+    try {
+      res = await handler(request, ...args);
+    } catch (err) {
+      captureError(err, { route, method: request.method });
+      res = new Response(JSON.stringify({ error: "Something went wrong." }), {
+        status: 500,
+        headers: { "content-type": "application/json" },
+      });
+    }
+    logRequest({
+      at: "api",
+      route,
+      method: request.method,
+      status: res.status,
+      ms: Date.now() - started,
+    });
     for (const [k, v] of Object.entries(corsHeaders(request))) {
       res.headers.set(k, v);
     }
