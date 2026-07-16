@@ -1,7 +1,8 @@
 import "server-only";
 
 import type { Database, MealPlanEntry } from "@/lib/supabase/types";
-import { distribute, targets } from "@/lib/nutrition";
+import { calorieFloor, distribute, targets } from "@/lib/nutrition";
+import { applyKcalDeltaToTargets } from "@/lib/log/balance";
 import { selectMeals, type Meal, type SelectionPrefs } from "./select-meals";
 import { deterministicFallback, personalize, type PersonalizedPlan } from "@/lib/ai/personalize";
 
@@ -39,6 +40,8 @@ export interface GenerateOptions {
   maxPrepMin?: number;
   /** false = deterministic copy only (used for far-future week days) */
   personalizeWithLLM?: boolean;
+  /** day_adjustments sum for this date (weekly balancing); floors still apply */
+  kcalDelta?: number;
 }
 
 export async function generatePlan(
@@ -49,7 +52,11 @@ export async function generatePlan(
   opts: GenerateOptions = {},
 ): Promise<GeneratedPlan> {
   const profile = profileFromRow(row);
-  const dayTargets = targets(profile, { displayUnits: "us" });
+  const dayTargets = applyKcalDeltaToTargets(
+    targets(profile, { displayUnits: "us" }),
+    opts.kcalDelta ?? 0,
+    calorieFloor(profile),
+  );
   const slotTargets = distribute(dayTargets, profile, today);
   const prefs = { ...prefsFromRow(row), maxPrepMin: opts.maxPrepMin };
   const selected = selectMeals(allMeals, slotTargets, prefs, recentlyUsedIds);

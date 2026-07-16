@@ -7,6 +7,7 @@ import { prefsFromRow } from "@/lib/plan/rows";
 import { isEligible } from "@/lib/plan/select-meals";
 import { recentIdsFor, weekDates } from "@/lib/plan/week";
 import { consumeQuota } from "@/lib/plan/quota";
+import { fetchDeltasByDate } from "@/lib/log/adjustments";
 import type { MealPlanEntry, MealSlot } from "@/lib/supabase/types";
 
 // Up to two LLM personalize calls plus six deterministic generations.
@@ -47,6 +48,9 @@ async function post(request: Request): Promise<Response> {
     (existing ?? []).map((p) => [p.date, p.meals as MealPlanEntry[]]),
   );
 
+  // Weekly balancing: days carrying a reduction plan smaller on purpose.
+  const deltasByDate = await fetchDeltasByDate(supabase, user.id, dates);
+
   const generated: string[] = [];
   const skipped: string[] = [];
 
@@ -68,7 +72,7 @@ async function post(request: Request): Promise<Response> {
       meals,
       new Date(`${date}T12:00:00Z`),
       recentIdsFor(date, plansByDate),
-      { maxPrepMin, personalizeWithLLM },
+      { maxPrepMin, personalizeWithLLM, kcalDelta: deltasByDate[date] ?? 0 },
     );
 
     const entries: MealPlanEntry[] = plan.slots.map((s) => ({

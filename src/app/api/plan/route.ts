@@ -3,8 +3,10 @@ import { NextResponse } from "next/server";
 import { generatePlan } from "@/lib/plan/generate";
 import { loadContext } from "@/lib/plan/context";
 import { scoreMeal, isEligible } from "@/lib/plan/select-meals";
-import { distribute, targets } from "@/lib/nutrition";
+import { calorieFloor, distribute, targets } from "@/lib/nutrition";
 import { profileFromRow, prefsFromRow } from "@/lib/plan/generate";
+import { applyKcalDeltaToTargets } from "@/lib/log/balance";
+import { fetchDayDelta } from "@/lib/log/adjustments";
 import type { MealPlanEntry, MealSlot } from "@/lib/supabase/types";
 import { preflight, withCors } from "@/lib/plan/cors";
 import { consumeQuota, quotaExceeded } from "@/lib/plan/quota";
@@ -50,7 +52,13 @@ async function post(request: Request): Promise<Response> {
     (p.meals as MealPlanEntry[]).map((m) => m.meal_id),
   );
 
-  const plan = await generatePlan(onboarding, meals, new Date(), recentlyUsedIds, { maxPrepMin });
+  // Weekly balancing can shrink today's budget; the plan should honor it.
+  const kcalDelta = await fetchDayDelta(supabase, user.id, date);
+
+  const plan = await generatePlan(onboarding, meals, new Date(), recentlyUsedIds, {
+    maxPrepMin,
+    kcalDelta,
+  });
 
   const entries: MealPlanEntry[] = plan.slots.map((s) => ({
     meal_id: s.mealId,
@@ -119,9 +127,16 @@ async function patch(request: Request): Promise<Response> {
     return NextResponse.json({ error: "Invalid slot index." }, { status: 400 });
   }
 
-  // Rebuild this slot's macro target so the replacement still fits the day.
+  // Rebuild this slot's macro target so the replacement still fits the day,
+  // including any weekly-balance reduction on today's budget.
   const profile = profileFromRow(onboarding);
-  const slotTargets = distribute(targets(profile), profile, new Date());
+  const swapDelta = await fetchDayDelta(supabase, user.id, date);
+  const adjustedTargets = applyKcalDeltaToTargets(
+    targets(profile),
+    swapDelta,
+    calorieFloor(profile),
+  );
+  const slotTargets = distribute(adjustedTargets, profile, new Date());
   const slotTarget = slotTargets[body.slotIndex] ?? slotTargets[0];
 
   const usedIds = new Set(entries.map((e) => e.meal_id));

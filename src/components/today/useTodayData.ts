@@ -7,7 +7,8 @@ import { createClient } from "@/lib/supabase/client";
 import { registerPush } from "@/lib/push";
 import { deviceTimeZone, localDateISO } from "@/lib/dates";
 import { loggingStreak, trailingDates } from "@/lib/log/streak";
-import { targets } from "@/lib/nutrition";
+import { calorieFloor, targets } from "@/lib/nutrition";
+import { applyKcalDelta } from "@/lib/log/balance";
 import { profileFromRow, prefsFromRow } from "@/lib/plan/rows";
 import { isEligible, type Meal } from "@/lib/plan/select-meals";
 import type { MealPlanEntry } from "@/lib/supabase/types";
@@ -17,10 +18,23 @@ import type { TodayMeal, TodayLog } from "./TodayView";
 import type { DaySummary } from "./SummaryCard";
 import type { SearchMeal } from "./LogSheet";
 
+export interface BalanceInfo {
+  /** reductions applied TO the viewed day by earlier balances */
+  incoming: Array<{ sourceDate: string; deltaKcal: number }>;
+  /** the spread the viewed day created, if it was balanced */
+  outgoing: { absorbed: number; days: number } | null;
+  /** unadjusted daily target, the reference for caps */
+  baseKcal: number;
+  floorKcal: number;
+  /** kcal already being reduced on days after today by OTHER source days */
+  existingReductionByDate: Record<string, number>;
+}
+
 export interface TodayData {
   hasPlan: boolean;
   daySummary: string;
   meals: TodayMeal[];
+  /** the viewed day's targets, including any weekly-balance reduction */
   targets: MacroTotals;
   logs: TodayLog[];
   summary: DaySummary | null;
@@ -30,8 +44,9 @@ export interface TodayData {
   isToday: boolean;
   /** consecutive logged days ending today (or yesterday while today is empty) */
   streak: number;
-  /** trailing week, ascending, with each day's eaten kcal for the strip */
-  week: Array<{ date: string; kcal: number }>;
+  /** trailing week, ascending, with eaten kcal and that day's adjusted target */
+  week: Array<{ date: string; kcal: number; targetKcal: number }>;
+  balance: BalanceInfo;
 }
 
 /**
@@ -101,8 +116,15 @@ export function useTodayData(viewDate?: string | null): {
     }
 
     const streakStart = trailingDates(today, 90)[0];
-    const [{ data: planRow }, { data: logRows }, { data: dailyLog }, { data: allMeals }, { data: historyRows }] =
-      await Promise.all([
+    const weekStart = trailingDates(today, 7)[0];
+    const [
+      { data: planRow },
+      { data: logRows },
+      { data: dailyLog },
+      { data: allMeals },
+      { data: historyRows },
+      { data: adjustmentRows },
+    ] = await Promise.all([
         supabase
           .from("meal_plans")
           .select("llm_rationale, meals")
@@ -129,19 +151,64 @@ export function useTodayData(viewDate?: string | null): {
           .eq("user_id", user.id)
           .gte("date", streakStart)
           .lte("date", today),
+        // weekly-balance deltas: the strip window plus everything after
+        // today (spread preview capacity), plus the viewed day's own rows
+        supabase
+          .from("day_adjustments")
+          .select("date, kcal_delta, source_date")
+          .eq("user_id", user.id)
+          .or(`date.gte.${weekStart},date.eq.${viewedDate},source_date.eq.${viewedDate}`),
       ]);
 
     const kcalByDate = new Map<string, number>();
     for (const row of historyRows ?? []) {
       kcalByDate.set(row.date, (kcalByDate.get(row.date) ?? 0) + Number(row.kcal));
     }
+    const streak = loggingStreak(kcalByDate.keys(), today);
+
+    const profile = profileFromRow(onboarding);
+    const dayTargets = targets(profile, { displayUnits: "us" });
+    const floorKcal = calorieFloor(profile);
+    const baseTotals: MacroTotals = {
+      kcal: dayTargets.kcal.value,
+      proteinG: dayTargets.proteinG.value,
+      carbsG: dayTargets.carbsG.value,
+      fatG: dayTargets.fatG.value,
+    };
+
+    // Weekly balancing: per-day target deltas, applied everywhere a target
+    // is shown so the day strip, hero, and goal band all agree.
+    const deltaByDate = new Map<string, number>();
+    for (const row of adjustmentRows ?? []) {
+      deltaByDate.set(row.date, (deltaByDate.get(row.date) ?? 0) + Number(row.kcal_delta));
+    }
+    const adjustedKcalFor = (date: string) =>
+      applyKcalDelta(baseTotals, deltaByDate.get(date) ?? 0, floorKcal).kcal;
+
     const week = trailingDates(today, 7).map((date) => ({
       date,
       kcal: Math.round(kcalByDate.get(date) ?? 0),
+      targetKcal: adjustedKcalFor(date),
     }));
-    const streak = loggingStreak(kcalByDate.keys(), today);
 
-    const dayTargets = targets(profileFromRow(onboarding), { displayUnits: "us" });
+    const incoming = (adjustmentRows ?? [])
+      .filter((r) => r.date === viewedDate)
+      .map((r) => ({ sourceDate: r.source_date, deltaKcal: Number(r.kcal_delta) }));
+    const outgoingRows = (adjustmentRows ?? []).filter((r) => r.source_date === viewedDate);
+    const outgoing =
+      outgoingRows.length > 0
+        ? {
+            absorbed: outgoingRows.reduce((sum, r) => sum + Math.max(0, -Number(r.kcal_delta)), 0),
+            days: outgoingRows.length,
+          }
+        : null;
+    const existingReductionByDate: Record<string, number> = {};
+    for (const r of adjustmentRows ?? []) {
+      if (r.date > today && r.source_date !== today) {
+        existingReductionByDate[r.date] =
+          (existingReductionByDate[r.date] ?? 0) + Math.max(0, -Number(r.kcal_delta));
+      }
+    }
 
     let mealsData: TodayMeal[] = [];
     let daySummary = "";
@@ -188,12 +255,7 @@ export function useTodayData(viewDate?: string | null): {
       hasPlan: planRow !== null && mealsData.length > 0,
       daySummary,
       meals: mealsData,
-      targets: {
-        kcal: dayTargets.kcal.value,
-        proteinG: dayTargets.proteinG.value,
-        carbsG: dayTargets.carbsG.value,
-        fatG: dayTargets.fatG.value,
-      },
+      targets: applyKcalDelta(baseTotals, deltaByDate.get(viewedDate) ?? 0, floorKcal),
       logs: (logRows ?? []).map((l) => ({
         id: l.id,
         slot: l.slot,
@@ -228,6 +290,13 @@ export function useTodayData(viewDate?: string | null): {
       isToday,
       streak,
       week,
+      balance: {
+        incoming,
+        outgoing,
+        baseKcal: baseTotals.kcal,
+        floorKcal,
+        existingReductionByDate,
+      },
     });
     setLoading(false);
   }, [router, viewDate]);

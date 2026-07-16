@@ -61,6 +61,7 @@ export default function TodayPage() {
         isToday={data.isToday}
         streak={data.streak}
         week={data.week}
+        balance={data.balance}
         onSelectDate={selectDate}
         onMutated={reload}
       />

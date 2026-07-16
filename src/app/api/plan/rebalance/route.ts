@@ -4,8 +4,10 @@ import { loadContext } from "@/lib/plan/context";
 import { localHour } from "@/lib/dates";
 import { profileFromRow, prefsFromRow } from "@/lib/plan/generate";
 import { scoreMeal, isEligible } from "@/lib/plan/select-meals";
-import { distribute, targets } from "@/lib/nutrition";
+import { calorieFloor, distribute, targets } from "@/lib/nutrition";
 import { remainingBudget, sumLogged } from "@/lib/log/remaining";
+import { applyKcalDelta } from "@/lib/log/balance";
+import { fetchDayDelta } from "@/lib/log/adjustments";
 import { rebalanceSlotTargets } from "@/lib/log/rebalance";
 import type { MealPlanEntry } from "@/lib/supabase/types";
 import { preflight, withCors } from "@/lib/plan/cors";
@@ -44,13 +46,19 @@ async function post(request: Request): Promise<Response> {
 
   const profile = profileFromRow(onboarding);
   const dayTargets = targets(profile);
+  // Weekly balancing shrinks the budget the remaining meals must fit.
+  const kcalDelta = await fetchDayDelta(supabase, user.id, date);
   const remaining = remainingBudget(
-    {
-      kcal: dayTargets.kcal.value,
-      proteinG: dayTargets.proteinG.value,
-      carbsG: dayTargets.carbsG.value,
-      fatG: dayTargets.fatG.value,
-    },
+    applyKcalDelta(
+      {
+        kcal: dayTargets.kcal.value,
+        proteinG: dayTargets.proteinG.value,
+        carbsG: dayTargets.carbsG.value,
+        fatG: dayTargets.fatG.value,
+      },
+      kcalDelta,
+      calorieFloor(profile),
+    ),
     eaten,
   );
 

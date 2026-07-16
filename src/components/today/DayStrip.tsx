@@ -9,8 +9,8 @@
 import { kcalGoalMet } from "@/lib/log/goal";
 
 interface Props {
-  week: Array<{ date: string; kcal: number }>;
-  targetKcal: number;
+  /** each day carries its own target: weekly balancing shifts them per-day */
+  week: Array<{ date: string; kcal: number; targetKcal: number }>;
   selectedDate: string;
   onSelect: (date: string) => void;
 }
@@ -25,13 +25,13 @@ function dayInitial(date: string): string {
   });
 }
 
-export function DayStrip({ week, targetKcal, selectedDate, onSelect }: Props) {
+export function DayStrip({ week, selectedDate, onSelect }: Props) {
   return (
     <div className="mb-5 flex justify-between gap-1 px-0.5" role="group" aria-label="Past week">
       {week.map((d) => {
         const selected = d.date === selectedDate;
-        const progress = targetKcal > 0 ? Math.min(1, d.kcal / targetKcal) : 0;
-        const goalMet = kcalGoalMet(d.kcal, targetKcal);
+        const progress = d.targetKcal > 0 ? Math.min(1, d.kcal / d.targetKcal) : 0;
+        const goalMet = kcalGoalMet(d.kcal, d.targetKcal);
         const dayNum = Number(d.date.slice(8, 10));
         return (
           <button
