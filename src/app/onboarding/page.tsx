@@ -38,11 +38,17 @@ type Answers = {
   trainingTime: string;
 };
 
+/** Default to a birth date exactly 18 years ago today: the youngest allowed age. */
+const TODAY = new Date();
+const DEFAULT_DOB_YEAR = TODAY.getFullYear() - 18;
+const DEFAULT_DOB_MONTH = TODAY.getMonth();
+const DEFAULT_DOB_DAY = Math.min(TODAY.getDate(), daysInMonth(DEFAULT_DOB_YEAR, DEFAULT_DOB_MONTH));
+
 const INITIAL: Answers = {
   sex: null,
-  dobMonth: 0,
-  dobDay: 1,
-  dobYear: 1995,
+  dobMonth: DEFAULT_DOB_MONTH,
+  dobDay: DEFAULT_DOB_DAY,
+  dobYear: DEFAULT_DOB_YEAR,
   heightCm: 173, // 5'8"
   heightUnit: "ft_in",
   weight: "",
@@ -100,9 +106,11 @@ const MONTHS = [
 ];
 const MONTH_OPTIONS = Array.from({ length: 12 }, (_, i) => i);
 
-/** Oldest first, so scrolling down moves toward the present like iOS date pickers. */
+/** Oldest first, so scrolling down moves toward the present like iOS date pickers.
+ * Ends at the year of someone turning 18 this year; month/day can still dip under 18,
+ * which the inline age check catches. */
 const THIS_YEAR = new Date().getFullYear();
-const YEAR_OPTIONS = Array.from({ length: 108 }, (_, i) => THIS_YEAR - 120 + i);
+const YEAR_OPTIONS = Array.from({ length: 103 }, (_, i) => THIS_YEAR - 120 + i);
 
 function daysInMonth(year: number, month: number): number {
   return new Date(year, month + 1, 0).getDate();
@@ -173,7 +181,7 @@ export default function OnboardingPage() {
       case 0: return answers.sex !== null;
       case 1: {
         const age = ageFromDob(answers.dobYear, answers.dobMonth, answers.dobDay);
-        return age >= 13 && age <= 120;
+        return age >= 18 && age <= 120;
       }
       // 2 (height) is wheel-constrained, always valid
       case 3: return isValidWeight(answers.weight, answers.weightUnit);
@@ -310,13 +318,12 @@ export default function OnboardingPage() {
             ))}
           </Question>
         );
-      case 1:
+      case 1: {
+        const under18 = ageFromDob(answers.dobYear, answers.dobMonth, answers.dobDay) < 18;
         return (
           <div className="flex flex-1 flex-col">
             <h1 className="text-2xl font-semibold text-[#2c3a2e]">When were you born?</h1>
-            <p className="mt-1 text-sm text-[#829084]">
-              This calibrates your plan. Under 18 gets maintenance targets only.
-            </p>
+            <p className="mt-1 text-sm text-[#829084]">This calibrates your plan.</p>
             <div className="flex flex-1 items-center justify-center gap-1">
               <WheelPicker
                 key="dob-month"
@@ -351,8 +358,13 @@ export default function OnboardingPage() {
                 indicator="pill"
               />
             </div>
+            {/* fixed-height slot so the wheels don't shift when the notice appears */}
+            <p aria-live="polite" className="min-h-5 pb-2 text-center text-sm text-red-700">
+              {under18 ? "You must be over 18 to continue" : ""}
+            </p>
           </div>
         );
+      }
       case 2: {
         const ftIn = answers.heightUnit === "ft_in";
         return (
