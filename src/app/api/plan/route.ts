@@ -1,6 +1,5 @@
-import { NextResponse } from "next/server";
+import { NextResponse, after } from "next/server";
 
-import { generatePlan } from "@/lib/plan/generate";
 import { loadContext } from "@/lib/plan/context";
 import { scoreMeal, isEligible } from "@/lib/plan/select-meals";
 import { calorieFloor, distribute, targets } from "@/lib/nutrition";
@@ -9,11 +8,15 @@ import { applyKcalDeltaToTargets } from "@/lib/log/balance";
 import { fetchDayDelta } from "@/lib/log/adjustments";
 import type { MealPlanEntry, MealSlot } from "@/lib/supabase/types";
 import { preflight, withCors } from "@/lib/plan/cors";
-import { consumeQuota, llmEnabled, quotaExceeded } from "@/lib/plan/quota";
-import { withUsageMeter } from "@/lib/ai/meter";
-import { dbPhrasingCache } from "@/lib/plan/phrasing-cache";
+import { enqueueJob } from "@/lib/plan/jobs";
+import { processJob } from "@/lib/plan/worker";
 
-/** Generate (or regenerate) today's plan. */
+/**
+ * Enqueue today's plan build and return immediately; the worker runs after
+ * the response and the client polls GET /api/plan/job. Requests no longer
+ * block on the model, and a mid-flight instance death is recovered by the
+ * poll re-claiming the stale job.
+ */
 async function post(request: Request): Promise<Response> {
   const ctx = await loadContext(request);
   if ("error" in ctx) return ctx.error;
@@ -27,85 +30,33 @@ async function post(request: Request): Promise<Response> {
     Number.isFinite(body.maxPrepMin) && Number(body.maxPrepMin) > 0
       ? Number(body.maxPrepMin)
       : undefined;
-  const date = today;
 
-  // Variety: avoid repeating yesterday's meals, and on regenerate, today's current picks.
-  const { data: recentPlans } = await supabase
-    .from("meal_plans")
-    .select("date, meals")
-    .eq("user_id", user.id)
-    .order("date", { ascending: false })
-    .limit(2);
-
-  // Idempotency: today's plan already exists and this isn't an explicit
-  // regenerate, so return it without spending an LLM call. Without this a
-  // client could loop POST /api/plan and bill a fresh generation each time.
-  const todaysPlan = (recentPlans ?? []).find((p) => p.date === date);
-  if (todaysPlan && !body.regenerate) {
-    return NextResponse.json({ ok: true, unchanged: true });
+  // Idempotency stays request-side: an existing plan without regenerate is
+  // a free 200, no job churn.
+  if (!body.regenerate) {
+    const { data: existing } = await supabase
+      .from("meal_plans")
+      .select("id")
+      .eq("user_id", user.id)
+      .eq("date", today)
+      .maybeSingle();
+    if (existing) return NextResponse.json({ ok: true, unchanged: true });
   }
 
-  // Kill switch: plans still generate (selection is deterministic), the
-  // copy just falls back to free deterministic phrasing.
-  const llmOn = await llmEnabled(supabase);
-
-  // This path runs the paid personalize() generation; meter it per user.
-  if (llmOn && !(await consumeQuota(supabase, "llm"))) {
-    return quotaExceeded("llm");
+  const job = await enqueueJob(supabase, user.id, "plan", {
+    regenerate: body.regenerate === true,
+    ...(maxPrepMin !== undefined ? { maxPrepMin } : {}),
+  });
+  if (!job) {
+    return NextResponse.json({ error: "Couldn't queue the plan build." }, { status: 500 });
   }
 
-  const recentlyUsedIds = (recentPlans ?? []).flatMap((p) =>
-    (p.meals as MealPlanEntry[]).map((m) => m.meal_id),
+  // The worker runs in this same invocation, after the response is sent.
+  after(() =>
+    processJob({ supabase, userId: user.id, onboarding, meals, today }, job.id),
   );
 
-  // Weekly balancing can shrink today's budget; the plan should honor it.
-  const kcalDelta = await fetchDayDelta(supabase, user.id, date);
-
-  const plan = await withUsageMeter({ supabase, userId: user.id, kind: "plan" }, () =>
-    generatePlan(onboarding, meals, new Date(), recentlyUsedIds, {
-      maxPrepMin,
-      kcalDelta,
-      personalizeWithLLM: llmOn,
-      phrasingCache: dbPhrasingCache(supabase, user.id),
-    }),
-  );
-
-  const entries: MealPlanEntry[] = plan.slots.map((s) => ({
-    meal_id: s.mealId,
-    slot: s.slot as MealSlot,
-    servings: 1,
-    time_hour: s.timeHour,
-    why: s.why,
-  }));
-
-  const { data: saved, error: saveError } = await supabase
-    .from("meal_plans")
-    .upsert(
-      {
-        user_id: user.id,
-        date,
-        llm_rationale: plan.rationale.daySummary,
-        meals: entries,
-        generated_at: new Date().toISOString(),
-      },
-      { onConflict: "user_id,date" },
-    )
-    .select("id")
-    .single();
-
-  if (saveError || !saved) {
-    return NextResponse.json({ error: "Couldn't save the plan." }, { status: 500 });
-  }
-
-  if (body.regenerate) {
-    await supabase.from("plan_events").insert({
-      user_id: user.id,
-      plan_id: saved.id,
-      event: "regenerated",
-    });
-  }
-
-  return NextResponse.json({ ok: true });
+  return NextResponse.json({ ok: true, queued: true, jobId: job.id }, { status: 202 });
 }
 
 /** Swap one meal slot for the next-best alternative. */
