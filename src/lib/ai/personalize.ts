@@ -2,6 +2,7 @@ import "server-only";
 
 import type { SelectedMeal } from "@/lib/plan/select-meals";
 import type { MacroTargets, ProfileInput } from "@/lib/nutrition";
+import { formatTimeHour } from "@/lib/dates";
 import { getAIProvider } from "./anthropic";
 import { numbersAreGrounded, stripEmDashes } from "./validate";
 
@@ -32,19 +33,17 @@ Hard rules:
 Respond with ONLY valid JSON, no markdown fences:
 {"daySummary": "...", "meals": [{"mealId": "...", "why": "..."}]}`;
 
-function timeLabel(timeHour: number): string {
-  const h = Math.floor(timeHour);
-  const m = Math.round((timeHour % 1) * 60);
-  return `${h}:${String(m).padStart(2, "0")}`;
-}
-
 /** Deterministic copy used when the LLM is unavailable or returns bad output. */
-export function deterministicFallback(selected: SelectedMeal[], targets: MacroTargets): PersonalizedPlan {
+export function deterministicFallback(
+  selected: SelectedMeal[],
+  targets: MacroTargets,
+  prefers24h?: boolean | null,
+): PersonalizedPlan {
   return {
     daySummary: `Today is built around ${targets.proteinG.value} g of protein across ${selected.length} meals, inside your ${targets.kcal.value} kcal target. ${targets.kcal.reasoning.explanation}`,
     meals: selected.map((s) => ({
       mealId: s.meal.id,
-      why: `${s.meal.name} fits your ${s.slot} target (${Math.round(Number(s.meal.protein_g))} g protein) at ${timeLabel(s.timeHour)}.`,
+      why: `${s.meal.name} fits your ${s.slot} target (${Math.round(Number(s.meal.protein_g))} g protein) at ${formatTimeHour(s.timeHour, prefers24h)}.`,
     })),
     fallbackUsed: true,
   };
@@ -59,6 +58,7 @@ export function buildPersonalizePayload(
   selected: SelectedMeal[],
   targets: MacroTargets,
   profile: ProfileInput,
+  prefers24h?: boolean | null,
 ) {
   return {
     profile: {
@@ -77,7 +77,7 @@ export function buildPersonalizePayload(
       mealId: s.meal.id,
       name: s.meal.name,
       slot: s.slot,
-      time: timeLabel(s.timeHour),
+      time: formatTimeHour(s.timeHour, prefers24h),
       kcal: Number(s.meal.kcal),
       proteinG: Number(s.meal.protein_g),
       carbsG: Number(s.meal.carbs_g),
@@ -95,8 +95,9 @@ export async function personalize(
   selected: SelectedMeal[],
   targets: MacroTargets,
   profile: ProfileInput,
+  prefers24h?: boolean | null,
 ): Promise<PersonalizedPlan> {
-  const payload = buildPersonalizePayload(selected, targets, profile);
+  const payload = buildPersonalizePayload(selected, targets, profile, prefers24h);
 
   try {
     const raw = await getAIProvider().chat({
@@ -137,19 +138,19 @@ export async function personalize(
     );
     const daySummary = numbersAreGrounded(parsed.daySummary, inputText)
       ? stripEmDashes(parsed.daySummary)
-      : deterministicFallback(selected, targets).daySummary;
+      : deterministicFallback(selected, targets, prefers24h).daySummary;
 
     return {
       daySummary,
       // Preserve OUR ordering; the LLM explains, it does not reorder.
       meals: selected.map((s) => ({
         mealId: s.meal.id,
-        why: explanations.get(s.meal.id) || deterministicFallback([s], targets).meals[0].why,
+        why: explanations.get(s.meal.id) || deterministicFallback([s], targets, prefers24h).meals[0].why,
       })),
       fallbackUsed: false,
     };
   } catch (err) {
     console.error("personalize: falling back to deterministic copy:", err);
-    return deterministicFallback(selected, targets);
+    return deterministicFallback(selected, targets, prefers24h);
   }
 }

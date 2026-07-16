@@ -22,6 +22,8 @@ export interface RunDeps {
   onboarding: Database["public"]["Tables"]["onboarding_answers"]["Row"];
   meals: Meal[];
   today: string;
+  /** clock preference from profiles.prefers_24h_time; null means 12-hour */
+  prefers24h: boolean | null;
 }
 
 export type RunResult =
@@ -39,7 +41,7 @@ export interface PlanJobPayload {
 }
 
 export async function runPlanJob(deps: RunDeps, payload: PlanJobPayload): Promise<RunResult> {
-  const { supabase, userId, onboarding, meals, today } = deps;
+  const { supabase, userId, onboarding, meals, today, prefers24h } = deps;
 
   // Variety: avoid repeating yesterday's meals, and on regenerate, today's
   // current picks.
@@ -80,6 +82,7 @@ export async function runPlanJob(deps: RunDeps, payload: PlanJobPayload): Promis
       kcalDelta,
       personalizeWithLLM: llmOn,
       phrasingCache: dbPhrasingCache(supabase, userId),
+      prefers24h,
     }),
   );
 
@@ -123,7 +126,7 @@ export async function runWeekJob(
   deps: RunDeps,
   payload: { maxPrepMin?: number },
 ): Promise<RunResult> {
-  const { supabase, userId, onboarding, meals, today } = deps;
+  const { supabase, userId, onboarding, meals, today, prefers24h } = deps;
   const maxPrepMin = payload.maxPrepMin;
 
   const dates = weekDates(today);
@@ -163,6 +166,7 @@ export async function runWeekJob(
         personalizeWithLLM,
         kcalDelta: deltasByDate[date] ?? 0,
         phrasingCache: dbPhrasingCache(supabase, userId),
+        prefers24h,
       }),
     );
 

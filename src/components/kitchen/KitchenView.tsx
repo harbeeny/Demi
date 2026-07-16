@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 
 import { apiFetch, awaitPlanJob } from "@/lib/api";
+import { device24HourClock, formatTimeHour } from "@/lib/dates";
 import { listHash, rollupGroceries } from "@/lib/plan/grocery";
 import type { Budget } from "@/lib/supabase/types";
 import { WeekStrip } from "./WeekStrip";
@@ -31,9 +32,7 @@ const PREP_KEY = "demi:kitchen:maxPrepMin";
 const BUDGET_LABELS: Record<Budget, string> = { low: "$20-50", medium: "$50-100", high: "$100+" };
 
 function timeLabel(timeHour: number): string {
-  const h = Math.floor(timeHour);
-  const h12 = h % 12 === 0 ? 12 : h % 12;
-  return `${h12}${h >= 12 ? "pm" : "am"}`;
+  return formatTimeHour(timeHour, device24HourClock());
 }
 
 interface Props {

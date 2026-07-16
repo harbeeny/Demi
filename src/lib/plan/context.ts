@@ -25,6 +25,8 @@ export type RouteContext =
       meals: Meal[];
       /** the user's IANA timezone from their profile, null when unset */
       timezone: string | null;
+      /** clock preference from their profile; null means unknown (12-hour) */
+      prefers24h: boolean | null;
       /** the user's local calendar day (falls back to UTC without a timezone) */
       today: string;
     };
@@ -65,7 +67,7 @@ export async function loadContext(request: Request): Promise<RouteContext> {
 
   const [{ data: meals }, { data: profile }] = await Promise.all([
     supabase.from("meals").select("*"),
-    supabase.from("profiles").select("timezone").eq("id", user.id).maybeSingle(),
+    supabase.from("profiles").select("timezone, prefers_24h_time").eq("id", user.id).maybeSingle(),
   ]);
   if (!meals || meals.length === 0) {
     return { error: NextResponse.json({ error: "Meal database is empty." }, { status: 500 }) };
@@ -78,6 +80,7 @@ export async function loadContext(request: Request): Promise<RouteContext> {
     onboarding,
     meals: meals as Meal[],
     timezone,
+    prefers24h: profile?.prefers_24h_time ?? null,
     today: localDateISO(timezone ?? "UTC"),
   };
 }

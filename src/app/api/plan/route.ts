@@ -20,7 +20,7 @@ import { processJob } from "@/lib/plan/worker";
 async function post(request: Request): Promise<Response> {
   const ctx = await loadContext(request);
   if ("error" in ctx) return ctx.error;
-  const { supabase, user, onboarding, meals, today } = ctx;
+  const { supabase, user, onboarding, meals, today, prefers24h } = ctx;
 
   const body = (await request.json().catch(() => ({}))) as {
     regenerate?: boolean;
@@ -53,7 +53,7 @@ async function post(request: Request): Promise<Response> {
 
   // The worker runs in this same invocation, after the response is sent.
   after(() =>
-    processJob({ supabase, userId: user.id, onboarding, meals, today }, job.id),
+    processJob({ supabase, userId: user.id, onboarding, meals, today, prefers24h }, job.id),
   );
 
   return NextResponse.json({ ok: true, queued: true, jobId: job.id }, { status: 202 });
@@ -63,7 +63,7 @@ async function post(request: Request): Promise<Response> {
 async function patch(request: Request): Promise<Response> {
   const ctx = await loadContext(request);
   if ("error" in ctx) return ctx.error;
-  const { supabase, user, onboarding, meals, today } = ctx;
+  const { supabase, user, onboarding, meals, today, prefers24h } = ctx;
 
   const body = (await request.json().catch(() => ({}))) as { slotIndex?: number };
   if (typeof body.slotIndex !== "number") {
@@ -97,7 +97,7 @@ async function patch(request: Request): Promise<Response> {
     swapDelta,
     calorieFloor(profile),
   );
-  const slotTargets = distribute(adjustedTargets, profile, new Date());
+  const slotTargets = distribute(adjustedTargets, profile, new Date(), prefers24h);
   const slotTarget = slotTargets[body.slotIndex] ?? slotTargets[0];
 
   const usedIds = new Set(entries.map((e) => e.meal_id));

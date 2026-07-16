@@ -1,5 +1,6 @@
 "use client";
 
+import { device24HourClock, formatTimeHour } from "@/lib/dates";
 import type { RecipeData } from "@/components/kitchen/RecipeSheet";
 
 export interface TodayMeal {
@@ -17,11 +18,7 @@ export interface TodayMeal {
 }
 
 export function timeLabel(timeHour: number): string {
-  const h = Math.floor(timeHour);
-  const m = Math.round((timeHour % 1) * 60);
-  const ampm = h >= 12 ? "pm" : "am";
-  const h12 = h % 12 === 0 ? 12 : h % 12;
-  return `${h12}:${String(m).padStart(2, "0")} ${ampm}`;
+  return formatTimeHour(timeHour, device24HourClock());
 }
 
 interface Props {

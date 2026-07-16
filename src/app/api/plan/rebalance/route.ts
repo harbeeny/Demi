@@ -16,7 +16,7 @@ import { preflight, withCors } from "@/lib/plan/cors";
 async function post(request: Request): Promise<Response> {
   const ctx = await loadContext(request);
   if ("error" in ctx) return ctx.error;
-  const { supabase, user, onboarding, meals, today, timezone } = ctx;
+  const { supabase, user, onboarding, meals, today, timezone, prefers24h } = ctx;
 
   const date = today;
   const { data: planRow } = await supabase
@@ -69,7 +69,7 @@ async function post(request: Request): Promise<Response> {
     (logs ?? []).filter((l) => l.source === "planned").map((l) => l.plan_slot_index),
   );
   const nowHour = localHour(timezone ?? "UTC");
-  const slotTargets = distribute(dayTargets, profile, new Date());
+  const slotTargets = distribute(dayTargets, profile, new Date(), prefers24h);
 
   const upcoming = entries
     .map((entry, index) => ({ entry, index, target: slotTargets[index] }))

@@ -16,7 +16,7 @@ const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 async function get(request: Request): Promise<Response> {
   const ctx = await loadContext(request);
   if ("error" in ctx) return ctx.error;
-  const { supabase, user, onboarding, meals, today } = ctx;
+  const { supabase, user, onboarding, meals, today, prefers24h } = ctx;
 
   const id = new URL(request.url).searchParams.get("id") ?? "";
   if (!UUID_RE.test(id)) {
@@ -35,7 +35,9 @@ async function get(request: Request): Promise<Response> {
   }
 
   if (needsRun(job)) {
-    after(() => processJob({ supabase, userId: user.id, onboarding, meals, today }, job.id));
+    after(() =>
+      processJob({ supabase, userId: user.id, onboarding, meals, today, prefers24h }, job.id),
+    );
   }
 
   return NextResponse.json({

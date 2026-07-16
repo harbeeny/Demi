@@ -1,4 +1,5 @@
 import type { MealSlot } from "@/lib/supabase/types";
+import { formatTimeHour } from "@/lib/dates";
 import type { MacroTargets, ProfileInput, SlotTarget } from "./types";
 
 export const SLOT_SEQUENCES: Record<number, MealSlot[]> = {
@@ -36,6 +37,8 @@ export function distribute(
   profile: ProfileInput,
   /** date used to decide whether today is a training day */
   today: Date,
+  /** clock preference for time labels in copy; null/absent means 12-hour */
+  prefers24h?: boolean | null,
 ): SlotTarget[] {
   const slots = SLOT_SEQUENCES[profile.mealsPerDay];
   if (!slots) throw new Error(`distribute: unsupported meals_per_day ${profile.mealsPerDay}`);
@@ -89,7 +92,7 @@ export function distribute(
     const protein = proteinPerMeal;
     const kcal = Math.round(protein * 4 + carbs * 4 + fat * 9);
 
-    const timeLabel = `${Math.floor(times[i])}:${String(Math.round((times[i] % 1) * 60)).padStart(2, "0")}`;
+    const timeLabel = formatTimeHour(times[i], prefers24h);
 
     return {
       slot,
