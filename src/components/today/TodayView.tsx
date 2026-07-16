@@ -309,8 +309,14 @@ export function TodayView({ hasPlan, daySummary, meals, targets, logs, summary, 
           {isToday ? " Adjust" : ""}
         </button>
       )}
-      {isToday && !balance.outgoing && (
-        overKcal > 0 ? (
+    </>
+  );
+
+  // The balance trigger, split from the hero so plan mode can seat it
+  // below "Why this plan" (user call); track and review keep it adjacent.
+  const balanceCta = isToday && !balance.outgoing && (
+    <>
+      {overKcal > 0 ? (
           <button
             onClick={() => {
               tapHaptic();
@@ -336,7 +342,6 @@ export function TodayView({ hasPlan, daySummary, meals, targets, logs, summary, 
             <ScaleIcon className="h-4 w-4 shrink-0 text-[#829084]" />
             Had a big night? Balance my week
           </button>
-        )
       )}
     </>
   );
@@ -443,6 +448,7 @@ export function TodayView({ hasPlan, daySummary, meals, targets, logs, summary, 
       {isToday && !hasPlan && dayMode === "track" ? (
         <>
           {budgetBlock}
+          {balanceCta}
 
           {SLOT_ORDER.map((s) => (
             <MealSection
@@ -524,6 +530,7 @@ export function TodayView({ hasPlan, daySummary, meals, targets, logs, summary, 
           )}
 
           {daySummary && <DaySummaryNote text={daySummary} />}
+          {balanceCta}
 
           {SLOT_ORDER.map((s) => (
             <MealSection
