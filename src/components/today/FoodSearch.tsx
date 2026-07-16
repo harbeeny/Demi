@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import { Capacitor } from "@capacitor/core";
 
@@ -165,6 +165,8 @@ export interface LabelReadingFields {
 
 interface Props {
   busy: string | null;
+  /** the local meal catalog, matched instantly while the USDA fetch runs */
+  searchMeals: Array<{ id: string; name: string; kcal: number; proteinG: number; carbsG: number; fatG: number }>;
   /** section the sheet was opened from; quick adds skip the slot picker */
   forcedSlot?: MealSlot | null;
   /** hands a photographed nutrition label to the editable quick-add form */
@@ -195,7 +197,7 @@ const input =
   "w-full rounded-2xl border border-[#dce3d7] bg-white px-3 py-2 text-sm text-[#2c3a2e] outline-none focus:border-[#8aa06f]";
 
 /** USDA FoodData Central search with portion-aware logging. */
-export function FoodSearch({ busy, forcedSlot = null, onLabelParsed, onLog, onLogDb, onLogEstimate }: Props) {
+export function FoodSearch({ busy, searchMeals, forcedSlot = null, onLabelParsed, onLog, onLogDb, onLogEstimate }: Props) {
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<FdcFood[]>([]);
   const [searching, setSearching] = useState(false);
@@ -230,6 +232,11 @@ export function FoodSearch({ busy, forcedSlot = null, onLabelParsed, onLog, onLo
   const [note, setNote] = useState("");
   const [recents, setRecents] = useState<RecentFood[]>([]);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Enter (or a scan) flushes the debounce so deliberate searches start
+  // immediately; a query that already completed is never refetched.
+  const flushRef = useRef(false);
+  const [flushTick, setFlushTick] = useState(0);
+  const lastFetchedQ = useRef<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   // Monotonic id per query: a slow, older fetch must never clobber the
   // results of a newer one (it read as "search didn't recognize the word").
@@ -307,6 +314,9 @@ export function FoodSearch({ busy, forcedSlot = null, onLabelParsed, onLog, onLo
         scanLookupRef.current = true;
         setScanLookup(true);
         setScanMiss(null);
+        // Scans are deliberate: skip the typing debounce entirely.
+        flushRef.current = true;
+        setFlushTick((t) => t + 1);
         setQuery(code);
       }
     } catch {
@@ -472,6 +482,8 @@ export function FoodSearch({ busy, forcedSlot = null, onLabelParsed, onLog, onLo
 
   useEffect(() => {
     if (debounceRef.current) clearTimeout(debounceRef.current);
+    const flushed = flushRef.current;
+    flushRef.current = false;
     const q = query.trim();
     const id = ++searchSeq.current;
     if (q.length < 2) {
@@ -481,6 +493,8 @@ export function FoodSearch({ busy, forcedSlot = null, onLabelParsed, onLog, onLo
       setCorrectedTo(null);
       return;
     }
+    // Enter on an already-fetched query keeps what's on screen.
+    if (flushed && q === lastFetchedQ.current) return;
     setSearching(true);
     debounceRef.current = setTimeout(async () => {
       try {
@@ -506,6 +520,7 @@ export function FoodSearch({ busy, forcedSlot = null, onLabelParsed, onLog, onLo
           );
           setResults(data.foods ?? []);
           setCorrectedTo(data.foods?.length ? (data.correctedTo ?? null) : null);
+          lastFetchedQ.current = q;
           // A scan should land on the product, not a list: open the top match.
           if (isBarcodeQuery(q) && data.foods?.length) {
             const top = data.foods[0];
@@ -527,11 +542,106 @@ export function FoodSearch({ busy, forcedSlot = null, onLabelParsed, onLog, onLo
       } finally {
         if (id === searchSeq.current) setSearching(false);
       }
-    }, 300);
+    }, flushed ? 0 : 300);
     return () => {
       if (debounceRef.current) clearTimeout(debounceRef.current);
     };
-  }, [query]);
+  }, [query, flushTick]);
+
+  // Instant matches from foods the user already knows (recents + the local
+  // meal catalog) render at zero latency while the USDA fetch runs.
+  const localMatches = useMemo<RecentFood[]>(() => {
+    const q = query.trim().toLowerCase();
+    if (q.length < 2 || isBarcodeQuery(q)) return [];
+    const words = q.split(/\s+/);
+    const matches = (name: string) => {
+      const n = name.toLowerCase();
+      return words.every((w) => n.includes(w));
+    };
+    const out: RecentFood[] = [];
+    const seen = new Set<string>();
+    for (const r of recents) {
+      if (out.length >= 4) break;
+      if (matches(r.name) && !seen.has(r.key)) {
+        out.push(r);
+        seen.add(r.key);
+      }
+    }
+    for (const m of searchMeals) {
+      if (out.length >= 4) break;
+      if (matches(m.name) && !seen.has(m.id)) {
+        out.push({
+          key: m.id,
+          source: "db",
+          fdcId: null,
+          mealId: m.id,
+          name: m.name,
+          kcal: m.kcal,
+          proteinG: m.proteinG,
+          carbsG: m.carbsG,
+          fatG: m.fatG,
+          verified: false,
+        });
+        seen.add(m.id);
+      }
+    }
+    return out;
+  }, [query, recents, searchMeals]);
+
+  // One-tap quick-add row with the inline logged-check morph; shared by the
+  // recents list and the instant local matches.
+  const quickRow = (r: RecentFood) => {
+    const confirmed = justLogged === r.key;
+    return (
+      <button
+        key={r.key}
+        onClick={() => quickAdd(r.name, (s) => void performRelog(r, s))}
+        disabled={busy !== null}
+        aria-label={confirmed ? `Logged ${r.name}` : `Quick add ${r.name}`}
+        className={`press flex w-full items-center gap-2 rounded-2xl border p-3 text-left transition-[background-color,border-color] duration-200 disabled:opacity-50 ${
+          confirmed
+            ? "border-[#3e7a46] bg-[#eef6ee]"
+            : "border-[#dce3d7] bg-white hover:border-[#8aa06f]"
+        }`}
+      >
+        <span className="min-w-0 flex-1">
+          <span className="flex items-center gap-1.5 text-sm font-medium text-[#2c3a2e]">
+            <span className="truncate">{r.name}</span>
+            {r.verified && <VerifiedBadge />}
+            {r.source === "estimate" && (
+              <span className="shrink-0 rounded-full bg-[#fdf3d7] px-2 py-0.5 text-[10px] text-[#7a6420]">
+                estimate
+              </span>
+            )}
+          </span>
+          <span className="mt-0.5 block text-xs text-[#5d6b5f]">
+            {confirmed ? "Added to today" : `${Math.round(r.kcal)} kcal · P ${Math.round(r.proteinG)}g`}
+          </span>
+        </span>
+        <span
+          aria-hidden="true"
+          className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full border transition-[background-color,border-color,color,transform] duration-200 ease-out ${
+            confirmed
+              ? "scale-110 border-[#3e7a46] bg-[#3e7a46] text-white"
+              : "border-[#dce3d7] bg-transparent text-[#2c3a2e]"
+          }`}
+        >
+          <svg
+            width="16"
+            height="16"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2.25"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
+            {confirmed ? <path d="M4 12l6 6L20 6" /> : <path d="M12 5v14M5 12h14" />}
+          </svg>
+        </span>
+      </button>
+    );
+  };
 
   if (selected) {
     const macros = scaleMacros(selected.per100g, grams);
@@ -716,9 +826,18 @@ export function FoodSearch({ busy, forcedSlot = null, onLabelParsed, onLog, onLo
             placeholder="Search foods, e.g. greek yogurt"
             value={query}
             readOnly={scanLookup}
+            enterKeyHint="search"
             onChange={(e) => {
               setScanMiss(null);
               setQuery(e.target.value);
+            }}
+            onKeyDown={(e) => {
+              if (e.key !== "Enter") return;
+              // Deliberate search: skip the rest of the debounce window and
+              // drop the keyboard so the results have the screen.
+              flushRef.current = true;
+              setFlushTick((t) => t + 1);
+              e.currentTarget.blur();
             }}
           />
           {scanLookup && (
@@ -816,63 +935,23 @@ export function FoodSearch({ busy, forcedSlot = null, onLabelParsed, onLog, onLo
           <h3 className="mb-2 text-xs font-medium uppercase tracking-wide text-[#829084]">
             Recent foods
           </h3>
-          <div className="space-y-2">
-            {recents.map((r) => {
-              const confirmed = justLogged === r.key;
-              return (
-                <button
-                  key={r.key}
-                  onClick={() => quickAdd(r.name, (s) => void performRelog(r, s))}
-                  disabled={busy !== null}
-                  aria-label={confirmed ? `Logged ${r.name}` : `Quick add ${r.name}`}
-                  className={`press flex w-full items-center gap-2 rounded-2xl border p-3 text-left transition-[background-color,border-color] duration-200 disabled:opacity-50 ${
-                    confirmed
-                      ? "border-[#3e7a46] bg-[#eef6ee]"
-                      : "border-[#dce3d7] bg-white hover:border-[#8aa06f]"
-                  }`}
-                >
-                  <span className="min-w-0 flex-1">
-                    <span className="flex items-center gap-1.5 text-sm font-medium text-[#2c3a2e]">
-                      <span className="truncate">{r.name}</span>
-                      {r.verified && <VerifiedBadge />}
-                      {r.source === "estimate" && (
-                        <span className="shrink-0 rounded-full bg-[#fdf3d7] px-2 py-0.5 text-[10px] text-[#7a6420]">
-                          estimate
-                        </span>
-                      )}
-                    </span>
-                    <span className="mt-0.5 block text-xs text-[#5d6b5f]">
-                      {confirmed ? "Added to today" : `${Math.round(r.kcal)} kcal · P ${Math.round(r.proteinG)}g`}
-                    </span>
-                  </span>
-                  <span
-                    aria-hidden="true"
-                    className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full border transition-[background-color,border-color,color,transform] duration-200 ease-out ${
-                      confirmed
-                        ? "scale-110 border-[#3e7a46] bg-[#3e7a46] text-white"
-                        : "border-[#dce3d7] bg-transparent text-[#2c3a2e]"
-                    }`}
-                  >
-                    <svg
-                      width="16"
-                      height="16"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="2.25"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    >
-                      {confirmed ? <path d="M4 12l6 6L20 6" /> : <path d="M12 5v14M5 12h14" />}
-                    </svg>
-                  </span>
-                </button>
-              );
-            })}
-          </div>
+          <div className="space-y-2">{recents.map(quickRow)}</div>
         </div>
       )}
 
+      {localMatches.length > 0 && (
+        <div className="mt-3">
+          <h3 className="mb-2 text-xs font-medium uppercase tracking-wide text-[#829084]">
+            From your foods
+          </h3>
+          <div className="space-y-2">{localMatches.map(quickRow)}</div>
+        </div>
+      )}
+      {localMatches.length > 0 && results.length > 0 && (
+        <h3 className="mt-3 text-xs font-medium uppercase tracking-wide text-[#829084]">
+          Food database
+        </h3>
+      )}
       <div className="mt-3 space-y-2">
         {results.map((f) => {
           // Same default the portion picker preselects: the food's primary

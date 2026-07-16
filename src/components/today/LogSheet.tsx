@@ -238,6 +238,7 @@ export function LogSheet({ open, onClose, searchMeals, busy, defaultMode = "fdc"
             {mode === "fdc" && (
               <FoodSearch
                 busy={busy}
+                searchMeals={searchMeals}
                 forcedSlot={forcedSlot}
                 onLabelParsed={(r) => {
                   // Photographed label: land the printed values in the
