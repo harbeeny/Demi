@@ -62,3 +62,28 @@ if ! grep -rq "$SUPA_HOST" out/_next/static/chunks/; then
 fi
 
 echo "Static bundle in ./out"
+
+# The Capacitor CLI requires Node 22+, but the shell default may be older
+# (fnm keeps 22 installed alongside a v20 default here). Resolve a usable
+# node instead of failing on the last step of a two-minute build. Runs
+# while the API routes are still stashed; cap sync only copies ./out and
+# updates ios/, so it never looks at src/.
+run_cap() {
+  if node -e 'process.exit(parseInt(process.versions.node, 10) >= 22 ? 0 : 1)' 2>/dev/null; then
+    npx cap "$@"
+    return
+  fi
+  export PATH="$HOME/.local/share/fnm:$HOME/Library/Application Support/fnm:$PATH"
+  if command -v fnm >/dev/null 2>&1; then
+    echo "Default node is <22; running Capacitor via fnm's Node 22."
+    fnm exec --using=22 npx cap "$@"
+    return
+  fi
+  echo "error: Capacitor CLI needs Node 22+ (current: $(node -v 2>/dev/null || echo none)) and fnm was not found." >&2
+  echo "Install Node 22 first (e.g. 'fnm install 22') and rerun." >&2
+  exit 1
+}
+
+if [ "${1:-}" = "--sync" ]; then
+  run_cap sync ios
+fi

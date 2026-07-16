@@ -17,8 +17,9 @@ magic-link redirects, so no deep-link or URL-scheme setup is needed.
 ## One-time machine setup
 
 1. **Node 22+** for the Capacitor CLI: `fnm install 22` (already installed on
-   this machine), then run cap commands with
-   `fnm exec --using 22 npx cap <cmd>` or a Node 22 shell.
+   this machine). `bun run build:ios` finds it through fnm automatically when
+   the shell default is older; only manual `npx cap <cmd>` invocations need
+   `fnm exec --using 22` or a Node 22 shell.
 2. **Xcode 26+** from the Mac App Store (the Command Line Tools alone cannot
    build iOS apps). After installing:
    ```sh
