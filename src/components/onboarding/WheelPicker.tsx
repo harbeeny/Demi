@@ -20,6 +20,10 @@ interface WheelPickerProps {
   orientation?: "vertical" | "horizontal";
   /** custom display for each value, e.g. 71 -> 5'11" */
   format?: (value: number) => string;
+  /** vertical column width in px; widen for long labels like month names */
+  itemWidth?: number;
+  /** selection indicator: green band (default) or a soft white pill per column */
+  indicator?: "band" | "pill";
 }
 
 /**
@@ -35,9 +39,12 @@ export function WheelPicker({
   ariaLabel,
   orientation = "vertical",
   format = (v) => String(v),
+  itemWidth = 88,
+  indicator = "band",
 }: WheelPickerProps) {
   const horizontal = orientation === "horizontal";
   const step = horizontal ? ITEM_WIDTH : ITEM_SIZE;
+  const pill = indicator === "pill";
 
   const scrollRef = useRef<HTMLDivElement>(null);
   const lastIndex = useRef(values.indexOf(value));
@@ -113,10 +120,16 @@ export function WheelPicker({
           const el = scrollRef.current;
           el && writePos(el, values.indexOf(v) * step, true);
         }}
-        className={`flex shrink-0 items-center justify-center transition-[transform,color,font-size] duration-100 ${
-          selected ? "scale-110 text-2xl font-semibold text-[#2c3a2e]" : "text-lg text-[#9aa89c]"
+        className={`flex shrink-0 items-center justify-center ${
+          pill
+            ? `text-xl transition-colors duration-150 ${
+                selected ? "font-semibold text-[#2c3a2e]" : "text-[#9aa89c]"
+              }`
+            : `transition-[transform,color,font-size] duration-100 ${
+                selected ? "scale-110 text-2xl font-semibold text-[#2c3a2e]" : "text-lg text-[#9aa89c]"
+              }`
         }`}
-        style={horizontal ? { width: ITEM_WIDTH, height: 56 } : { height: ITEM_SIZE, width: 88 }}
+        style={horizontal ? { width: ITEM_WIDTH, height: 56 } : { height: ITEM_SIZE, width: itemWidth }}
       >
         {format(v)}
       </button>
@@ -158,11 +171,19 @@ export function WheelPicker({
   return (
     <div className="flex items-center gap-2">
       <div className="relative" style={{ height: ITEM_SIZE * VISIBLE_ITEMS }}>
-        {/* center selection band */}
-        <div
-          className="pointer-events-none absolute inset-x-0 top-1/2 z-10 -translate-y-1/2 rounded-xl border-y-2 border-[#8aa06f] bg-[#d3e29f]/20"
-          style={{ height: ITEM_SIZE }}
-        />
+        {pill ? (
+          /* soft pill behind the selected row; scroll container is positioned so text paints above */
+          <div
+            className="pointer-events-none absolute inset-x-0 top-1/2 -translate-y-1/2 rounded-2xl bg-white shadow-sm"
+            style={{ height: ITEM_SIZE + 4 }}
+          />
+        ) : (
+          /* center selection band */
+          <div
+            className="pointer-events-none absolute inset-x-0 top-1/2 z-10 -translate-y-1/2 rounded-xl border-y-2 border-[#8aa06f] bg-[#d3e29f]/20"
+            style={{ height: ITEM_SIZE }}
+          />
+        )}
         {/* fade edges */}
         <div className="pointer-events-none absolute inset-x-0 top-0 z-10 h-12 bg-gradient-to-b from-[#f4f6f2] to-transparent" />
         <div className="pointer-events-none absolute inset-x-0 bottom-0 z-10 h-12 bg-gradient-to-t from-[#f4f6f2] to-transparent" />
@@ -173,7 +194,7 @@ export function WheelPicker({
           aria-label={ariaLabel}
           tabIndex={0}
           onScroll={handleScroll}
-          className="h-full snap-y snap-mandatory overflow-y-auto overscroll-contain px-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden [&>button]:snap-center"
+          className="relative h-full snap-y snap-mandatory overflow-y-auto overscroll-contain px-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden [&>button]:snap-center"
         >
           <div style={{ height: pad * ITEM_SIZE }} aria-hidden />
           {itemButtons}

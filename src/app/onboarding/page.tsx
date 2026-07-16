@@ -6,15 +6,22 @@ import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { apiFetch } from "@/lib/api";
 import { targets, type ProfileInput } from "@/lib/nutrition";
-import { formatFtIn, inchesToCm, lbPerWeekToKgPerWeek, lbsToKg } from "@/lib/units";
+import { CM_PER_INCH, kgToLbs, lbPerWeekToKgPerWeek, lbsToKg } from "@/lib/units";
 import { WheelPicker } from "@/components/onboarding/WheelPicker";
 import type { ActivityLevel, Budget, CookingSkill, Goal, Sex } from "@/lib/supabase/types";
 
 type Answers = {
   sex: Sex | null;
-  age: string;
-  heightInches: number;
-  weightLbs: number;
+  /** date of birth; age is derived at validation/save time */
+  dobMonth: number; // 0-11
+  dobDay: number; // 1-31
+  dobYear: number;
+  /** canonical height in whole centimeters; the ft-in wheel converts at the edge */
+  heightCm: number;
+  heightUnit: "ft_in" | "cm";
+  /** free-text so the field can start empty like a scale readout */
+  weight: string;
+  weightUnit: "lbs" | "kg";
   goal: Goal | null;
   /** stored in lb/week for display; converted to kg/week on save */
   goalRateLb: number | null;
@@ -31,11 +38,21 @@ type Answers = {
   trainingTime: string;
 };
 
+/** Default to a birth date exactly 18 years ago today: the youngest allowed age. */
+const TODAY = new Date();
+const DEFAULT_DOB_YEAR = TODAY.getFullYear() - 18;
+const DEFAULT_DOB_MONTH = TODAY.getMonth();
+const DEFAULT_DOB_DAY = Math.min(TODAY.getDate(), daysInMonth(DEFAULT_DOB_YEAR, DEFAULT_DOB_MONTH));
+
 const INITIAL: Answers = {
   sex: null,
-  age: "",
-  heightInches: 68, // 5'8"
-  weightLbs: 165,
+  dobMonth: DEFAULT_DOB_MONTH,
+  dobDay: DEFAULT_DOB_DAY,
+  dobYear: DEFAULT_DOB_YEAR,
+  heightCm: 173, // 5'8"
+  heightUnit: "ft_in",
+  weight: "",
+  weightUnit: "lbs",
   goal: null,
   goalRateLb: null,
   activityLevel: null,
@@ -83,10 +100,46 @@ const SKILL_LABELS: Record<CookingSkill, string> = {
   confident: "Adventurous",
 };
 
+const MONTHS = [
+  "January", "February", "March", "April", "May", "June",
+  "July", "August", "September", "October", "November", "December",
+];
+const MONTH_OPTIONS = Array.from({ length: 12 }, (_, i) => i);
+
+/** Oldest first, so scrolling down moves toward the present like iOS date pickers.
+ * Ends at the year of someone turning 18 this year; month/day can still dip under 18,
+ * which the inline age check catches. */
+const THIS_YEAR = new Date().getFullYear();
+const YEAR_OPTIONS = Array.from({ length: 103 }, (_, i) => THIS_YEAR - 120 + i);
+
+function daysInMonth(year: number, month: number): number {
+  return new Date(year, month + 1, 0).getDate();
+}
+
+function ageFromDob(year: number, month: number, day: number): number {
+  const now = new Date();
+  let age = now.getFullYear() - year;
+  if (now.getMonth() < month || (now.getMonth() === month && now.getDate() < day)) age--;
+  return age;
+}
+
 /** 4'0" to 7'6" in 1 inch steps */
 const HEIGHT_OPTIONS = Array.from({ length: 43 }, (_, i) => i + 48);
-/** 80-400 lbs in 1 lb steps */
-const WEIGHT_OPTIONS = Array.from({ length: 321 }, (_, i) => i + 80);
+/** 122-229 cm, the same span as the ft-in wheel */
+const CM_OPTIONS = Array.from({ length: 108 }, (_, i) => i + 122);
+
+/** 71 -> "5 ft 11 in" */
+function formatFtInWords(totalInches: number): string {
+  return `${Math.floor(totalInches / 12)} ft ${totalInches % 12} in`;
+}
+
+/** Same bounds as the old 80-400 lb wheel, expressed per unit. */
+function isValidWeight(weight: string, unit: "lbs" | "kg"): boolean {
+  if (!weight.trim()) return false;
+  const n = Number(weight);
+  if (!Number.isFinite(n)) return false;
+  return unit === "lbs" ? n >= 80 && n <= 400 : n >= 36 && n <= 181;
+}
 
 /** 8 -> "8:00 am", 20 -> "8:00 pm" */
 function hourLabel(h: number): string {
@@ -111,6 +164,15 @@ export default function OnboardingPage() {
   const set = <K extends keyof Answers>(key: K, value: Answers[K]) =>
     setAnswers((a) => ({ ...a, [key]: value }));
 
+  /** Update any part of the birth date, clamping the day to the month's length. */
+  const setDob = (part: { month?: number; day?: number; year?: number }) =>
+    setAnswers((a) => {
+      const month = part.month ?? a.dobMonth;
+      const year = part.year ?? a.dobYear;
+      const day = Math.min(part.day ?? a.dobDay, daysInMonth(year, month));
+      return { ...a, dobMonth: month, dobDay: day, dobYear: year };
+    });
+
   // Steps 0..9 are questions; step 10 is the results screen.
   const TOTAL_QUESTIONS = 10;
 
@@ -118,10 +180,11 @@ export default function OnboardingPage() {
     switch (step) {
       case 0: return answers.sex !== null;
       case 1: {
-        const n = Number(answers.age);
-        return Number.isInteger(n) && n >= 13 && n <= 120;
+        const age = ageFromDob(answers.dobYear, answers.dobMonth, answers.dobDay);
+        return age >= 18 && age <= 120;
       }
-      // 2 (height) and 3 (weight) are wheel-constrained, always valid
+      // 2 (height) is wheel-constrained, always valid
+      case 3: return isValidWeight(answers.weight, answers.weightUnit);
       case 4: return answers.goal !== null;
       case 5: return answers.activityLevel !== null;
       default: return true; // remaining steps are optional / have defaults
@@ -130,11 +193,15 @@ export default function OnboardingPage() {
 
   const profile: ProfileInput | null = useMemo(() => {
     if (!answers.sex || !answers.goal || !answers.activityLevel) return null;
+    if (!isValidWeight(answers.weight, answers.weightUnit)) return null;
     return {
       sex: answers.sex,
-      age: Number(answers.age),
-      heightCm: inchesToCm(answers.heightInches),
-      weightKg: lbsToKg(answers.weightLbs),
+      age: ageFromDob(answers.dobYear, answers.dobMonth, answers.dobDay),
+      heightCm: answers.heightCm,
+      weightKg:
+        answers.weightUnit === "lbs"
+          ? lbsToKg(Number(answers.weight))
+          : Number(Number(answers.weight).toFixed(1)),
       goal: answers.goal,
       goalRate: answers.goalRateLb === null ? null : lbPerWeekToKgPerWeek(answers.goalRateLb),
       activityLevel: answers.activityLevel,
@@ -230,52 +297,168 @@ export default function OnboardingPage() {
     switch (step) {
       case 0:
         return (
-          <Question title="What sex should we use for your metabolism math?" hint="This drives the BMR equation, nothing else.">
-            {(["male", "female", "other"] as const).map((s) => (
-              <button key={s} className={choiceButton(answers.sex === s)} onClick={() => set("sex", s)}>
-                {s === "male" ? "Male" : s === "female" ? "Female" : "Other / prefer not to say"}
+          <Question title="What is your sex?" hint="This drives the BMR equation, nothing else.">
+            {([
+              { value: "female", label: "Female", icon: "♀" },
+              { value: "male", label: "Male", icon: "♂" },
+            ] as const).map((s) => (
+              <button
+                key={s.value}
+                className={`${choiceButton(answers.sex === s.value)} flex items-center gap-4 py-6`}
+                onClick={() => set("sex", s.value)}
+              >
+                <span
+                  aria-hidden
+                  className={`text-2xl ${answers.sex === s.value ? "text-white/80" : "text-[#829084]"}`}
+                >
+                  {s.icon}
+                </span>
+                <span className="font-medium">{s.label}</span>
               </button>
             ))}
           </Question>
         );
-      case 1:
+      case 1: {
+        const under18 = ageFromDob(answers.dobYear, answers.dobMonth, answers.dobDay) < 18;
         return (
-          <Question title="How old are you?" hint="13-120. Under 18 gets maintenance targets only.">
-            <input type="number" inputMode="numeric" className={numberInput} placeholder="e.g. 29"
-              value={answers.age} onChange={(e) => set("age", e.target.value)} />
-          </Question>
-        );
-      case 2:
-        return (
-          <Question title="How tall are you?" hint="Scroll the wheel; each tick is one inch.">
-            <div className="flex items-center justify-center rounded-2xl bg-white py-2 shadow-sm">
+          <div className="flex flex-1 flex-col">
+            <h1 className="text-2xl font-semibold text-[#2c3a2e]">When were you born?</h1>
+            <p className="mt-1 text-sm text-[#829084]">This calibrates your plan.</p>
+            <div className="flex flex-1 items-center justify-center gap-1">
               <WheelPicker
-                key="height"
-                values={HEIGHT_OPTIONS}
-                value={answers.heightInches}
-                onChange={(v) => set("heightInches", v)}
-                ariaLabel="Height in feet and inches"
-                format={formatFtIn}
+                key="dob-month"
+                values={MONTH_OPTIONS}
+                value={answers.dobMonth}
+                onChange={(m) => setDob({ month: m })}
+                ariaLabel="Birth month"
+                format={(m) => MONTHS[m]}
+                itemWidth={118}
+                indicator="pill"
+              />
+              <WheelPicker
+                // remount when the month's day-count changes so the wheel re-centers on the clamped day
+                key={`dob-day-${daysInMonth(answers.dobYear, answers.dobMonth)}`}
+                values={Array.from(
+                  { length: daysInMonth(answers.dobYear, answers.dobMonth) },
+                  (_, i) => i + 1,
+                )}
+                value={answers.dobDay}
+                onChange={(d) => setDob({ day: d })}
+                ariaLabel="Birth day"
+                itemWidth={56}
+                indicator="pill"
+              />
+              <WheelPicker
+                key="dob-year"
+                values={YEAR_OPTIONS}
+                value={answers.dobYear}
+                onChange={(y) => setDob({ year: y })}
+                ariaLabel="Birth year"
+                itemWidth={76}
+                indicator="pill"
               />
             </div>
-          </Question>
+            {/* fixed-height slot so the wheels don't shift when the notice appears */}
+            <p aria-live="polite" className="min-h-5 pb-2 text-center text-sm text-red-700">
+              {under18 ? "You must be over 18 to continue" : ""}
+            </p>
+          </div>
         );
-      case 3:
+      }
+      case 2: {
+        const ftIn = answers.heightUnit === "ft_in";
         return (
-          <Question title="What do you weigh right now?" hint="Slide left or right. A morning weigh-in is most consistent.">
-            <div className="rounded-2xl bg-white py-3 shadow-sm">
-              <WheelPicker
-                key="weight"
-                values={WEIGHT_OPTIONS}
-                value={answers.weightLbs}
-                onChange={(v) => set("weightLbs", v)}
-                label="lbs"
-                ariaLabel="Weight in pounds"
-                orientation="horizontal"
-              />
+          <div className="flex flex-1 flex-col">
+            <h1 className="text-2xl font-semibold text-[#2c3a2e]">What is your height?</h1>
+            <p className="mt-1 text-sm text-[#829084]">It helps size your calorie and macro targets.</p>
+            <div className="mt-5 flex rounded-2xl border border-[#dce3d7] bg-white p-1" role="tablist" aria-label="Height units">
+              {([
+                { value: "ft_in", label: "Feet and inches" },
+                { value: "cm", label: "Centimeters" },
+              ] as const).map((u) => (
+                <button
+                  key={u.value}
+                  role="tab"
+                  aria-selected={answers.heightUnit === u.value}
+                  className={`press flex-1 rounded-xl py-2.5 text-sm font-medium ${
+                    answers.heightUnit === u.value ? "bg-[#2c3a2e] text-white" : "text-[#2c3a2e]"
+                  }`}
+                  onClick={() => set("heightUnit", u.value)}
+                >
+                  {u.label}
+                </button>
+              ))}
             </div>
+            <div className="flex flex-1 items-center justify-center">
+              {ftIn ? (
+                <WheelPicker
+                  key="height-ftin"
+                  values={HEIGHT_OPTIONS}
+                  value={Math.round(answers.heightCm / CM_PER_INCH)}
+                  onChange={(v) => set("heightCm", Math.round(v * CM_PER_INCH))}
+                  ariaLabel="Height in feet and inches"
+                  format={formatFtInWords}
+                  itemWidth={150}
+                  indicator="pill"
+                />
+              ) : (
+                <WheelPicker
+                  key="height-cm"
+                  values={CM_OPTIONS}
+                  value={answers.heightCm}
+                  onChange={(v) => set("heightCm", v)}
+                  ariaLabel="Height in centimeters"
+                  format={(v) => `${v} cm`}
+                  itemWidth={120}
+                  indicator="pill"
+                />
+              )}
+            </div>
+          </div>
+        );
+      }
+      case 3: {
+        const valid = isValidWeight(answers.weight, answers.weightUnit);
+        return (
+          <Question title="What is your weight?" hint="Weigh at the same time each day, ideally in the morning.">
+            <label htmlFor="weight" className="block pt-2 text-sm font-medium text-[#2c3a2e]">
+              Current weight
+            </label>
+            <div className="flex gap-2">
+              <input
+                id="weight"
+                type="text"
+                inputMode="decimal"
+                className={`${numberInput} flex-1`}
+                placeholder={answers.weightUnit === "lbs" ? "165" : "75"}
+                value={answers.weight}
+                onChange={(e) => set("weight", e.target.value)}
+              />
+              <select
+                aria-label="Weight unit"
+                className="rounded-2xl border border-[#dce3d7] bg-white px-4 py-3 text-lg text-[#2c3a2e]"
+                value={answers.weightUnit}
+                onChange={(e) => {
+                  const unit = e.target.value as "lbs" | "kg";
+                  if (unit === answers.weightUnit) return;
+                  // carry a valid number across the unit switch (165 lbs -> 74.8 kg)
+                  setAnswers((a) => ({
+                    ...a,
+                    weightUnit: unit,
+                    weight: isValidWeight(a.weight, a.weightUnit)
+                      ? String(unit === "kg" ? lbsToKg(Number(a.weight)) : kgToLbs(Number(a.weight)))
+                      : a.weight,
+                  }));
+                }}
+              >
+                <option value="lbs">lbs</option>
+                <option value="kg">kg</option>
+              </select>
+            </div>
+            {!valid && <p className="text-sm text-[#829084]">Enter a valid weight</p>}
           </Question>
         );
+      }
       case 4:
         return (
           <Question title="What's the goal?" hint="You can change this anytime.">
@@ -456,7 +639,8 @@ export default function OnboardingPage() {
       </div>
 
       {/* keyed by step so each question enters with the step-in animation */}
-      <div key={step} className="step-in flex-1">{renderStep()}</div>
+      {/* flex so full-height steps (birth date) can stretch; block steps are unaffected */}
+      <div key={step} className="step-in flex flex-1 flex-col">{renderStep()}</div>
 
       <div className="mt-8 flex gap-3">
         {step > 0 && (
@@ -473,7 +657,7 @@ export default function OnboardingPage() {
             disabled={!stepValid}
             onClick={() => setStep((s) => s + 1)}
           >
-            {step >= 6 && step <= 9 ? "Continue" : "Next"}
+            {step === 1 || (step >= 6 && step <= 9) ? "Continue" : "Next"}
           </button>
         ) : (
           <button
