@@ -6,7 +6,9 @@ import { generatePlan } from "@/lib/plan/generate";
 import { prefsFromRow } from "@/lib/plan/rows";
 import { isEligible } from "@/lib/plan/select-meals";
 import { recentIdsFor, weekDates } from "@/lib/plan/week";
-import { consumeQuota } from "@/lib/plan/quota";
+import { consumeQuota, llmEnabled } from "@/lib/plan/quota";
+import { withUsageMeter } from "@/lib/ai/meter";
+import { dbPhrasingCache } from "@/lib/plan/phrasing-cache";
 import { fetchDeltasByDate } from "@/lib/log/adjustments";
 import type { MealPlanEntry, MealSlot } from "@/lib/supabase/types";
 
@@ -51,6 +53,9 @@ async function post(request: Request): Promise<Response> {
   // Weekly balancing: days carrying a reduction plan smaller on purpose.
   const deltasByDate = await fetchDeltasByDate(supabase, user.id, dates);
 
+  // One kill-switch read for the whole week build.
+  const llmOn = await llmEnabled(supabase);
+
   const generated: string[] = [];
   const skipped: string[] = [];
 
@@ -63,16 +68,23 @@ async function post(request: Request): Promise<Response> {
 
     // LLM copy only for today and tomorrow: farther days go stale before they
     // arrive, and Regenerate restores the copy when the day comes. Meter each
-    // personalize call; when the daily cap is hit, fall back to deterministic
-    // copy for that day instead of failing the whole week.
-    const personalizeWithLLM = offset <= 1 && (await consumeQuota(supabase, "llm"));
+    // personalize call; when the daily cap is hit (or the kill switch is on),
+    // fall back to deterministic copy for that day instead of failing the week.
+    const personalizeWithLLM = offset <= 1 && llmOn && (await consumeQuota(supabase, "llm"));
 
-    const plan = await generatePlan(
-      onboarding,
-      meals,
-      new Date(`${date}T12:00:00Z`),
-      recentIdsFor(date, plansByDate),
-      { maxPrepMin, personalizeWithLLM, kcalDelta: deltasByDate[date] ?? 0 },
+    const plan = await withUsageMeter({ supabase, userId: user.id, kind: "week" }, () =>
+      generatePlan(
+        onboarding,
+        meals,
+        new Date(`${date}T12:00:00Z`),
+        recentIdsFor(date, plansByDate),
+        {
+          maxPrepMin,
+          personalizeWithLLM,
+          kcalDelta: deltasByDate[date] ?? 0,
+          phrasingCache: dbPhrasingCache(supabase, user.id),
+        },
+      ),
     );
 
     const entries: MealPlanEntry[] = plan.slots.map((s) => ({

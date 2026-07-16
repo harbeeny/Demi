@@ -9,7 +9,8 @@ import { rollupTotals } from "@/lib/log/rollup";
 import { containsDisorderedEatingSignal, SUPPORTIVE_RESPONSE } from "@/lib/ai/safety-filter";
 import type { MealPlanEntry, MealSlot } from "@/lib/supabase/types";
 import { preflight, withCors } from "@/lib/plan/cors";
-import { consumeQuota, quotaExceeded } from "@/lib/plan/quota";
+import { consumeQuota, llmEnabled, quotaExceeded } from "@/lib/plan/quota";
+import { withUsageMeter } from "@/lib/ai/meter";
 
 /** Close out the day: planned vs actual plus a short reflection. */
 async function post(request: Request): Promise<Response> {
@@ -88,14 +89,19 @@ async function post(request: Request): Promise<Response> {
     );
   }
 
+  // Kill switch: finishing the day still works, the reflection just uses
+  // the free deterministic copy instead of a model call.
+  const llmOn = await llmEnabled(supabase);
+
   // The reflection is a billable LLM call; meter it per user so re-finishing
   // in a loop can't run up the bill.
-  if (!(await consumeQuota(supabase, "llm"))) {
+  if (llmOn && !(await consumeQuota(supabase, "llm"))) {
     return quotaExceeded("llm");
   }
 
   const dayTargets = targets(profileFromRow(onboarding));
-  const reflection = await reflect({
+  const reflection = await withUsageMeter({ supabase, userId: user.id, kind: "reflect" }, () =>
+    reflect({
     targets: {
       kcal: dayTargets.kcal.value,
       proteinG: dayTargets.proteinG.value,
@@ -107,7 +113,8 @@ async function post(request: Request): Promise<Response> {
     loggedMeals,
     energy: energy ?? undefined,
     dayNote: dayNote || undefined,
-  });
+    }, { llm: llmOn }),
+  );
 
   const { error: saveError } = await supabase.from("daily_logs").upsert(
     {

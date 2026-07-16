@@ -9,7 +9,9 @@ import { applyKcalDeltaToTargets } from "@/lib/log/balance";
 import { fetchDayDelta } from "@/lib/log/adjustments";
 import type { MealPlanEntry, MealSlot } from "@/lib/supabase/types";
 import { preflight, withCors } from "@/lib/plan/cors";
-import { consumeQuota, quotaExceeded } from "@/lib/plan/quota";
+import { consumeQuota, llmEnabled, quotaExceeded } from "@/lib/plan/quota";
+import { withUsageMeter } from "@/lib/ai/meter";
+import { dbPhrasingCache } from "@/lib/plan/phrasing-cache";
 
 /** Generate (or regenerate) today's plan. */
 async function post(request: Request): Promise<Response> {
@@ -43,8 +45,12 @@ async function post(request: Request): Promise<Response> {
     return NextResponse.json({ ok: true, unchanged: true });
   }
 
+  // Kill switch: plans still generate (selection is deterministic), the
+  // copy just falls back to free deterministic phrasing.
+  const llmOn = await llmEnabled(supabase);
+
   // This path runs the paid personalize() generation; meter it per user.
-  if (!(await consumeQuota(supabase, "llm"))) {
+  if (llmOn && !(await consumeQuota(supabase, "llm"))) {
     return quotaExceeded("llm");
   }
 
@@ -55,10 +61,14 @@ async function post(request: Request): Promise<Response> {
   // Weekly balancing can shrink today's budget; the plan should honor it.
   const kcalDelta = await fetchDayDelta(supabase, user.id, date);
 
-  const plan = await generatePlan(onboarding, meals, new Date(), recentlyUsedIds, {
-    maxPrepMin,
-    kcalDelta,
-  });
+  const plan = await withUsageMeter({ supabase, userId: user.id, kind: "plan" }, () =>
+    generatePlan(onboarding, meals, new Date(), recentlyUsedIds, {
+      maxPrepMin,
+      kcalDelta,
+      personalizeWithLLM: llmOn,
+      phrasingCache: dbPhrasingCache(supabase, user.id),
+    }),
+  );
 
   const entries: MealPlanEntry[] = plan.slots.map((s) => ({
     meal_id: s.mealId,

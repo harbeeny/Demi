@@ -2,7 +2,8 @@ import { NextResponse } from "next/server";
 
 import { loadContext } from "@/lib/plan/context";
 import { preflight, withCors } from "@/lib/plan/cors";
-import { consumeQuota, quotaExceeded } from "@/lib/plan/quota";
+import { consumeQuota, llmDisabledResponse, llmEnabled, quotaExceeded } from "@/lib/plan/quota";
+import { withUsageMeter } from "@/lib/ai/meter";
 import {
   LABEL_IMAGE_MAX_BASE64,
   LABEL_MEDIA_TYPES,
@@ -17,7 +18,7 @@ import {
 async function post(request: Request): Promise<Response> {
   const ctx = await loadContext(request);
   if ("error" in ctx) return ctx.error;
-  const { supabase } = ctx;
+  const { supabase, user } = ctx;
 
   const body = (await request.json().catch(() => ({}))) as {
     image?: string;
@@ -37,12 +38,17 @@ async function post(request: Request): Promise<Response> {
     return NextResponse.json({ error: "That photo couldn't be used. Try again." }, { status: 400 });
   }
 
+  // Reading the label IS the feature; no deterministic fallback exists.
+  if (!(await llmEnabled(supabase))) return llmDisabledResponse();
+
   // A vision call is billable LLM work; same per-user meter as the rest.
   if (!(await consumeQuota(supabase, "llm"))) {
     return quotaExceeded("llm");
   }
 
-  const reading = await readNutritionLabel(image, mediaType);
+  const reading = await withUsageMeter({ supabase, userId: user.id, kind: "label" }, () =>
+    readNutritionLabel(image, mediaType),
+  );
   if (!reading) {
     return NextResponse.json(
       { error: "Couldn't read that label. Try a straight-on, well-lit shot, or enter the numbers yourself.", manual: true },

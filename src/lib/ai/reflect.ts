@@ -91,7 +91,13 @@ export function deterministicReflection(input: ReflectionInput): DayReflection {
 }
 
 /** Ask the LLM to reflect on the day. Falls back to deterministic copy. */
-export async function reflect(input: ReflectionInput): Promise<DayReflection> {
+export async function reflect(
+  input: ReflectionInput,
+  opts: { llm?: boolean } = {},
+): Promise<DayReflection> {
+  // Kill switch (or any caller that wants free copy): deterministic path.
+  if (opts.llm === false) return deterministicReflection(input);
+
   const payload = buildReflectionPayload(input);
 
   try {
