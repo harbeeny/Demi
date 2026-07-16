@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { registerPush } from "@/lib/push";
 import { deviceTimeZone, localDateISO } from "@/lib/dates";
+import { loggingStreak, trailingDates } from "@/lib/log/streak";
 import { targets } from "@/lib/nutrition";
 import { profileFromRow, prefsFromRow } from "@/lib/plan/rows";
 import { isEligible, type Meal } from "@/lib/plan/select-meals";
@@ -24,6 +25,13 @@ export interface TodayData {
   logs: TodayLog[];
   summary: DaySummary | null;
   searchMeals: SearchMeal[];
+  /** the day this data describes; equals localDateISO() when viewing today */
+  viewedDate: string;
+  isToday: boolean;
+  /** consecutive logged days ending today (or yesterday while today is empty) */
+  streak: number;
+  /** trailing week, ascending, with each day's eaten kcal for the strip */
+  week: Array<{ date: string; kcal: number }>;
 }
 
 /**
@@ -32,7 +40,11 @@ export interface TodayData {
  * All queries are RLS-scoped table reads; unauthenticated or un-onboarded
  * visitors are routed away, mirroring what the middleware does on the web.
  */
-export function useTodayData(): { loading: boolean; data: TodayData | null; reload: () => Promise<void> } {
+export function useTodayData(viewDate?: string | null): {
+  loading: boolean;
+  data: TodayData | null;
+  reload: () => Promise<void>;
+} {
   const router = useRouter();
   const [loading, setLoading] = useState(true);
   const [data, setData] = useState<TodayData | null>(null);
@@ -59,45 +71,71 @@ export function useTodayData(): { loading: boolean; data: TodayData | null; relo
       return;
     }
 
-    // Signed-in and onboarded: this is the moment to ask for push (native only).
-    void registerPush();
+    const today = localDateISO();
+    // A valid past date switches the page into read-only review; anything
+    // else (missing, malformed, today, future) views today.
+    const viewedDate =
+      viewDate && /^\d{4}-\d{2}-\d{2}$/.test(viewDate) && viewDate < today ? viewDate : today;
+    const isToday = viewedDate === today;
 
-    // The app's day follows the device clock; keep the profile's timezone
-    // fresh so the server (routes, meal reminders) resolves the same day.
-    const tz = deviceTimeZone();
-    if (tz) {
-      // or-filter because a NULL timezone would never match a plain neq
-      void supabase
-        .from("profiles")
-        .update({ timezone: tz })
-        .eq("id", user.id)
-        .or(`timezone.neq.${tz},timezone.is.null`)
-        .then(() => undefined);
+    if (isToday) {
+      // Signed-in and onboarded: this is the moment to ask for push (native only).
+      void registerPush();
+
+      // The app's day follows the device clock; keep the profile's timezone
+      // fresh so the server (routes, meal reminders) resolves the same day.
+      const tz = deviceTimeZone();
+      if (tz) {
+        // or-filter because a NULL timezone would never match a plain neq
+        void supabase
+          .from("profiles")
+          .update({ timezone: tz })
+          .eq("id", user.id)
+          .or(`timezone.neq.${tz},timezone.is.null`)
+          .then(() => undefined);
+      }
     }
 
-    const today = localDateISO();
-    const [{ data: planRow }, { data: logRows }, { data: dailyLog }, { data: allMeals }] =
+    const streakStart = trailingDates(today, 90)[0];
+    const [{ data: planRow }, { data: logRows }, { data: dailyLog }, { data: allMeals }, { data: historyRows }] =
       await Promise.all([
         supabase
           .from("meal_plans")
           .select("llm_rationale, meals")
           .eq("user_id", user.id)
-          .eq("date", today)
+          .eq("date", viewedDate)
           .single(),
         supabase
           .from("meal_logs")
           .select("id, slot, plan_slot_index, name, kcal, protein_g, carbs_g, fat_g, source, verified")
           .eq("user_id", user.id)
-          .eq("date", today)
+          .eq("date", viewedDate)
           .order("logged_at", { ascending: true }),
         supabase
           .from("daily_logs")
           .select("reflection, tweak, finished_at, energy")
           .eq("user_id", user.id)
-          .eq("date", today)
+          .eq("date", viewedDate)
           .single(),
         supabase.from("meals").select("*"),
+        // one scan feeds both the week strip (kcal per day) and the streak
+        supabase
+          .from("meal_logs")
+          .select("date, kcal")
+          .eq("user_id", user.id)
+          .gte("date", streakStart)
+          .lte("date", today),
       ]);
+
+    const kcalByDate = new Map<string, number>();
+    for (const row of historyRows ?? []) {
+      kcalByDate.set(row.date, (kcalByDate.get(row.date) ?? 0) + Number(row.kcal));
+    }
+    const week = trailingDates(today, 7).map((date) => ({
+      date,
+      kcal: Math.round(kcalByDate.get(date) ?? 0),
+    }));
+    const streak = loggingStreak(kcalByDate.keys(), today);
 
     const dayTargets = targets(profileFromRow(onboarding), { displayUnits: "us" });
 
@@ -180,9 +218,13 @@ export function useTodayData(): { loading: boolean; data: TodayData | null; relo
         carbsG: Number(m.carbs_g),
         fatG: Number(m.fat_g),
       })),
+      viewedDate,
+      isToday,
+      streak,
+      week,
     });
     setLoading(false);
-  }, [router]);
+  }, [router, viewDate]);
 
   useEffect(() => {
     void reload();

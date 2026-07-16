@@ -7,7 +7,8 @@ import type { MacroTotals } from "@/lib/log/remaining";
 import { remainingBudget, sumLogged } from "@/lib/log/remaining";
 import { shouldOfferRebalance } from "@/lib/log/rebalance";
 import type { MealLogSource } from "@/lib/supabase/types";
-import { MacroRings } from "./MacroRings";
+import { DayStrip } from "./DayStrip";
+import { MacroSummary } from "./MacroSummary";
 import { MealCard, timeLabel, type TodayMeal } from "./MealCard";
 import { LogSheet, type SearchMeal } from "./LogSheet";
 import { VerifiedBadge, type FdcLogFields } from "./FoodSearch";
@@ -40,11 +41,16 @@ interface Props {
   logs: TodayLog[];
   summary: DaySummary | null;
   searchMeals: SearchMeal[];
+  viewedDate: string;
+  /** false when reviewing a past day: everything renders read-only */
+  isToday: boolean;
+  streak: number;
+  week: Array<{ date: string; kcal: number }>;
   /** re-runs the client data queries after a mutation (replaces router.refresh) */
   onMutated: () => Promise<void>;
 }
 
-export function TodayView({ hasPlan, daySummary, meals, targets, logs, summary, searchMeals, onMutated }: Props) {
+export function TodayView({ hasPlan, daySummary, meals, targets, logs, summary, searchMeals, viewedDate, isToday, streak, week, onMutated }: Props) {
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
@@ -181,13 +187,13 @@ export function TodayView({ hasPlan, daySummary, meals, targets, logs, summary, 
   // from re-renders; router.refresh() flips hasPlan when the plan lands.
   const autoBuildStarted = useRef(false);
   useEffect(() => {
-    if (!modeLoaded || dayMode !== "plan") return;
+    if (!isToday || !modeLoaded || dayMode !== "plan") return;
     if (!hasPlan && !autoBuildStarted.current) {
       autoBuildStarted.current = true;
       generate(false);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [hasPlan, modeLoaded, dayMode]);
+  }, [hasPlan, modeLoaded, dayMode, isToday]);
 
   const planned: MacroTotals = sumLogged(meals);
   const eaten: MacroTotals | null = logs.length > 0 ? sumLogged(logs) : null;
@@ -209,35 +215,100 @@ export function TodayView({ hasPlan, daySummary, meals, targets, logs, summary, 
 
   return (
     <main className="mx-auto min-h-dvh max-w-md bg-[#f4f6f2] px-5 pb-36 pt-8">
-      <header className="mb-6 flex items-center justify-between">
+      <header className="mb-4 flex items-center justify-between">
         <div className="flex items-center gap-3">
           <span className="flex h-9 w-9 items-center justify-center rounded-full bg-[#d3e29f] font-semibold text-[#2c3a2e]">D</span>
           <div>
-            <h1 className="text-lg font-semibold leading-tight text-[#2c3a2e]">Today</h1>
+            <h1 className="text-lg font-semibold leading-tight text-[#2c3a2e]">
+              {isToday ? "Today" : dateHeading(viewedDate)}
+            </h1>
             <p className="text-xs text-[#829084]">
-              {new Date().toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric" })}
+              {isToday
+                ? new Date().toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric" })
+                : "Day review"}
             </p>
           </div>
         </div>
-        {hasPlan && (
-          <button
-            onClick={() => generate(true)}
-            disabled={busy !== null}
-            className="press rounded-full border border-[#dce3d7] bg-white px-4 py-2 text-sm text-[#2c3a2e] hover:border-[#8aa06f] disabled:opacity-50"
+        <div className="flex items-center gap-2">
+          <span
+            className="flex items-center gap-1 rounded-full border border-[#dce3d7] bg-white px-3 py-1.5 text-sm font-medium text-[#2c3a2e]"
+            title={`${streak}-day logging streak`}
           >
-            {busy === "generate" ? "Working..." : "Regenerate"}
-          </button>
-        )}
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="#d97f3e" aria-hidden="true">
+              <path d="M12 2c1 4-3 5.5-3 9a3 3 0 0 0 6 .2c1.6 1.3 2.5 3 2.5 4.8A5.5 5.5 0 0 1 12 21.5 5.5 5.5 0 0 1 6.5 16C6.5 10.5 12 8.5 12 2z" />
+            </svg>
+            <span aria-label={`${streak} day logging streak`}>{streak}</span>
+          </span>
+          {isToday && hasPlan && (
+            <button
+              onClick={() => generate(true)}
+              disabled={busy !== null}
+              className="press rounded-full border border-[#dce3d7] bg-white px-4 py-2 text-sm text-[#2c3a2e] hover:border-[#8aa06f] disabled:opacity-50"
+            >
+              {busy === "generate" ? "Working..." : "Regenerate"}
+            </button>
+          )}
+        </div>
       </header>
+
+      <DayStrip
+        week={week}
+        targetKcal={targets.kcal}
+        selectedDate={viewedDate}
+        onSelect={(d) => {
+          const today = week[week.length - 1]?.date;
+          window.location.assign(d === today ? "/today" : `/today?date=${d}`);
+        }}
+      />
+
+      {!isToday && (
+        <button
+          onClick={() => window.location.assign("/today")}
+          className="mb-4 text-xs text-[#7a9a4e] underline-offset-2 hover:underline"
+        >
+          Back to today
+        </button>
+      )}
 
       {error && <p className="mb-4 rounded-2xl bg-red-50 p-3 text-sm text-red-800">{error}</p>}
       {notice && (
         <p className="mb-4 rounded-2xl bg-[#e9efdd] p-4 text-sm leading-6 text-[#3c4a3e]">{notice}</p>
       )}
 
-      {!hasPlan && dayMode === "track" ? (
+      {!isToday ? (
         <>
-          <MacroRings planned={{ kcal: 0, proteinG: 0, carbsG: 0, fatG: 0 }} eaten={eaten ?? { kcal: 0, proteinG: 0, carbsG: 0, fatG: 0 }} targets={targets} />
+          <MacroSummary targets={targets} eaten={eaten ?? { kcal: 0, proteinG: 0, carbsG: 0, fatG: 0 }} />
+          {SLOT_ORDER.map((s) => (
+            <MealSection
+              key={s}
+              slot={s}
+              plannedMeals={[]}
+              logs={logs.filter((l) => l.slot === s)}
+              busy={busy}
+              readOnly
+              onConfirm={logPlanned}
+              onUndo={unlog}
+              onSwap={swap}
+              onRecipe={setRecipe}
+              onAdd={openSheetFor}
+            />
+          ))}
+          <OtherSection logs={logs} busy={busy} readOnly onUndo={unlog} />
+          {summary && (
+            <section className="mt-6 rounded-3xl bg-white p-4 shadow-sm">
+              <h2 className="text-xs font-medium uppercase tracking-wide text-[#829084]">
+                Day reflection
+              </h2>
+              <p className="mt-2 text-sm leading-6 text-[#3c4a3e]">{summary.reflection}</p>
+              <p className="mt-2 text-sm leading-6 text-[#3c4a3e]">{summary.tweak}</p>
+            </section>
+          )}
+        </>
+      ) : null}
+
+      {isToday && !hasPlan && dayMode === "track" ? (
+        <>
+          <MacroSummary targets={targets} eaten={eaten ?? { kcal: 0, proteinG: 0, carbsG: 0, fatG: 0 }} />
 
           {SLOT_ORDER.map((s) => (
             <MealSection
@@ -272,7 +343,7 @@ export function TodayView({ hasPlan, daySummary, meals, targets, logs, summary, 
             Switch to a meal plan
           </button>
         </>
-      ) : !hasPlan && dayMode === null && modeLoaded && !busy ? (
+      ) : isToday && !hasPlan && dayMode === null && modeLoaded && !busy ? (
         <div className="mt-16 space-y-3 text-center">
           <p className="text-[#2c3a2e]">How do you want to run today?</p>
           <button
@@ -288,7 +359,7 @@ export function TodayView({ hasPlan, daySummary, meals, targets, logs, summary, 
             Just track what I eat
           </button>
         </div>
-      ) : !hasPlan ? (
+      ) : isToday && !hasPlan ? (
         <div className="mt-16 text-center">
           {error ? (
             <button
@@ -302,9 +373,9 @@ export function TodayView({ hasPlan, daySummary, meals, targets, logs, summary, 
             <p className="animate-pulse text-[#2c3a2e]">Building your day...</p>
           )}
         </div>
-      ) : (
+      ) : isToday && hasPlan ? (
         <>
-          <MacroRings planned={planned} eaten={eaten} targets={targets} />
+          <MacroSummary targets={targets} eaten={eaten ?? { kcal: 0, proteinG: 0, carbsG: 0, fatG: 0 }} />
 
           {offerRebalance && (
             <button
@@ -349,7 +420,7 @@ export function TodayView({ hasPlan, daySummary, meals, targets, logs, summary, 
             onFinish={finishDay}
           />
         </>
-      )}
+      ) : null}
 
       <p className="mt-10 text-center text-xs leading-5 text-[#829084]">
         Demi offers general wellness guidance, not medical advice.
@@ -358,7 +429,7 @@ export function TodayView({ hasPlan, daySummary, meals, targets, logs, summary, 
       {/* Floating log action, bottom-right above the tab bar. Rendered in the
           same states that previously showed an inline log button; the sheet's
           z-40 backdrop covers it while open. */}
-      {(hasPlan || dayMode === "track") && (
+      {isToday && (hasPlan || dayMode === "track") && (
         <button
           onClick={() => openSheetFor(null)}
           disabled={busy !== null}
@@ -397,12 +468,24 @@ export function TodayView({ hasPlan, daySummary, meals, targets, logs, summary, 
   );
 }
 
+
+/** "Monday, July 14" style heading for a reviewed day. */
+function dateHeading(iso: string): string {
+  return new Date(`${iso}T12:00:00Z`).toLocaleDateString(undefined, {
+    weekday: "long",
+    month: "long",
+    day: "numeric",
+    timeZone: "UTC",
+  });
+}
+
 /** One meal's home: the suggested plan meal, the logged foods, and its Add. */
 function MealSection({
   slot,
   plannedMeals,
   logs,
   busy,
+  readOnly = false,
   onConfirm,
   onUndo,
   onSwap,
@@ -413,6 +496,7 @@ function MealSection({
   plannedMeals: TodayMeal[];
   logs: TodayLog[];
   busy: string | null;
+  readOnly?: boolean;
   onConfirm: (slotIndex: number) => void;
   onUndo: (id: string) => void;
   onSwap: (slotIndex: number) => void;
@@ -448,15 +532,17 @@ function MealSection({
           />
         ))}
         {logs.map((l) => (
-          <LogRow key={l.id} log={l} busy={busy} onUndo={onUndo} />
+          <LogRow key={l.id} log={l} busy={busy} readOnly={readOnly} onUndo={onUndo} />
         ))}
-        <button
-          onClick={() => onAdd(slot)}
-          disabled={busy !== null}
-          className="press w-full rounded-2xl border border-dashed border-[#c9d3c3] bg-transparent px-4 py-2.5 text-left text-sm text-[#829084] hover:border-[#8aa06f] hover:text-[#2c3a2e] disabled:opacity-50"
-        >
-          + Add
-        </button>
+        {!readOnly && (
+          <button
+            onClick={() => onAdd(slot)}
+            disabled={busy !== null}
+            className="press w-full rounded-2xl border border-dashed border-[#c9d3c3] bg-transparent px-4 py-2.5 text-left text-sm text-[#829084] hover:border-[#8aa06f] hover:text-[#2c3a2e] disabled:opacity-50"
+          >
+            + Add
+          </button>
+        )}
       </div>
     </section>
   );
@@ -466,10 +552,12 @@ function MealSection({
 function OtherSection({
   logs,
   busy,
+  readOnly = false,
   onUndo,
 }: {
   logs: TodayLog[];
   busy: string | null;
+  readOnly?: boolean;
   onUndo: (id: string) => void;
 }) {
   const items = logs.filter((l) => !l.slot || !SLOT_ORDER.includes(l.slot as MealSlot));
@@ -479,7 +567,7 @@ function OtherSection({
       <h2 className="mb-2 text-xs font-medium uppercase tracking-wide text-[#829084]">Other</h2>
       <div className="space-y-2">
         {items.map((l) => (
-          <LogRow key={l.id} log={l} busy={busy} onUndo={onUndo} />
+          <LogRow key={l.id} log={l} busy={busy} readOnly={readOnly} onUndo={onUndo} />
         ))}
       </div>
     </section>
@@ -489,10 +577,12 @@ function OtherSection({
 function LogRow({
   log,
   busy,
+  readOnly = false,
   onUndo,
 }: {
   log: TodayLog;
   busy: string | null;
+  readOnly?: boolean;
   onUndo: (id: string) => void;
 }) {
   return (
@@ -509,13 +599,15 @@ function LogRow({
           {Math.round(log.kcal)} kcal · P {Math.round(log.proteinG)}g
         </p>
       </div>
-      <button
-        onClick={() => onUndo(log.id)}
-        disabled={busy !== null}
-        className="text-xs text-[#829084] underline-offset-2 hover:underline disabled:opacity-50"
-      >
-        Undo
-      </button>
+      {!readOnly && (
+        <button
+          onClick={() => onUndo(log.id)}
+          disabled={busy !== null}
+          className="text-xs text-[#829084] underline-offset-2 hover:underline disabled:opacity-50"
+        >
+          Undo
+        </button>
+      )}
     </div>
   );
 }
