@@ -8,6 +8,14 @@
 // matching the app's local day boundary.
 
 import { createClient } from "npm:@supabase/supabase-js@2";
+import {
+  backoffMs,
+  isTokenGone,
+  isTransient,
+  MAX_SEND_ATTEMPTS,
+  pool,
+  shouldReleaseClaim,
+} from "./logic.ts";
 
 // Config resolves from env vars when set, else from Supabase Vault via the
 // service-role-only public.get_push_secret() rpc (PostgREST does not expose
@@ -89,19 +97,36 @@ async function apnsJwt(cfg: ApnsConfig): Promise<string> {
   return cachedJwt.jwt;
 }
 
+async function sendApnsOnce(cfg: ApnsConfig, token: string, title: string, body: string): Promise<number> {
+  try {
+    const res = await fetch(`https://${cfg.host}/3/device/${token}`, {
+      method: "POST",
+      headers: {
+        authorization: `bearer ${await apnsJwt(cfg)}`,
+        "apns-topic": cfg.bundleId,
+        "apns-push-type": "alert",
+        "apns-priority": "10",
+      },
+      body: JSON.stringify({ aps: { alert: { title, body }, sound: "default" } }),
+    });
+    if (!res.ok) console.error(`APNs ${res.status} for token ${token.slice(0, 8)}...`, await res.text());
+    return res.status;
+  } catch (err) {
+    // network failure: status 0, retried like a 5xx
+    console.error(`APNs network error for token ${token.slice(0, 8)}...`, err);
+    return 0;
+  }
+}
+
+/** Final status after up to MAX_SEND_ATTEMPTS tries with backoff. */
 async function sendApns(cfg: ApnsConfig, token: string, title: string, body: string): Promise<number> {
-  const res = await fetch(`https://${cfg.host}/3/device/${token}`, {
-    method: "POST",
-    headers: {
-      authorization: `bearer ${await apnsJwt(cfg)}`,
-      "apns-topic": cfg.bundleId,
-      "apns-push-type": "alert",
-      "apns-priority": "10",
-    },
-    body: JSON.stringify({ aps: { alert: { title, body }, sound: "default" } }),
-  });
-  if (!res.ok) console.error(`APNs ${res.status} for token ${token.slice(0, 8)}…`, await res.text());
-  return res.status;
+  let status = 0;
+  for (let attempt = 0; attempt < MAX_SEND_ATTEMPTS; attempt++) {
+    status = await sendApnsOnce(cfg, token, title, body);
+    if (!isTransient(status)) return status;
+    if (attempt < MAX_SEND_ATTEMPTS - 1) await new Promise((r) => setTimeout(r, backoffMs(attempt)));
+  }
+  return status;
 }
 
 // ---------- main ----------
@@ -223,8 +248,11 @@ Deno.serve(async (req) => {
       .map((l) => l.user_id),
   );
 
+  const startedAt = Date.now();
   let sent = 0;
+  let failed = 0;
   let pruned = 0;
+  let released = 0;
 
   /** Claim the dedup row first; an empty result means another tick already sent. */
   async function claim(userId: string, kind: string): Promise<boolean> {
@@ -236,15 +264,40 @@ Deno.serve(async (req) => {
     return (data?.length ?? 0) > 0;
   }
 
-  async function deliver(userId: string, title: string, body: string) {
-    for (const token of tokensByUser.get(userId) ?? []) {
-      const status = await sendApns(cfg, token, title, body);
+  /** Undo a claim whose delivery failed transiently; the next tick retries. */
+  async function releaseClaim(userId: string, kind: string) {
+    const date = clockByUser.get(userId)?.today ?? localDateISO(null);
+    await db.from("push_sends").delete().match({ user_id: userId, date, kind });
+    released++;
+  }
+
+  // The three nudge passes below only COLLECT what is due; delivery happens
+  // in one bounded-concurrency dispatch so a slow APNs or a big user base
+  // cannot stretch the tick past its window.
+  interface DueNotification {
+    userId: string;
+    kind: string;
+    title: string;
+    body: string;
+  }
+  const due: DueNotification[] = [];
+
+  async function dispatch(n: DueNotification) {
+    // Claim before sending: overlapping ticks must not double-notify. A
+    // fully-transient failure releases the claim so the next tick retries.
+    if (!(await claim(n.userId, n.kind))) return;
+    const finalStatuses: number[] = [];
+    for (const token of tokensByUser.get(n.userId) ?? []) {
+      const status = await sendApns(cfg, token, n.title, n.body);
+      finalStatuses.push(status);
       if (status === 200) sent++;
-      if (status === 410 || status === 400) {
+      else failed++;
+      if (isTokenGone(status)) {
         await db.from("device_tokens").delete().eq("token", token);
         pruned++;
       }
     }
+    if (shouldReleaseClaim(finalStatuses)) await releaseClaim(n.userId, n.kind);
   }
 
   // Meal reminders: slots 15-45 minutes out, on the user's own clock.
@@ -255,9 +308,13 @@ Deno.serve(async (req) => {
     for (let i = 0; i < entries.length; i++) {
       const t = entries[i].time_hour;
       if (t === undefined || t < clock.nowH + 0.25 || t >= clock.nowH + 0.75) continue;
-      if (!(await claim(plan.user_id, `slot-${i}`))) continue;
       const name = mealNameById.get(entries[i].meal_id) ?? "Your next meal";
-      await deliver(plan.user_id, `${name} in about 30 min`, entries[i].why ?? "It's on today's plan.");
+      due.push({
+        userId: plan.user_id,
+        kind: `slot-${i}`,
+        title: `${name} in about 30 min`,
+        body: entries[i].why ?? "It's on today's plan.",
+      });
     }
   }
 
@@ -268,8 +325,12 @@ Deno.serve(async (req) => {
     const nowH = clockByUser.get(userId)?.nowH ?? now.getUTCHours();
     if (windowEnd === undefined || nowH <= windowEnd + 1) continue;
     if (finishedUsers.has(userId) || !loggedUsers.has(userId)) continue;
-    if (!(await claim(userId, "reflect"))) continue;
-    await deliver(userId, "How did today go?", "Take 30 seconds to close out your day.");
+    due.push({
+      userId,
+      kind: "reflect",
+      title: "How did today go?",
+      body: "Take 30 seconds to close out your day.",
+    });
   }
 
   // Morning-after balance nudge: balancing a big night is the moment the
@@ -291,15 +352,29 @@ Deno.serve(async (req) => {
     const nowH = clockByUser.get(userId)?.nowH ?? now.getUTCHours();
     if (nowH < 9 || nowH >= 11) continue;
     if (loggedUsers.has(userId)) continue;
-    if (!(await claim(userId, "balance-morning"))) continue;
-    await deliver(
+    due.push({
       userId,
-      "Today's a normal day",
-      "Your week is already balanced. Regular meals and plenty of water; nothing to make up.",
-    );
+      kind: "balance-morning",
+      title: "Today's a normal day",
+      body: "Your week is already balanced. Regular meals and plenty of water; nothing to make up.",
+    });
   }
 
-  return new Response(JSON.stringify({ ok: true, sent, pruned }), {
+  // Fan out with bounded concurrency: 8 users in flight, tokens sequential
+  // within a user, per-token retry/backoff inside sendApns.
+  await pool(due, 8, dispatch);
+
+  const result = {
+    ok: true,
+    considered: due.length,
+    sent,
+    failed,
+    pruned,
+    released,
+    tookMs: Date.now() - startedAt,
+  };
+  console.log("push tick:", JSON.stringify(result));
+  return new Response(JSON.stringify(result), {
     headers: { "content-type": "application/json" },
   });
 });
