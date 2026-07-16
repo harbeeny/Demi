@@ -25,7 +25,7 @@ function dayInitial(date: string): string {
 
 export function DayStrip({ week, targetKcal, selectedDate, onSelect }: Props) {
   return (
-    <div className="mb-5 flex justify-between gap-1" role="group" aria-label="Past week">
+    <div className="mb-5 flex justify-between gap-1 px-0.5" role="group" aria-label="Past week">
       {week.map((d) => {
         const selected = d.date === selectedDate;
         const progress = targetKcal > 0 ? Math.min(1, d.kcal / targetKcal) : 0;
@@ -70,7 +70,13 @@ export function DayStrip({ week, targetKcal, selectedDate, onSelect }: Props) {
                 {dayInitial(d.date)}
               </span>
             </span>
-            <span className={`text-[11px] ${selected ? "font-semibold text-[#2c3a2e]" : "text-[#829084]"}`}>
+            {/* Fixed width + tabular figures: the selected weight change must
+                never shift the row's layout. */}
+            <span
+              className={`w-6 text-center text-[11px] tabular-nums ${
+                selected ? "font-semibold text-[#2c3a2e]" : "text-[#829084]"
+              }`}
+            >
               {dayNum}
             </span>
           </button>

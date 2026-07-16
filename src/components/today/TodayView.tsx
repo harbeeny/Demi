@@ -220,7 +220,7 @@ export function TodayView({ hasPlan, daySummary, meals, targets, logs, summary, 
     shouldOfferRebalance(remainingBudget(targets, eaten), sumLogged(upcomingMeals), upcomingMeals.length);
 
   return (
-    <main className="mx-auto min-h-dvh max-w-md bg-[#f4f6f2] px-5 pb-36 pt-8">
+    <main className="mx-auto w-full min-h-dvh max-w-md bg-[#f4f6f2] px-5 pb-36 pt-8">
       <header className="mb-4 flex items-center justify-between">
         <div className="flex items-center gap-3">
           <span className="flex h-9 w-9 items-center justify-center rounded-full bg-[#d3e29f] font-semibold text-[#2c3a2e]">D</span>
@@ -281,6 +281,9 @@ export function TodayView({ hasPlan, daySummary, meals, targets, logs, summary, 
         <p className="mb-4 rounded-2xl bg-[#e9efdd] p-4 text-sm leading-6 text-[#3c4a3e]">{notice}</p>
       )}
 
+      {/* Keyed by day so switching replays a short enter transition: the
+          content change reads as turning a page, not the screen shrinking. */}
+      <div key={viewedDate} className="step-in">
       {!isToday ? (
         <>
           <MacroSummary targets={targets} eaten={eaten ?? { kcal: 0, proteinG: 0, carbsG: 0, fatG: 0 }} />
@@ -427,6 +430,7 @@ export function TodayView({ hasPlan, daySummary, meals, targets, logs, summary, 
           />
         </>
       ) : null}
+      </div>
 
       <p className="mt-10 text-center text-xs leading-5 text-[#829084]">
         Demi offers general wellness guidance, not medical advice.
@@ -555,6 +559,13 @@ function MealSection({
         {logs.map((l) => (
           <LogRow key={l.id} log={l} busy={busy} readOnly={readOnly} onUndo={onUndo} />
         ))}
+        {/* A reviewed day keeps a quiet body in empty sections; bare headings
+            collapse the page and read as the screen shrinking. */}
+        {readOnly && plannedMeals.length === 0 && logs.length === 0 && (
+          <p className="rounded-2xl border border-dashed border-[#e0e6db] px-4 py-2.5 text-sm text-[#a9b4a6]">
+            Nothing logged
+          </p>
+        )}
         {!readOnly && (
           <button
             onClick={() => onAdd(slot)}

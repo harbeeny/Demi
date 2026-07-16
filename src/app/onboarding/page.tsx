@@ -446,7 +446,7 @@ export default function OnboardingPage() {
   }
 
   return (
-    <main className="mx-auto flex min-h-dvh max-w-md flex-col bg-[#f4f6f2] px-6 py-8">
+    <main className="mx-auto w-full flex min-h-dvh max-w-md flex-col bg-[#f4f6f2] px-6 py-8">
       {/* Progress bar: width only, strong ease-out (emil-design-eng) */}
       <div className="mb-8 h-1.5 w-full overflow-hidden rounded-full bg-[#dce3d7]">
         <div

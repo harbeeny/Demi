@@ -189,7 +189,7 @@ export default function ProfilePage() {
 
   if (loading) {
     return (
-      <main className="mx-auto flex min-h-dvh max-w-md items-center justify-center bg-[#f4f6f2]">
+      <main className="mx-auto w-full flex min-h-dvh max-w-md items-center justify-center bg-[#f4f6f2]">
         <p className="animate-pulse text-[#2c3a2e]">Loading your profile...</p>
         <TabBar />
       </main>
@@ -197,7 +197,7 @@ export default function ProfilePage() {
   }
 
   return (
-    <main className="mx-auto min-h-dvh max-w-md bg-[#f4f6f2] px-5 pb-28 pt-8">
+    <main className="mx-auto w-full min-h-dvh max-w-md bg-[#f4f6f2] px-5 pb-28 pt-8">
       <header className="mb-6 flex items-center justify-between">
         <div className="flex items-center gap-3">
           <span className="flex h-9 w-9 items-center justify-center rounded-full bg-[#d3e29f] font-semibold text-[#2c3a2e]">D</span>

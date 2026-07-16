@@ -28,6 +28,9 @@ export default function TodayPage() {
   // URL is kept in sync for shareability without triggering navigation.
   const selectDate = useCallback((date: string | null) => {
     setViewDate(date);
+    // Start each day at the top: switching mid-scroll into shorter content
+    // otherwise reads as the page collapsing.
+    window.scrollTo({ top: 0, behavior: "auto" });
     try {
       window.history.replaceState(null, "", date ? `/today?date=${date}` : "/today");
     } catch {
@@ -37,7 +40,7 @@ export default function TodayPage() {
 
   if (loading || !data) {
     return (
-      <main className="mx-auto flex min-h-dvh max-w-md items-center justify-center bg-[#f4f6f2]">
+      <main className="mx-auto w-full flex min-h-dvh max-w-md items-center justify-center bg-[#f4f6f2]">
         <p className="animate-pulse text-[#2c3a2e]">Loading your day...</p>
         <TabBar />
       </main>
