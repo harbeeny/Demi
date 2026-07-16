@@ -24,7 +24,10 @@ type LogBody =
     }
   | {
       source: "fdc";
-      fdcId: number;
+      /** USDA id; 0 or absent for Open Food Facts items */
+      fdcId?: number;
+      /** scanned UPC/EAN digits; identifies OFF items in place of an fdcId */
+      barcode?: string;
       name: string;
       grams?: number;
       kcal: number;
@@ -125,9 +128,12 @@ async function post(request: Request): Promise<Response> {
       source: "db",
     };
   } else if (body.source === "fdc") {
-    // Macros are client-computed from per-100g FDC data (visible before
-    // save); same trust model as quick-add, bounded the same way.
-    if (!Number.isInteger(body.fdcId) || body.fdcId <= 0) {
+    // Macros are client-computed from per-100g label data (visible before
+    // save); same trust model as quick-add, bounded the same way. The food is
+    // identified by a USDA id or, for Open Food Facts items, by its barcode.
+    const hasFdcId = Number.isInteger(body.fdcId) && (body.fdcId as number) > 0;
+    const hasBarcode = typeof body.barcode === "string" && /^\d{8,14}$/.test(body.barcode);
+    if (!hasFdcId && !hasBarcode) {
       return NextResponse.json({ error: "Invalid food reference." }, { status: 400 });
     }
     const checked = validateEstimate(body);
@@ -141,7 +147,7 @@ async function post(request: Request): Promise<Response> {
     insert = {
       slot: body.slot && SLOTS.includes(body.slot) ? body.slot : null,
       plan_slot_index: null,
-      fdc_id: body.fdcId,
+      fdc_id: hasFdcId ? (body.fdcId as number) : null,
       verified: body.verified === true,
       meal_id: null,
       name: grams ? `${baseName} (${grams} g)` : checked.name,
