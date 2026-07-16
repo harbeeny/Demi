@@ -253,6 +253,7 @@ export function FoodSearch({ busy, forcedSlot = null, onLabelParsed, onLog, onLo
   const clearSearch = () => {
     setQuery("");
     setMessage("");
+    setScanMiss(null);
     // Refocus in the same tap so iOS reopens the keyboard for the next word.
     inputRef.current?.focus();
   };
@@ -263,6 +264,23 @@ export function FoodSearch({ busy, forcedSlot = null, onLabelParsed, onLog, onLo
   useEffect(() => {
     setCanScan(Capacitor.isNativePlatform());
   }, []);
+
+  // A scan lookup hides the raw digits behind a pulsing "Thinking" overlay
+  // (nobody wants to read a UPC), and the digits are cleared once the lookup
+  // lands so they never surface. scanMiss keeps the no-match fallback on
+  // screen after that clear; the ref mirrors scanLookup for the async search
+  // closure. Typed digits still show normally; this is scan-only.
+  const [scanLookup, setScanLookup] = useState(false);
+  const [scanMiss, setScanMiss] = useState<string | null>(null);
+  const scanLookupRef = useRef(false);
+
+  const endScanLookup = (miss: string | null) => {
+    if (!scanLookupRef.current) return;
+    scanLookupRef.current = false;
+    setScanLookup(false);
+    setScanMiss(miss);
+    setQuery("");
+  };
 
   const scanBarcode = async () => {
     try {
@@ -276,7 +294,12 @@ export function FoodSearch({ busy, forcedSlot = null, onLabelParsed, onLog, onLo
       const code = result.ScanResult?.trim();
       // The digits flow through the normal search pipeline; the route
       // exact-matches the UPC and the effect below auto-opens the product.
-      if (code) setQuery(code);
+      if (code) {
+        scanLookupRef.current = true;
+        setScanLookup(true);
+        setScanMiss(null);
+        setQuery(code);
+      }
     } catch {
       // scanner dismissed or camera permission denied; nothing to log
     }
@@ -291,6 +314,7 @@ export function FoodSearch({ busy, forcedSlot = null, onLabelParsed, onLog, onLo
 
   const captureLabel = async () => {
     setLabelError("");
+    setScanMiss(null);
     let photo: { base64String?: string; format?: string };
     try {
       const { Camera, CameraResultType, CameraSource } = await import("@capacitor/camera");
@@ -462,6 +486,7 @@ export function FoodSearch({ busy, forcedSlot = null, onLabelParsed, onLog, onLo
           setMessage(data.error ?? "Search failed. Try again.");
           setResults([]);
           setCorrectedTo(null);
+          endScanLookup("That scan hit a hiccup. Rescan, or search by name.");
         } else {
           setMessage(
             data.foods?.length
@@ -477,11 +502,17 @@ export function FoodSearch({ busy, forcedSlot = null, onLabelParsed, onLog, onLo
             const top = data.foods[0];
             setSelected(top);
             setGrams(Math.round(top.portions[0]?.gramWeight ?? 100));
+            endScanLookup(null);
+          } else if (!data.foods?.length) {
+            endScanLookup(
+              "That product isn't in the food database yet. Search by name instead.",
+            );
           }
         }
       } catch {
         if (id !== searchSeq.current) return;
         setMessage("Network hiccup. Try again.");
+        endScanLookup("That scan hit a hiccup. Rescan, or search by name.");
       } finally {
         if (id === searchSeq.current) setSearching(false);
       }
@@ -618,9 +649,34 @@ export function FoodSearch({ busy, forcedSlot = null, onLabelParsed, onLog, onLo
             className={`${input} pr-10`}
             placeholder="Search foods, e.g. greek yogurt"
             value={query}
-            onChange={(e) => setQuery(e.target.value)}
+            readOnly={scanLookup}
+            onChange={(e) => {
+              setScanMiss(null);
+              setQuery(e.target.value);
+            }}
           />
-          {query.length > 0 && (
+          {scanLookup && (
+            <span
+              role="status"
+              className="absolute inset-0 z-10 flex items-center gap-2 rounded-2xl border border-[#dce3d7] bg-white px-3 text-sm text-[#5d6b5f]"
+            >
+              <svg
+                width="14"
+                height="14"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.8"
+                strokeLinejoin="round"
+                aria-hidden="true"
+                className="think-pulse"
+              >
+                <path d="M12 3l1.8 7.2L21 12l-7.2 1.8L12 21l-1.8-7.2L3 12l7.2-1.8z" />
+              </svg>
+              Thinking...
+            </span>
+          )}
+          {query.length > 0 && !scanLookup && (
             <button
               onClick={clearSearch}
               onMouseDown={(e) => e.preventDefault()}
@@ -664,11 +720,17 @@ export function FoodSearch({ busy, forcedSlot = null, onLabelParsed, onLog, onLo
           </button>
         )}
       </div>
-      {searching && <p className="mt-2 text-xs text-[#829084]">Searching...</p>}
+      {searching && !scanLookup && <p className="mt-2 text-xs text-[#829084]">Searching...</p>}
       {labelBusy && <p className="mt-2 text-xs text-[#829084]">Reading the label photo...</p>}
       {labelError && !labelBusy && <p className="mt-2 text-sm text-[#829084]">{labelError}</p>}
       {message && !searching && <p className="mt-2 text-sm text-[#829084]">{message}</p>}
-      {message && !searching && canScan && isBarcodeQuery(query.trim()) && (
+      {/* Scan misses render from scanMiss (the digits were cleared, so the
+          barcode-query check below can't see them anymore). */}
+      {scanMiss && !scanLookup && !searching && (
+        <p className="mt-2 text-sm text-[#829084]">{scanMiss}</p>
+      )}
+      {((message && !searching && canScan && isBarcodeQuery(query.trim())) ||
+        (scanMiss && !scanLookup && !searching && canScan)) && (
         <button
           onClick={captureLabel}
           disabled={busy !== null || labelBusy}
