@@ -6,6 +6,10 @@ over HTTPS with a Supabase bearer token. One codebase, two targets:
 
 - **Web**: `bun run build` (Vercel runs this; nothing changed).
 - **iOS**: `bun run build:ios` = static export to `out/` + `cap sync ios`.
+  The export refuses to run without `.env.local` and fails if the built
+  bundle doesn't contain the Supabase host: NEXT_PUBLIC values bake in at
+  build time, and a checkout missing them (fresh git worktrees) otherwise
+  ships a bundle that hangs on every screen's loading gate on-device.
 
 Login inside the app is the 6-digit email code or guest sign-in; there are no
 magic-link redirects, so no deep-link or URL-scheme setup is needed.
