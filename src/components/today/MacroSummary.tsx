@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useId, useState } from "react";
 
 import type { MacroTotals } from "@/lib/log/remaining";
 import { tapHaptic } from "@/lib/haptics";
@@ -38,11 +38,29 @@ function Ring({
   stroke: number;
   color: string;
 }) {
+  // useId contains colons, which break url(#...) pattern references.
+  const pid = `over${useId().replace(/:/g, "")}`;
   const r = (size - stroke) / 2;
   const c = 2 * Math.PI * r;
   const filled = Math.min(1, Math.max(0, progress));
+  // Second lap: how far past the target the day went, capped at one
+  // full extra ring (200%). Drawn on top in striped amber so overshoot
+  // reads as a distinct layer instead of silently pinning at full.
+  const over = Math.min(1, Math.max(0, progress - 1));
   return (
     <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} aria-hidden="true">
+      <defs>
+        <pattern
+          id={pid}
+          width="4"
+          height="4"
+          patternUnits="userSpaceOnUse"
+          patternTransform="rotate(45)"
+        >
+          <rect width="4" height="4" fill="#d9a521" />
+          <rect width="2" height="4" fill="#f2cf6b" />
+        </pattern>
+      </defs>
       <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="#e6ebe0" strokeWidth={stroke} />
       {/* Always mounted so value changes transition (the arc grows when a
           log lands); a fresh mount would jump straight to the new value.
@@ -58,6 +76,18 @@ function Ring({
         transform={`rotate(-90 ${size / 2} ${size / 2})`}
         className="transition-[stroke-dasharray,stroke] duration-700 ease-[cubic-bezier(0.16,1,0.3,1)] motion-reduce:transition-none"
         style={{ strokeDasharray: `${filled * c} ${c}`, opacity: filled > 0 ? 1 : 0 }}
+      />
+      <circle
+        cx={size / 2}
+        cy={size / 2}
+        r={r}
+        fill="none"
+        stroke={`url(#${pid})`}
+        strokeWidth={stroke}
+        strokeLinecap="round"
+        transform={`rotate(-90 ${size / 2} ${size / 2})`}
+        className="transition-[stroke-dasharray] duration-700 ease-[cubic-bezier(0.16,1,0.3,1)] motion-reduce:transition-none"
+        style={{ strokeDasharray: `${over * c} ${c}`, opacity: over > 0 ? 1 : 0 }}
       />
     </svg>
   );
@@ -135,11 +165,13 @@ export function MacroSummary({ targets, eaten }: Props) {
           <p className="mt-1 text-sm text-[#5d6b5f]">{heroSub}</p>
         </div>
         <div className="relative mt-4 flex items-center justify-center">
+          {/* Base stays green even when over: the striped layer carries the
+              overshoot now, so a red full ring would double-signal. */}
           <Ring
             progress={targets.kcal > 0 ? eaten.kcal / targets.kcal : 0}
             size={84}
             stroke={8}
-            color={kcal.over ? "#b25d4c" : "#7a9a4e"}
+            color="#7a9a4e"
           />
           <span aria-hidden="true" className="absolute text-lg">
             {kcal.over ? "◆" : "❋"}
