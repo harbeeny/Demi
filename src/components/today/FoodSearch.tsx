@@ -660,9 +660,19 @@ export function FoodSearch({ busy, forcedSlot = null, onLabelParsed, onLog, onLo
               role="status"
               className="absolute inset-0 z-10 flex items-center gap-2 rounded-2xl border border-[#dce3d7] bg-white px-3 text-sm text-[#5d6b5f]"
             >
-              <span className="brain-pulse text-base" aria-hidden="true">
-                🧠
-              </span>
+              <svg
+                width="14"
+                height="14"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.8"
+                strokeLinejoin="round"
+                aria-hidden="true"
+                className="think-pulse"
+              >
+                <path d="M12 3l1.8 7.2L21 12l-7.2 1.8L12 21l-1.8-7.2L3 12l7.2-1.8z" />
+              </svg>
               Thinking...
             </span>
           )}

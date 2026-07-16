@@ -107,7 +107,7 @@ body {
 
 /* Scan lookup "Thinking" indicator: a soft ongoing pulse while we resolve
    the product, so nobody has to stare at a UPC. */
-@keyframes brain-pulse {
+@keyframes think-pulse {
   0%,
   100% {
     transform: scale(1);
@@ -118,9 +118,9 @@ body {
     opacity: 0.7;
   }
 }
-.brain-pulse {
+.think-pulse {
   display: inline-block;
-  animation: brain-pulse 1.1s ease-in-out infinite;
+  animation: think-pulse 1.1s ease-in-out infinite;
 }
 
 /* Goal-met badge entrance: small overshoot, one celebratory pop on mount. */
@@ -147,7 +147,7 @@ body {
   .step-in,
   .rise-in,
   .pop-in,
-  .brain-pulse {
+  .think-pulse {
     animation: none;
     transition: none;
   }
