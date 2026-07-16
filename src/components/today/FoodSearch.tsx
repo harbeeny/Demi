@@ -7,13 +7,15 @@ import { Capacitor } from "@capacitor/core";
 import { apiFetch } from "@/lib/api";
 import { createClient } from "@/lib/supabase/client";
 import {
+  countedLabel,
   GRAMS_PER_OZ,
   isBarcodeQuery,
   isVerifiedSource,
   scaleMacros,
   type FdcFood,
+  type FdcPortion,
 } from "@/lib/food/fdc";
-import { successHaptic } from "@/lib/haptics";
+import { successHaptic, tapHaptic } from "@/lib/haptics";
 import { SLOT_LABELS, SLOT_ORDER, suggestSlot } from "@/lib/log/slots";
 import type { MealSlot } from "@/lib/supabase/types";
 
@@ -31,6 +33,8 @@ export interface FdcLogFields {
   fatG: number;
   verified: boolean;
   slot?: MealSlot;
+  /** counted household portion for the name suffix, e.g. "2 eggs" */
+  portion?: string;
 }
 
 /** Chip row for choosing which meal section a log belongs to. */
@@ -199,6 +203,11 @@ export function FoodSearch({ busy, forcedSlot = null, onLabelParsed, onLog, onLo
   const [correctedTo, setCorrectedTo] = useState<string | null>(null);
   const [selected, setSelected] = useState<FdcFood | null>(null);
   const [grams, setGrams] = useState(100);
+  // Countable serving: the tapped portion chip plus how many of it. Grams
+  // stay canonical (count x gramWeight); editing grams by hand detaches the
+  // count so the two never disagree.
+  const [portionSel, setPortionSel] = useState<FdcPortion | null>(null);
+  const [count, setCount] = useState(1);
   // Amount entry unit. Grams stay canonical internally; oz only changes what
   // the user types and reads, so macros and the server payload never drift.
   const [unit, setUnit] = useState<"g" | "oz">("g");
@@ -502,6 +511,8 @@ export function FoodSearch({ busy, forcedSlot = null, onLabelParsed, onLog, onLo
             const top = data.foods[0];
             setSelected(top);
             setGrams(Math.round(top.portions[0]?.gramWeight ?? 100));
+            setPortionSel(top.portions[0] ?? null);
+            setCount(1);
             endScanLookup(null);
           } else if (!data.foods?.length) {
             endScanLookup(
@@ -545,9 +556,13 @@ export function FoodSearch({ busy, forcedSlot = null, onLabelParsed, onLog, onLo
           {selected.portions.map((p) => (
             <button
               key={p.label}
-              onClick={() => setGrams(Math.round(p.gramWeight))}
+              onClick={() => {
+                setPortionSel(p);
+                setCount(1);
+                setGrams(Math.round(p.gramWeight));
+              }}
               className={`press rounded-full border px-3 py-1.5 text-xs ${
-                Math.abs(grams - p.gramWeight) < 1
+                portionSel?.label === p.label
                   ? "border-[#2c3a2e] bg-[#2c3a2e] text-white"
                   : "border-[#dce3d7] bg-white text-[#2c3a2e]"
               }`}
@@ -556,6 +571,51 @@ export function FoodSearch({ busy, forcedSlot = null, onLabelParsed, onLog, onLo
             </button>
           ))}
         </div>
+
+        {/* Countable servings ("1 egg") get a how-many stepper; grams stay
+            canonical underneath so macros and the payload never drift. */}
+        {portionSel && /^1\s/.test(portionSel.label) && (
+          <div className="mt-3 flex items-center gap-3">
+            <div
+              className="flex items-center overflow-hidden rounded-2xl border border-[#dce3d7] bg-white"
+              role="group"
+              aria-label="How many"
+            >
+              <button
+                onClick={() => {
+                  tapHaptic();
+                  const n = count - 1;
+                  setCount(n);
+                  setGrams(Math.max(1, Math.round(n * portionSel.gramWeight)));
+                }}
+                disabled={count <= 1 || busy !== null}
+                aria-label="One fewer"
+                className="press px-4 py-2 text-lg leading-none text-[#2c3a2e] disabled:opacity-40"
+              >
+                &minus;
+              </button>
+              <span className="min-w-8 text-center text-sm font-semibold tabular-nums text-[#2c3a2e]" aria-live="polite">
+                {count}
+              </span>
+              <button
+                onClick={() => {
+                  tapHaptic();
+                  const n = count + 1;
+                  setCount(n);
+                  setGrams(Math.max(1, Math.round(n * portionSel.gramWeight)));
+                }}
+                disabled={busy !== null || (count + 1) * portionSel.gramWeight > 2000}
+                aria-label="One more"
+                className="press px-4 py-2 text-lg leading-none text-[#2c3a2e] disabled:opacity-40"
+              >
+                +
+              </button>
+            </div>
+            <span className="text-sm text-[#5d6b5f]">
+              {countedLabel(portionSel.label, count)}
+            </span>
+          </div>
+        )}
         <div className="mt-3">
           <SlotChips value={slot} onChange={setSlot} />
         </div>
@@ -574,6 +634,9 @@ export function FoodSearch({ busy, forcedSlot = null, onLabelParsed, onLog, onLo
               onChange={(e) => {
                 const raw = Number(e.target.value) || 0;
                 const g = unit === "g" ? raw : raw * GRAMS_PER_OZ;
+                // Hand-typed amounts detach the counted portion.
+                setPortionSel(null);
+                setCount(1);
                 setGrams(Math.max(1, Math.min(2000, Math.round(g))));
               }}
             />
@@ -617,6 +680,7 @@ export function FoodSearch({ busy, forcedSlot = null, onLabelParsed, onLog, onLo
                 name: selected.description,
                 grams,
                 unit: liquid ? "ml" : "g",
+                portion: portionSel ? countedLabel(portionSel.label, count) : undefined,
                 verified,
                 slot,
                 ...macros,
@@ -629,11 +693,13 @@ export function FoodSearch({ busy, forcedSlot = null, onLabelParsed, onLog, onLo
         >
           {busy === "log-fdc"
             ? "Logging..."
-            : liquid
-              ? `Log ${grams} ml`
-              : unit === "g"
-                ? `Log ${grams} g`
-                : `Log ${ozAmount} oz`}
+            : portionSel
+              ? `Log ${countedLabel(portionSel.label, count)}`
+              : liquid
+                ? `Log ${grams} ml`
+                : unit === "g"
+                  ? `Log ${grams} g`
+                  : `Log ${ozAmount} oz`}
         </button>
       </div>
     );
@@ -822,6 +888,8 @@ export function FoodSearch({ busy, forcedSlot = null, onLabelParsed, onLog, onLo
                 onClick={() => {
                   setSelected(f);
                   setGrams(defaultGrams);
+                  setPortionSel(f.portions[0] ?? null);
+                  setCount(1);
                 }}
                 disabled={busy !== null}
                 className="press min-w-0 flex-1 text-left disabled:opacity-50"

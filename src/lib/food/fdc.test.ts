@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 
 import {
+  countedLabel,
   extractKcal,
   isBarcodeQuery,
   isVerifiedSource,
@@ -218,5 +219,38 @@ describe("titleCaseIfShouting", () => {
     expect(titleCaseIfShouting("CHEDDAR CHEESE")).toBe("Cheddar Cheese");
     expect(titleCaseIfShouting("Apples, fuji, with skin, raw")).toBe("Apples, fuji, with skin, raw");
     expect(titleCaseIfShouting("GRAFTON-VILLAGE (VERMONT)")).toBe("Grafton-Village (Vermont)");
+  });
+});
+
+describe("countedLabel", () => {
+  test("count of 1 keeps the label verbatim", () => {
+    expect(countedLabel("1 egg", 1)).toBe("1 egg");
+    expect(countedLabel("100 g", 1)).toBe("100 g");
+  });
+
+  test("pluralizes simple unit counts", () => {
+    expect(countedLabel("1 egg", 2)).toBe("2 eggs");
+    expect(countedLabel("1 slice", 3)).toBe("3 slices");
+    expect(countedLabel("1 large egg", 2)).toBe("2 large eggs");
+  });
+
+  test("keeps trailing qualifiers after a comma", () => {
+    expect(countedLabel("1 cup, sliced", 2)).toBe("2 cups, sliced");
+  });
+
+  test("drops a per-unit parenthetical that would lie about the total", () => {
+    expect(countedLabel("1 serving (355 ml)", 2)).toBe("2 servings");
+  });
+
+  test("measure words that read wrong with an s stay bare", () => {
+    expect(countedLabel("1 oz", 2)).toBe("2 oz");
+  });
+
+  test("does not double an existing s", () => {
+    expect(countedLabel("1 glass", 2)).toBe("2 glass");
+  });
+
+  test("non-unit labels fall back to an explicit multiplier", () => {
+    expect(countedLabel("100 g", 3)).toBe("3 × 100 g");
   });
 });

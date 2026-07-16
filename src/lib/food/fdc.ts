@@ -165,6 +165,27 @@ export function normalizeSearchHit(hit: RawSearchHit): FdcFood | null {
   };
 }
 
+// Measure words that read wrong with a plural s ("2 ozs").
+const NO_PLURAL = new Set(["oz", "g", "ml", "tbsp", "tsp", "lb", "fl oz"]);
+
+/**
+ * A count of a household portion: "1 egg" x 3 reads "3 eggs". Labels that
+ * aren't unit-counts ("100 g") fall back to "3 x 100 g", and a trailing
+ * per-unit amount ("1 serving (355 ml)") is dropped when counting so the
+ * parenthetical never lies about the total.
+ */
+export function countedLabel(label: string, count: number): string {
+  if (count === 1) return label;
+  const base = label.replace(/\s*\([^)]*\)\s*$/, "").trim();
+  const m = base.match(/^1\s+([^,]+)(.*)$/);
+  if (!m) return `${count} × ${base}`;
+  const head = m[1].trim();
+  const rest = m[2] ?? "";
+  const plural =
+    NO_PLURAL.has(head.toLowerCase()) || /s$/i.test(head) ? head : `${head}s`;
+  return `${count} ${plural}${rest}`;
+}
+
 /** A run of 8-14 digits is a scanned barcode, not a food name. */
 export function isBarcodeQuery(q: string): boolean {
   return /^\d{8,14}$/.test(q.trim());
