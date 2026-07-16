@@ -8,7 +8,7 @@
     "start": "next start",
     "lint": "eslint",
     "test": "bun test",
-    "build:ios": "bash scripts/build-ios.sh && npx cap sync ios",
+    "build:ios": "bash scripts/build-ios.sh --sync",
     "export:ios": "bash scripts/build-ios.sh"
   },
   "dependencies": {
