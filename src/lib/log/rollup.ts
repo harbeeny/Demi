@@ -10,6 +10,20 @@ export interface DailyRollup {
   total_fat_g: number;
 }
 
+/**
+ * Hard sanity ceiling for one day's logged calories. Nothing human gets
+ * close; the point is that no accumulation of maximum-size logs can ever
+ * overflow the daily_logs numeric columns again (found by the Phase 6 k6
+ * load check: unbounded totals overflowed numeric(6,2) macro columns and
+ * 500'd every later log that day).
+ */
+export const DAY_KCAL_CEILING = 30_000;
+
+/** Would adding kcal push the day past what it can hold? */
+export function exceedsDayCeiling(currentKcal: number, addKcal: number): boolean {
+  return currentKcal + addKcal > DAY_KCAL_CEILING;
+}
+
 /** Shape logged items into the daily_logs totals columns. */
 export function rollupTotals(logs: MacroTotals[]): DailyRollup {
   const t = sumLogged(logs);

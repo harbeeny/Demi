@@ -52,7 +52,71 @@ Documented now, built when scale demands (spec item 8):
 - `plan_cache`: content-addressed and small (one row per distinct prompt per
   user); add it to the prune (30 days) if it ever shows up in table sizes.
 
-## Load-test gate (increment 6, not yet run)
+## Load-test gate (increment 6)
 
-k6 script simulating N concurrent users generating plans + logging; the gate
-is no P95 cliff and no connection exhaustion at the target user count.
+`scripts/load/plan-and-log.js` simulates N concurrent users doing a real
+session against a deployed environment: anonymous sign-up + onboarding in
+setup, then per iteration a plan build/confirm (queued: enqueue + poll),
+three food logs, a food search, and a health check.
+
+Run (the Supabase key is the **publishable** one, never anything else):
+
+    k6 run scripts/load/plan-and-log.js \
+      -e BASE_URL=https://demi-gold.vercel.app \
+      -e SUPABASE_URL=https://<ref>.supabase.co \
+      -e SUPABASE_KEY=<publishable key> \
+      -e TARGET_VUS=25
+
+The gate, encoded as k6 thresholds so the run itself passes or fails:
+request failure rate <2%; P95 latency: logs <2.5s, search <3s, job polls
+<2.5s, health <1.5s; queued plan builds complete (enqueue to done) in <20s
+at P95.
+
+Test users carry a `k6-load-test` marker in `onboarding_answers.dislikes`.
+Cleanup after every run (cascades wipe their plans, logs, jobs, usage):
+
+    delete from auth.users where id in (
+      select user_id from public.onboarding_answers
+      where 'k6-load-test' = any(dislikes));
+
+Cost note: each fresh test user bills one personalize call on its first
+plan build (~$0.002 at haiku rates; 25 users ≈ $0.05/run) and appears in
+`private.llm_spend_daily` under `plan`. The spend backstop's $5 ceiling is
+three orders of magnitude away.
+
+### Recorded result, 2026-07-16, production, 25 VUs
+
+3m34s, 11,829 requests, 55 req/s sustained, 1,959 iterations. No latency
+cliff and no connection exhaustion anywhere:
+
+| Threshold | Gate | Measured |
+|---|---|---|
+| health P95 | <1500ms | 99ms |
+| log P95 | <2500ms | 318ms |
+| job poll P95 | <2500ms | 265ms |
+| search P95 | <3000ms | 215ms |
+| plan build enqueue-to-done P95 | <20s | 1.26s |
+| request failures | <2% | 4.73% (see below) |
+
+**What broke, exactly as the gate intends:** the failure rate was entirely
+one latent defect. Test users logging ~1,200 kcal every 2 seconds pushed
+their `daily_logs` totals past the numeric column precision
+(`total_kcal numeric(7,2)`, macros `numeric(6,2)`); every later log that
+day 500'd with "numeric field overflow" after its `meal_logs` row had
+already inserted. 555 of the 560 failures were this; excluding it, the
+failure rate was 0.04%. Fixed in the same PR: `/api/log` now rejects any
+log that would push the day past `DAY_KCAL_CEILING` (30,000 kcal, chosen
+so no macro column can mathematically overflow) with a friendly 400
+*before* inserting, so the log and its rollup can never disagree.
+
+**Second finding:** Supabase throttles anonymous sign-ups (~30/hour/IP,
+429 `over_request_rate_limit`). Good news operationally: this is the
+guest-minting abuse throttle SECURITY.md's captcha note asked about. For
+testing it means back-to-back full-size runs need an hour between them
+(or a raised auth rate limit in the dashboard for the test window);
+setup() now degrades gracefully and runs with the users it minted.
+
+Verdict: latency and queue gates PASS with 8-10x headroom at 25
+concurrent users; the failure-rate gate flagged one real defect, now
+fixed and unit-tested. Re-run the one-line command above after merge for
+a clean all-green record.

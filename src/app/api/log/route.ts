@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 
 import { loadContext } from "@/lib/plan/context";
 import { syncDailyRollup } from "@/lib/log/persist";
+import { exceedsDayCeiling } from "@/lib/log/rollup";
 import { addDaysISO } from "@/lib/log/balance";
 import { validateEstimate } from "@/lib/ai/estimate";
 import { stripEmDashes } from "@/lib/ai/validate";
@@ -200,6 +201,23 @@ async function post(request: Request): Promise<Response> {
       fat_g: estimate.fatG,
       source: "estimate",
     };
+  }
+
+  // Sanity ceiling: a day past DAY_KCAL_CEILING is either a client bug or
+  // deliberate garbage, and unbounded totals overflow the rollup columns
+  // (found by the k6 load check). Reject BEFORE the insert so the log and
+  // its rollup can never disagree.
+  const { data: dayRow } = await supabase
+    .from("daily_logs")
+    .select("total_kcal")
+    .eq("user_id", user.id)
+    .eq("date", date)
+    .maybeSingle();
+  if (exceedsDayCeiling(Number(dayRow?.total_kcal ?? 0), insert.kcal)) {
+    return NextResponse.json(
+      { error: "That would put the day past any real intake. Check the amount?" },
+      { status: 400 },
+    );
   }
 
   const { data: saved, error: insertError } = await supabase
