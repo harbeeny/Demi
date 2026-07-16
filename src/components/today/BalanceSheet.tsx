@@ -46,6 +46,14 @@ interface Applied {
   absorbed: number;
   forgiven: number;
   days: number;
+  /**
+   * Applied before noon means the user is logging last night from the
+   * morning after, the hour the restrict impulse peaks. The reassurance
+   * evening appliers get by push the next day (send-meal-reminders,
+   * "balance-morning") renders inline instead; no push is scheduled for
+   * balances applied before 17:00 local.
+   */
+  morning: boolean;
 }
 
 interface Props {
@@ -128,6 +136,7 @@ export function BalanceSheet({
         absorbed: data.absorbed ?? 0,
         forgiven: data.forgiven ?? 0,
         days: data.days?.length ?? 0,
+        morning: new Date().getHours() < 12,
       });
       await onMutated();
     } catch {
@@ -220,6 +229,12 @@ export function BalanceSheet({
                 <p className="mt-2 text-sm leading-6 text-[#5d6b5f]">
                   The remaining {applied.forgiven} kcal doesn&apos;t carry over. One day never
                   defines a week; the streak you keep does.
+                </p>
+              )}
+              {applied.morning && (
+                <p className="mt-2 text-sm leading-6 text-[#5d6b5f]">
+                  Today stays a normal day: regular meals and plenty of water. There&apos;s
+                  nothing to make up.
                 </p>
               )}
               <button
