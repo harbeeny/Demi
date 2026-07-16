@@ -224,16 +224,9 @@ export function TodayView({ hasPlan, daySummary, meals, targets, logs, summary, 
       <header className="mb-4 flex items-center justify-between">
         <div className="flex items-center gap-3">
           <span className="flex h-9 w-9 items-center justify-center rounded-full bg-[#d3e29f] font-semibold text-[#2c3a2e]">D</span>
-          <div>
-            <h1 className="text-lg font-semibold leading-tight text-[#2c3a2e]">
-              {isToday ? "Today" : dateHeading(viewedDate)}
-            </h1>
-            <p className="text-xs text-[#829084]">
-              {isToday
-                ? new Date().toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric" })
-                : "Day review"}
-            </p>
-          </div>
+          <h1 className="text-lg font-semibold leading-tight text-[#2c3a2e]">
+            {isToday ? "Today" : dateHeading(viewedDate)}
+          </h1>
         </div>
         <div className="flex items-center gap-2">
           <span
