@@ -12,7 +12,10 @@ import type { ActivityLevel, Budget, CookingSkill, Goal, Sex } from "@/lib/supab
 
 type Answers = {
   sex: Sex | null;
-  age: string;
+  /** date of birth; age is derived at validation/save time */
+  dobMonth: number; // 0-11
+  dobDay: number; // 1-31
+  dobYear: number;
   heightInches: number;
   weightLbs: number;
   goal: Goal | null;
@@ -33,7 +36,9 @@ type Answers = {
 
 const INITIAL: Answers = {
   sex: null,
-  age: "",
+  dobMonth: 0,
+  dobDay: 1,
+  dobYear: 1995,
   heightInches: 68, // 5'8"
   weightLbs: 165,
   goal: null,
@@ -83,6 +88,27 @@ const SKILL_LABELS: Record<CookingSkill, string> = {
   confident: "Adventurous",
 };
 
+const MONTHS = [
+  "January", "February", "March", "April", "May", "June",
+  "July", "August", "September", "October", "November", "December",
+];
+const MONTH_OPTIONS = Array.from({ length: 12 }, (_, i) => i);
+
+/** Oldest first, so scrolling down moves toward the present like iOS date pickers. */
+const THIS_YEAR = new Date().getFullYear();
+const YEAR_OPTIONS = Array.from({ length: 108 }, (_, i) => THIS_YEAR - 120 + i);
+
+function daysInMonth(year: number, month: number): number {
+  return new Date(year, month + 1, 0).getDate();
+}
+
+function ageFromDob(year: number, month: number, day: number): number {
+  const now = new Date();
+  let age = now.getFullYear() - year;
+  if (now.getMonth() < month || (now.getMonth() === month && now.getDate() < day)) age--;
+  return age;
+}
+
 /** 4'0" to 7'6" in 1 inch steps */
 const HEIGHT_OPTIONS = Array.from({ length: 43 }, (_, i) => i + 48);
 /** 80-400 lbs in 1 lb steps */
@@ -111,6 +137,15 @@ export default function OnboardingPage() {
   const set = <K extends keyof Answers>(key: K, value: Answers[K]) =>
     setAnswers((a) => ({ ...a, [key]: value }));
 
+  /** Update any part of the birth date, clamping the day to the month's length. */
+  const setDob = (part: { month?: number; day?: number; year?: number }) =>
+    setAnswers((a) => {
+      const month = part.month ?? a.dobMonth;
+      const year = part.year ?? a.dobYear;
+      const day = Math.min(part.day ?? a.dobDay, daysInMonth(year, month));
+      return { ...a, dobMonth: month, dobDay: day, dobYear: year };
+    });
+
   // Steps 0..9 are questions; step 10 is the results screen.
   const TOTAL_QUESTIONS = 10;
 
@@ -118,8 +153,8 @@ export default function OnboardingPage() {
     switch (step) {
       case 0: return answers.sex !== null;
       case 1: {
-        const n = Number(answers.age);
-        return Number.isInteger(n) && n >= 13 && n <= 120;
+        const age = ageFromDob(answers.dobYear, answers.dobMonth, answers.dobDay);
+        return age >= 13 && age <= 120;
       }
       // 2 (height) and 3 (weight) are wheel-constrained, always valid
       case 4: return answers.goal !== null;
@@ -132,7 +167,7 @@ export default function OnboardingPage() {
     if (!answers.sex || !answers.goal || !answers.activityLevel) return null;
     return {
       sex: answers.sex,
-      age: Number(answers.age),
+      age: ageFromDob(answers.dobYear, answers.dobMonth, answers.dobDay),
       heightCm: inchesToCm(answers.heightInches),
       weightKg: lbsToKg(answers.weightLbs),
       goal: answers.goal,
@@ -240,10 +275,46 @@ export default function OnboardingPage() {
         );
       case 1:
         return (
-          <Question title="How old are you?" hint="13-120. Under 18 gets maintenance targets only.">
-            <input type="number" inputMode="numeric" className={numberInput} placeholder="e.g. 29"
-              value={answers.age} onChange={(e) => set("age", e.target.value)} />
-          </Question>
+          <div className="flex flex-1 flex-col">
+            <h1 className="text-2xl font-semibold text-[#2c3a2e]">When were you born?</h1>
+            <p className="mt-1 text-sm text-[#829084]">
+              This calibrates your plan. Under 18 gets maintenance targets only.
+            </p>
+            <div className="flex flex-1 items-center justify-center gap-1">
+              <WheelPicker
+                key="dob-month"
+                values={MONTH_OPTIONS}
+                value={answers.dobMonth}
+                onChange={(m) => setDob({ month: m })}
+                ariaLabel="Birth month"
+                format={(m) => MONTHS[m]}
+                itemWidth={118}
+                indicator="pill"
+              />
+              <WheelPicker
+                // remount when the month's day-count changes so the wheel re-centers on the clamped day
+                key={`dob-day-${daysInMonth(answers.dobYear, answers.dobMonth)}`}
+                values={Array.from(
+                  { length: daysInMonth(answers.dobYear, answers.dobMonth) },
+                  (_, i) => i + 1,
+                )}
+                value={answers.dobDay}
+                onChange={(d) => setDob({ day: d })}
+                ariaLabel="Birth day"
+                itemWidth={56}
+                indicator="pill"
+              />
+              <WheelPicker
+                key="dob-year"
+                values={YEAR_OPTIONS}
+                value={answers.dobYear}
+                onChange={(y) => setDob({ year: y })}
+                ariaLabel="Birth year"
+                itemWidth={76}
+                indicator="pill"
+              />
+            </div>
+          </div>
         );
       case 2:
         return (
@@ -456,7 +527,8 @@ export default function OnboardingPage() {
       </div>
 
       {/* keyed by step so each question enters with the step-in animation */}
-      <div key={step} className="step-in flex-1">{renderStep()}</div>
+      {/* flex so full-height steps (birth date) can stretch; block steps are unaffected */}
+      <div key={step} className="step-in flex flex-1 flex-col">{renderStep()}</div>
 
       <div className="mt-8 flex gap-3">
         {step > 0 && (
@@ -473,7 +545,7 @@ export default function OnboardingPage() {
             disabled={!stepValid}
             onClick={() => setStep((s) => s + 1)}
           >
-            {step >= 6 && step <= 9 ? "Continue" : "Next"}
+            {step === 1 || (step >= 6 && step <= 9) ? "Continue" : "Next"}
           </button>
         ) : (
           <button
