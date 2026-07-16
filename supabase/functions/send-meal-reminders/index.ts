@@ -1,7 +1,8 @@
-// Scheduled push sender: meal-time reminders from today's plans plus the
-// end-of-day reflection nudge. Invoked every 15 minutes by pg_cron (see
-// MOBILE.md for the cron SQL); the only caller gate is the x-cron-secret
-// header, since the function is deployed with verify_jwt = false.
+// Scheduled push sender: meal-time reminders from today's plans, the
+// end-of-day reflection nudge, and the morning-after balance nudge.
+// Invoked every 15 minutes by pg_cron (see MOBILE.md for the cron SQL);
+// the only caller gate is the x-cron-secret header, since the function
+// is deployed with verify_jwt = false.
 //
 // Dates and hours resolve per user from profiles.timezone (UTC fallback),
 // matching the app's local day boundary.
@@ -145,21 +146,27 @@ Deno.serve(async (req) => {
       return now.toISOString().slice(0, 10);
     }
   };
-  const localHour = (tz: string | null): number => {
+  const hourIn = (tz: string | null, at: Date): number => {
     try {
       const parts = new Intl.DateTimeFormat("en-GB", {
         timeZone: tz ?? "UTC",
         hour: "2-digit",
         minute: "2-digit",
         hour12: false,
-      }).formatToParts(now);
+      }).formatToParts(at);
       const h = Number(parts.find((p) => p.type === "hour")?.value);
       const m = Number(parts.find((p) => p.type === "minute")?.value);
       if (Number.isFinite(h) && Number.isFinite(m)) return (h % 24) + m / 60;
     } catch {
       // fall through
     }
-    return now.getUTCHours() + now.getUTCMinutes() / 60;
+    return at.getUTCHours() + at.getUTCMinutes() / 60;
+  };
+  const localHour = (tz: string | null): number => hourIn(tz, now);
+  const addDaysISO = (date: string, n: number): string => {
+    const d = new Date(`${date}T12:00:00Z`);
+    d.setUTCDate(d.getUTCDate() + n);
+    return d.toISOString().slice(0, 10);
   };
 
   const [{ data: tokens }, { data: profiles }] = await Promise.all([
@@ -181,14 +188,22 @@ Deno.serve(async (req) => {
   // Local calendars can span two dates at any moment; fetch the union.
   const dateSet = [...new Set([...clockByUser.values()].map((c) => c.today))];
   if (dateSet.length === 0) dateSet.push(localDateISO(null));
+  // Each push-capable user's local yesterday, for the balance nudge.
+  const yesterdayByUser = new Map<string, string>();
+  for (const [userId, clock] of clockByUser) {
+    yesterdayByUser.set(userId, addDaysISO(clock.today, -1));
+  }
+  const yesterdaySet = [...new Set([...yesterdayByUser.values()])];
+  if (yesterdaySet.length === 0) yesterdaySet.push(addDaysISO(localDateISO(null), -1));
 
-  const [{ data: plans }, { data: meals }, { data: answers }, { data: dailyLogs }, { data: mealLogs }] =
+  const [{ data: plans }, { data: meals }, { data: answers }, { data: dailyLogs }, { data: mealLogs }, { data: balances }] =
     await Promise.all([
       db.from("meal_plans").select("user_id, meals, date").in("date", dateSet),
       db.from("meals").select("id, name"),
       db.from("onboarding_answers").select("user_id, eating_window_end, created_at").order("created_at", { ascending: false }),
       db.from("daily_logs").select("user_id, finished_at, date").in("date", dateSet),
       db.from("meal_logs").select("user_id, date").in("date", dateSet),
+      db.from("day_adjustments").select("user_id, source_date, created_at").in("source_date", yesterdaySet),
     ]);
 
   const mealNameById = new Map((meals ?? []).map((m) => [m.id, m.name]));
@@ -255,6 +270,33 @@ Deno.serve(async (req) => {
     if (finishedUsers.has(userId) || !loggedUsers.has(userId)) continue;
     if (!(await claim(userId, "reflect"))) continue;
     await deliver(userId, "How did today go?", "Take 30 seconds to close out your day.");
+  }
+
+  // Morning-after balance nudge: balancing a big night is the moment the
+  // restrict impulse peaks the NEXT morning, so one push of permission goes
+  // out 9-11am local while nothing is logged yet. Only balances applied in
+  // the evening (17:00+ local, from the adjustment rows' created_at) count:
+  // a balance applied before then means the user logged the night from
+  // inside the app the morning after, where BalanceSheet shows the same
+  // message inline. Recalculating or removing the balance rewrites or
+  // deletes its rows, so the pending nudge follows automatically. Copy
+  // never mentions amounts or yesterday's food; SAFETY.md screens framing.
+  const balancedEveningUsers = new Set<string>();
+  for (const row of balances ?? []) {
+    if (row.source_date !== yesterdayByUser.get(row.user_id)) continue;
+    const tz = tzByUser.get(row.user_id) ?? null;
+    if (hourIn(tz, new Date(row.created_at)) >= 17) balancedEveningUsers.add(row.user_id);
+  }
+  for (const userId of balancedEveningUsers) {
+    const nowH = clockByUser.get(userId)?.nowH ?? now.getUTCHours();
+    if (nowH < 9 || nowH >= 11) continue;
+    if (loggedUsers.has(userId)) continue;
+    if (!(await claim(userId, "balance-morning"))) continue;
+    await deliver(
+      userId,
+      "Today's a normal day",
+      "Your week is already balanced. Regular meals and plenty of water; nothing to make up.",
+    );
   }
 
   return new Response(JSON.stringify({ ok: true, sent, pruned }), {
