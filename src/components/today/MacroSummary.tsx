@@ -148,17 +148,18 @@ export function MacroSummary({ targets, eaten }: Props) {
   return (
     <section aria-label="Macro summary">
       <div className="relative flex items-center justify-between rounded-3xl bg-white p-5 shadow-sm">
+        {/* Icon-only: the subtitle under the number already names the view,
+            so the control stays a quiet corner glyph instead of a chip. */}
         <button
           onClick={cycleView}
           aria-label={`Showing ${VIEW_LABELS[view].toLowerCase()} values. Switch view.`}
-          className="press absolute right-3 top-3 flex items-center gap-1 rounded-full border border-[#dce3d7] bg-white px-2.5 py-1 text-[11px] font-medium text-[#5d6b5f] hover:border-[#8aa06f]"
+          className="press absolute right-2.5 top-2.5 flex h-9 w-9 items-center justify-center rounded-full text-[#9aa89c] hover:bg-[#f0f3ec] hover:text-[#5d6b5f]"
         >
-          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.25" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
             <path d="M17 2v6h-6" />
             <path d="M7 22v-6h6" />
             <path d="M17 8a8 8 0 0 0-14 4M7 16a8 8 0 0 0 14-4" />
           </svg>
-          {VIEW_LABELS[view]}
         </button>
         <div>
           <p className="text-4xl font-semibold tracking-tight text-[#2c3a2e]">{heroValue}</p>
