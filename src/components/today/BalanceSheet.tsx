@@ -3,17 +3,21 @@
 import { useEffect, useState } from "react";
 
 import { apiFetch } from "@/lib/api";
-import { planSpread } from "@/lib/log/balance";
+import { planSpread, remainingWeekDates } from "@/lib/log/balance";
 import { successHaptic } from "@/lib/haptics";
 import { useSwipeToDismiss } from "./useSwipeToDismiss";
 import type { BalanceInfo } from "./useTodayData";
 
 /**
- * "Balance my week": spread today's overage across the remaining days of
- * the week, gently (10%/day cap, safety floor, remainder forgiven). Also
- * hosts the rough-estimate path for nights nobody measured. Deliberately
- * no guilt language anywhere in this file; SAFETY.md screens for exactly
- * that framing.
+ * "Balance my week": spread a day's overage across the remaining days of
+ * its week, gently (10%/day cap, safety floor, remainder forgiven). Also
+ * hosts the rough-estimate path for nights nobody measured, which can
+ * back-date the night to yesterday: logged the morning after, the calories
+ * must land on the night they happened, or they consume today's budget
+ * whole, which is the restrict trap this feature exists to prevent.
+ * Balancing yesterday spreads from today onward, so today gives up at most
+ * the same capped slice as any other day. Deliberately no guilt language
+ * anywhere in this file; SAFETY.md screens for exactly that framing.
  */
 
 const ROUGH_TIERS = [
@@ -54,6 +58,8 @@ interface Applied {
    * balances applied before 17:00 local.
    */
   morning: boolean;
+  /** which day's overage was spread; yesterday's spread includes today */
+  source: SourceDay;
 }
 
 interface Props {
@@ -65,10 +71,12 @@ interface Props {
   /** today's adjusted target, the same number the hero shows */
   targetKcal: number;
   balance: BalanceInfo;
-  /** logs a rough estimate entry; resolves true when it landed */
-  onLogRough: (kcal: number) => Promise<boolean>;
+  /** logs a rough estimate entry to the chosen day; resolves true when it landed */
+  onLogRough: (kcal: number, when: "today" | "yesterday") => Promise<boolean>;
   onMutated: () => Promise<void>;
 }
+
+type SourceDay = "today" | "yesterday";
 
 export function BalanceSheet({
   open,
@@ -87,6 +95,12 @@ export function BalanceSheet({
   const [busy, setBusy] = useState<string | null>(null);
   const [customKcal, setCustomKcal] = useState("");
   const [error, setError] = useState("");
+  // Before noon, an unlogged big night usually means LAST night; from noon
+  // on it means earlier today. A default, not an inference: the user picks.
+  const [whenChoice, setWhenChoice] = useState<SourceDay>("today");
+  // Set after a rough log so the sheet can say what happened when the
+  // entry fit inside its day's target and there's nothing to spread.
+  const [roughLogged, setRoughLogged] = useState<SourceDay | null>(null);
 
   useEffect(() => {
     if (open) {
@@ -94,21 +108,34 @@ export function BalanceSheet({
       setBusy(null);
       setCustomKcal("");
       setError("");
+      setWhenChoice(new Date().getHours() < 12 ? "yesterday" : "today");
+      setRoughLogged(null);
     }
   }, [open]);
 
   if (!mounted) return null;
 
+  const y = balance.yesterday;
   const overage = Math.max(0, Math.round(eatenKcal - targetKcal));
+  const yOverage = Math.max(0, Math.round(y.eatenKcal - y.targetKcal));
+
+  // Which day this open serves. Today's live business (an overage or an
+  // existing spread) wins; otherwise last night's; otherwise the rough path.
+  const source: SourceDay =
+    overage > 0 || balance.outgoing ? "today" : yOverage > 0 || y.outgoing ? "yesterday" : "today";
+  const sourceOverage = source === "yesterday" ? yOverage : overage;
+  const sourceOutgoing = source === "yesterday" ? y.outgoing : balance.outgoing;
+
   // Cosmetic preview with the exact math the server re-runs on confirm.
   const preview =
-    overage > 0
+    sourceOverage > 0
       ? planSpread({
-          overageKcal: overage,
-          sourceDate: today,
+          overageKcal: sourceOverage,
+          sourceDate: source === "yesterday" ? y.date : today,
           targetKcal: balance.baseKcal,
           floorKcal: balance.floorKcal,
-          existingReductionByDate: balance.existingReductionByDate,
+          existingReductionByDate:
+            source === "yesterday" ? y.existingReductionByDate : balance.existingReductionByDate,
         })
       : null;
 
@@ -119,7 +146,7 @@ export function BalanceSheet({
       const res = await apiFetch("/api/day/balance", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: "{}",
+        body: JSON.stringify({ source }),
       });
       const data = (await res.json().catch(() => ({}))) as {
         error?: string;
@@ -137,6 +164,7 @@ export function BalanceSheet({
         forgiven: data.forgiven ?? 0,
         days: data.days?.length ?? 0,
         morning: new Date().getHours() < 12,
+        source,
       });
       await onMutated();
     } catch {
@@ -153,7 +181,7 @@ export function BalanceSheet({
       const res = await apiFetch("/api/day/balance", {
         method: "DELETE",
         headers: { "content-type": "application/json" },
-        body: "{}",
+        body: JSON.stringify(source === "yesterday" ? { sourceDate: y.date } : {}),
       });
       if (!res.ok) {
         setError("Couldn't remove the balance.");
@@ -177,10 +205,11 @@ export function BalanceSheet({
     setBusy(`rough-${kcal}`);
     setError("");
     try {
-      const ok = await onLogRough(rounded);
+      const ok = await onLogRough(rounded, whenChoice);
       if (ok) {
         successHaptic();
         setCustomKcal("");
+        setRoughLogged(whenChoice);
       }
     } finally {
       setBusy(null);
@@ -223,7 +252,10 @@ export function BalanceSheet({
             <>
               <p className="text-sm leading-6 text-[#3c4a3e]">
                 Done. {applied.absorbed} kcal spread across {applied.days}{" "}
-                {applied.days === 1 ? "day" : "days"}; your upcoming targets moved down a little.
+                {applied.days === 1 ? "day" : "days"}
+                {applied.source === "yesterday"
+                  ? ", starting with today; each gives up only a little."
+                  : "; your upcoming targets moved down a little."}
               </p>
               {applied.forgiven > 0 && (
                 <p className="mt-2 text-sm leading-6 text-[#5d6b5f]">
@@ -244,18 +276,19 @@ export function BalanceSheet({
                 Done
               </button>
             </>
-          ) : balance.outgoing ? (
+          ) : sourceOutgoing ? (
             <>
               <p className="text-sm leading-6 text-[#3c4a3e]">
-                Today is already balanced: {balance.outgoing.absorbed} kcal spread across{" "}
-                {balance.outgoing.days} {balance.outgoing.days === 1 ? "day" : "days"}.
+                {source === "yesterday" ? "Last night" : "Today"} is already balanced:{" "}
+                {sourceOutgoing.absorbed} kcal spread across {sourceOutgoing.days}{" "}
+                {sourceOutgoing.days === 1 ? "day" : "days"}.
               </p>
               <p className="mt-2 text-sm leading-6 text-[#5d6b5f]">
                 Logged more since? Recalculate replaces the current spread with a fresh one.
               </p>
               <button
                 onClick={apply}
-                disabled={busy !== null || overage <= 0}
+                disabled={busy !== null || sourceOverage <= 0}
                 className="press mt-5 w-full rounded-2xl bg-[#2c3a2e] px-5 py-3 font-medium text-white disabled:opacity-60"
               >
                 {busy === "apply" ? "Recalculating..." : "Recalculate"}
@@ -271,8 +304,18 @@ export function BalanceSheet({
           ) : preview ? (
             <>
               <p className="text-sm leading-6 text-[#3c4a3e]">
-                You&apos;re about <span className="font-semibold">{overage} kcal</span> over today.
-                Spread it across the rest of the week?
+                {source === "yesterday" ? (
+                  <>
+                    Last night came to about{" "}
+                    <span className="font-semibold">{sourceOverage} kcal</span> over. Spread it
+                    across the week, starting today?
+                  </>
+                ) : (
+                  <>
+                    You&apos;re about <span className="font-semibold">{sourceOverage} kcal</span>{" "}
+                    over today. Spread it across the rest of the week?
+                  </>
+                )}
               </p>
               {preview.days.length > 0 ? (
                 <ul className="mt-4 space-y-1.5">
@@ -281,11 +324,18 @@ export function BalanceSheet({
                       key={d.date}
                       className="flex items-center justify-between rounded-2xl bg-white px-4 py-2.5 text-sm shadow-sm"
                     >
-                      <span className="text-[#2c3a2e]">{dayLabel(d.date)}</span>
+                      <span className="text-[#2c3a2e]">
+                        {d.date === today ? "Today" : dayLabel(d.date)}
+                      </span>
                       <span className="tabular-nums text-[#5d6b5f]">{d.deltaKcal} kcal</span>
                     </li>
                   ))}
                 </ul>
+              ) : source === "yesterday" && remainingWeekDates(y.date).length === 0 ? (
+                <p className="mt-3 text-sm leading-6 text-[#5d6b5f]">
+                  Last night closed out its week, and closed weeks don&apos;t carry over. Today
+                  starts clean.
+                </p>
               ) : (
                 <p className="mt-3 text-sm leading-6 text-[#5d6b5f]">
                   There&apos;s no room left in this week to absorb it, so nothing changes.
@@ -313,9 +363,36 @@ export function BalanceSheet({
             <>
               <p className="text-sm leading-6 text-[#3c4a3e]">
                 You&apos;re not over your target right now. If a big night isn&apos;t logged yet,
-                add a rough estimate and we&apos;ll take it from there.
+                say when it was, add a rough estimate, and we&apos;ll take it from there.
               </p>
-              <div className="mt-4 space-y-2">
+              {roughLogged && (
+                <p className="mt-2 text-sm leading-6 text-[#5d6b5f]">
+                  {roughLogged === "yesterday"
+                    ? "Logged to last night. It stayed within that day's target, so there's nothing to spread and today isn't affected."
+                    : "Logged. You're still within today's target, so there's nothing to spread."}
+                </p>
+              )}
+              <div
+                className="mt-4 flex rounded-2xl border border-[#dce3d7] bg-white p-1"
+                role="group"
+                aria-label="When was the big night?"
+              >
+                {(["yesterday", "today"] as const).map((w) => (
+                  <button
+                    key={w}
+                    onClick={() => setWhenChoice(w)}
+                    aria-pressed={whenChoice === w}
+                    className={`press flex-1 rounded-xl px-3 py-2 text-sm ${
+                      whenChoice === w
+                        ? "bg-[#2c3a2e] font-medium text-white"
+                        : "text-[#5d6b5f]"
+                    }`}
+                  >
+                    {w === "yesterday" ? "Last night" : "Today"}
+                  </button>
+                ))}
+              </div>
+              <div className="mt-2 space-y-2">
                 {ROUGH_TIERS.map((t) => (
                   <button
                     key={t.kcal}
@@ -347,7 +424,7 @@ export function BalanceSheet({
                 </div>
               </div>
               <p className="mt-3 text-xs leading-5 text-[#829084]">
-                It lands in your log as an editable entry; undo it anytime.
+                It lands in the chosen day&apos;s log as a normal entry.
               </p>
             </>
           )}

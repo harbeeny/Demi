@@ -145,6 +145,42 @@ describe("planSpread", () => {
     expect(planSpread({ overageKcal: 0, sourceDate: "2026-07-15", ...base }).days).toEqual([]);
     expect(planSpread({ overageKcal: -50, sourceDate: "2026-07-15", ...base }).forgiven).toBe(0);
   });
+
+  // The retroactive big-night flow: it's Thursday morning and last night
+  // (Wednesday) just got logged. The spread starts AT today, and today is
+  // capped like any other day: it never absorbs the night whole.
+  test("yesterday as source includes today, capped like any other day", () => {
+    const plan = planSpread({ overageKcal: 2000, sourceDate: "2026-07-15", ...base });
+    expect(plan.days[0]).toEqual({ date: "2026-07-16", deltaKcal: -200 });
+    expect(plan.days.every((d) => d.deltaKcal >= -200)).toBe(true);
+    expect(plan.absorbed).toBe(800);
+    expect(plan.forgiven).toBe(1200);
+  });
+
+  test("a Saturday night logged Sunday morning still uses Sunday", () => {
+    const plan = planSpread({ overageKcal: 600, sourceDate: "2026-07-18", ...base });
+    expect(plan.days).toEqual([{ date: "2026-07-19", deltaKcal: -200 }]);
+    expect(plan.forgiven).toBe(400);
+  });
+
+  test("a Sunday night logged Monday morning is fully forgiven (closed week)", () => {
+    const plan = planSpread({ overageKcal: 1500, sourceDate: "2026-07-19", ...base });
+    expect(plan.days).toEqual([]);
+    expect(plan.forgiven).toBe(1500);
+  });
+
+  test("retro spread stacks under existing reductions on today", () => {
+    // Yesterday's balance while today already carries 120 from an older
+    // balance: today's remaining capacity is 80, later days take 200.
+    const plan = planSpread({
+      overageKcal: 900,
+      sourceDate: "2026-07-15",
+      ...base,
+      existingReductionByDate: { "2026-07-16": 120 },
+    });
+    expect(plan.days[0]).toEqual({ date: "2026-07-16", deltaKcal: -80 });
+    expect(plan.days.slice(1).every((d) => d.deltaKcal === -200)).toBe(true);
+  });
 });
 
 describe("applyKcalDelta", () => {

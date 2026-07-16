@@ -3,22 +3,30 @@ import { NextResponse } from "next/server";
 import { loadContext } from "@/lib/plan/context";
 import { profileFromRow } from "@/lib/plan/generate";
 import { calorieFloor, targets } from "@/lib/nutrition";
-import { applyKcalDelta, planSpread, remainingWeekDates } from "@/lib/log/balance";
+import { addDaysISO, applyKcalDelta, planSpread, remainingWeekDates } from "@/lib/log/balance";
 import { fetchDayDelta } from "@/lib/log/adjustments";
 import { preflight, withCors } from "@/lib/plan/cors";
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
 /**
- * Spread today's calorie overage across the rest of the week. The server
+ * Spread a day's calorie overage across the rest of its week. The server
  * recomputes everything (overage, caps, floors) from its own data; the
  * client's preview is cosmetic. Re-balancing the same day replaces that
  * day's earlier spread instead of stacking on itself.
+ *
+ * The source day is today or, for the big-night-logged-the-morning-after
+ * flow, yesterday (an intent flag, never a client date). Balancing
+ * yesterday spreads from today onward, so today gives up at most the same
+ * capped slice as any other day instead of absorbing the night whole.
  */
 async function post(request: Request): Promise<Response> {
   const ctx = await loadContext(request);
   if ("error" in ctx) return ctx.error;
   const { supabase, user, onboarding } = ctx;
+
+  const body = (await request.json().catch(() => ({}))) as { source?: string };
+  const sourceDate = body.source === "yesterday" ? addDaysISO(ctx.today, -1) : ctx.today;
 
   const profile = profileFromRow(onboarding);
   const dayTargets = targets(profile);
@@ -28,31 +36,40 @@ async function post(request: Request): Promise<Response> {
     .from("meal_logs")
     .select("kcal")
     .eq("user_id", user.id)
-    .eq("date", ctx.today);
+    .eq("date", sourceDate);
   const eatenKcal = (logs ?? []).reduce((sum, l) => sum + Number(l.kcal), 0);
 
-  // Over is measured against what the user actually sees today: the base
-  // target minus any reduction earlier balances already put on this day.
-  const todayDelta = await fetchDayDelta(supabase, user.id, ctx.today);
-  const todayKcal = applyKcalDelta(
+  // Over is measured against what the user actually sees for the source
+  // day: the base target minus any reduction earlier balances put on it.
+  const sourceDelta = await fetchDayDelta(supabase, user.id, sourceDate);
+  const sourceKcal = applyKcalDelta(
     {
       kcal: dayTargets.kcal.value,
       proteinG: dayTargets.proteinG.value,
       carbsG: dayTargets.carbsG.value,
       fatG: dayTargets.fatG.value,
     },
-    todayDelta,
+    sourceDelta,
     floorKcal,
   ).kcal;
 
-  const overage = Math.round(eatenKcal - todayKcal);
+  const overage = Math.round(eatenKcal - sourceKcal);
   if (overage <= 0) {
-    return NextResponse.json({ error: "You're not over target today." }, { status: 400 });
+    return NextResponse.json(
+      {
+        error:
+          sourceDate === ctx.today
+            ? "You're not over target today."
+            : "Last night stayed within its target.",
+      },
+      { status: 400 },
+    );
   }
 
   // Capacity already used on the remaining days by OTHER balances this
-  // week; today's own earlier spread is being replaced, so it's excluded.
-  const dates = remainingWeekDates(ctx.today);
+  // week; the source day's own earlier spread is being replaced, so it's
+  // excluded. For a yesterday source the remaining days include today.
+  const dates = remainingWeekDates(sourceDate);
   const existingReductionByDate: Record<string, number> = {};
   if (dates.length > 0) {
     const { data: existing } = await supabase
@@ -61,7 +78,7 @@ async function post(request: Request): Promise<Response> {
       .eq("user_id", user.id)
       .in("date", dates);
     for (const row of existing ?? []) {
-      if (row.source_date === ctx.today) continue;
+      if (row.source_date === sourceDate) continue;
       existingReductionByDate[row.date] =
         (existingReductionByDate[row.date] ?? 0) + Math.max(0, -Number(row.kcal_delta));
     }
@@ -69,7 +86,7 @@ async function post(request: Request): Promise<Response> {
 
   const plan = planSpread({
     overageKcal: overage,
-    sourceDate: ctx.today,
+    sourceDate,
     targetKcal: dayTargets.kcal.value,
     floorKcal,
     existingReductionByDate,
@@ -79,7 +96,7 @@ async function post(request: Request): Promise<Response> {
     .from("day_adjustments")
     .delete()
     .eq("user_id", user.id)
-    .eq("source_date", ctx.today);
+    .eq("source_date", sourceDate);
   if (clearError) {
     return NextResponse.json({ error: "Couldn't update your balance." }, { status: 500 });
   }
@@ -90,7 +107,7 @@ async function post(request: Request): Promise<Response> {
         user_id: user.id,
         date: d.date,
         kcal_delta: d.deltaKcal,
-        source_date: ctx.today,
+        source_date: sourceDate,
       })),
     );
     if (insertError) {
