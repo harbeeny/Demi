@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { apiFetch } from "@/lib/api";
 import { targets, type ProfileInput } from "@/lib/nutrition";
-import { formatFtIn, inchesToCm, lbPerWeekToKgPerWeek, lbsToKg } from "@/lib/units";
+import { CM_PER_INCH, kgToLbs, lbPerWeekToKgPerWeek, lbsToKg } from "@/lib/units";
 import { WheelPicker } from "@/components/onboarding/WheelPicker";
 import type { ActivityLevel, Budget, CookingSkill, Goal, Sex } from "@/lib/supabase/types";
 
@@ -16,8 +16,12 @@ type Answers = {
   dobMonth: number; // 0-11
   dobDay: number; // 1-31
   dobYear: number;
-  heightInches: number;
-  weightLbs: number;
+  /** canonical height in whole centimeters; the ft-in wheel converts at the edge */
+  heightCm: number;
+  heightUnit: "ft_in" | "cm";
+  /** free-text so the field can start empty like a scale readout */
+  weight: string;
+  weightUnit: "lbs" | "kg";
   goal: Goal | null;
   /** stored in lb/week for display; converted to kg/week on save */
   goalRateLb: number | null;
@@ -39,8 +43,10 @@ const INITIAL: Answers = {
   dobMonth: 0,
   dobDay: 1,
   dobYear: 1995,
-  heightInches: 68, // 5'8"
-  weightLbs: 165,
+  heightCm: 173, // 5'8"
+  heightUnit: "ft_in",
+  weight: "",
+  weightUnit: "lbs",
   goal: null,
   goalRateLb: null,
   activityLevel: null,
@@ -111,8 +117,21 @@ function ageFromDob(year: number, month: number, day: number): number {
 
 /** 4'0" to 7'6" in 1 inch steps */
 const HEIGHT_OPTIONS = Array.from({ length: 43 }, (_, i) => i + 48);
-/** 80-400 lbs in 1 lb steps */
-const WEIGHT_OPTIONS = Array.from({ length: 321 }, (_, i) => i + 80);
+/** 122-229 cm, the same span as the ft-in wheel */
+const CM_OPTIONS = Array.from({ length: 108 }, (_, i) => i + 122);
+
+/** 71 -> "5 ft 11 in" */
+function formatFtInWords(totalInches: number): string {
+  return `${Math.floor(totalInches / 12)} ft ${totalInches % 12} in`;
+}
+
+/** Same bounds as the old 80-400 lb wheel, expressed per unit. */
+function isValidWeight(weight: string, unit: "lbs" | "kg"): boolean {
+  if (!weight.trim()) return false;
+  const n = Number(weight);
+  if (!Number.isFinite(n)) return false;
+  return unit === "lbs" ? n >= 80 && n <= 400 : n >= 36 && n <= 181;
+}
 
 /** 8 -> "8:00 am", 20 -> "8:00 pm" */
 function hourLabel(h: number): string {
@@ -156,7 +175,8 @@ export default function OnboardingPage() {
         const age = ageFromDob(answers.dobYear, answers.dobMonth, answers.dobDay);
         return age >= 13 && age <= 120;
       }
-      // 2 (height) and 3 (weight) are wheel-constrained, always valid
+      // 2 (height) is wheel-constrained, always valid
+      case 3: return isValidWeight(answers.weight, answers.weightUnit);
       case 4: return answers.goal !== null;
       case 5: return answers.activityLevel !== null;
       default: return true; // remaining steps are optional / have defaults
@@ -165,11 +185,15 @@ export default function OnboardingPage() {
 
   const profile: ProfileInput | null = useMemo(() => {
     if (!answers.sex || !answers.goal || !answers.activityLevel) return null;
+    if (!isValidWeight(answers.weight, answers.weightUnit)) return null;
     return {
       sex: answers.sex,
       age: ageFromDob(answers.dobYear, answers.dobMonth, answers.dobDay),
-      heightCm: inchesToCm(answers.heightInches),
-      weightKg: lbsToKg(answers.weightLbs),
+      heightCm: answers.heightCm,
+      weightKg:
+        answers.weightUnit === "lbs"
+          ? lbsToKg(Number(answers.weight))
+          : Number(Number(answers.weight).toFixed(1)),
       goal: answers.goal,
       goalRate: answers.goalRateLb === null ? null : lbPerWeekToKgPerWeek(answers.goalRateLb),
       activityLevel: answers.activityLevel,
@@ -265,10 +289,23 @@ export default function OnboardingPage() {
     switch (step) {
       case 0:
         return (
-          <Question title="What sex should we use for your metabolism math?" hint="This drives the BMR equation, nothing else.">
-            {(["male", "female", "other"] as const).map((s) => (
-              <button key={s} className={choiceButton(answers.sex === s)} onClick={() => set("sex", s)}>
-                {s === "male" ? "Male" : s === "female" ? "Female" : "Other / prefer not to say"}
+          <Question title="What is your sex?" hint="This drives the BMR equation, nothing else.">
+            {([
+              { value: "female", label: "Female", icon: "♀" },
+              { value: "male", label: "Male", icon: "♂" },
+            ] as const).map((s) => (
+              <button
+                key={s.value}
+                className={`${choiceButton(answers.sex === s.value)} flex items-center gap-4 py-6`}
+                onClick={() => set("sex", s.value)}
+              >
+                <span
+                  aria-hidden
+                  className={`text-2xl ${answers.sex === s.value ? "text-white/80" : "text-[#829084]"}`}
+                >
+                  {s.icon}
+                </span>
+                <span className="font-medium">{s.label}</span>
               </button>
             ))}
           </Question>
@@ -316,37 +353,100 @@ export default function OnboardingPage() {
             </div>
           </div>
         );
-      case 2:
+      case 2: {
+        const ftIn = answers.heightUnit === "ft_in";
         return (
-          <Question title="How tall are you?" hint="Scroll the wheel; each tick is one inch.">
-            <div className="flex items-center justify-center rounded-2xl bg-white py-2 shadow-sm">
-              <WheelPicker
-                key="height"
-                values={HEIGHT_OPTIONS}
-                value={answers.heightInches}
-                onChange={(v) => set("heightInches", v)}
-                ariaLabel="Height in feet and inches"
-                format={formatFtIn}
-              />
+          <div className="flex flex-1 flex-col">
+            <h1 className="text-2xl font-semibold text-[#2c3a2e]">What is your height?</h1>
+            <p className="mt-1 text-sm text-[#829084]">It helps size your calorie and macro targets.</p>
+            <div className="mt-5 flex rounded-2xl border border-[#dce3d7] bg-white p-1" role="tablist" aria-label="Height units">
+              {([
+                { value: "ft_in", label: "Feet and inches" },
+                { value: "cm", label: "Centimeters" },
+              ] as const).map((u) => (
+                <button
+                  key={u.value}
+                  role="tab"
+                  aria-selected={answers.heightUnit === u.value}
+                  className={`press flex-1 rounded-xl py-2.5 text-sm font-medium ${
+                    answers.heightUnit === u.value ? "bg-[#2c3a2e] text-white" : "text-[#2c3a2e]"
+                  }`}
+                  onClick={() => set("heightUnit", u.value)}
+                >
+                  {u.label}
+                </button>
+              ))}
             </div>
+            <div className="flex flex-1 items-center justify-center">
+              {ftIn ? (
+                <WheelPicker
+                  key="height-ftin"
+                  values={HEIGHT_OPTIONS}
+                  value={Math.round(answers.heightCm / CM_PER_INCH)}
+                  onChange={(v) => set("heightCm", Math.round(v * CM_PER_INCH))}
+                  ariaLabel="Height in feet and inches"
+                  format={formatFtInWords}
+                  itemWidth={150}
+                  indicator="pill"
+                />
+              ) : (
+                <WheelPicker
+                  key="height-cm"
+                  values={CM_OPTIONS}
+                  value={answers.heightCm}
+                  onChange={(v) => set("heightCm", v)}
+                  ariaLabel="Height in centimeters"
+                  format={(v) => `${v} cm`}
+                  itemWidth={120}
+                  indicator="pill"
+                />
+              )}
+            </div>
+          </div>
+        );
+      }
+      case 3: {
+        const valid = isValidWeight(answers.weight, answers.weightUnit);
+        return (
+          <Question title="What is your weight?" hint="Weigh at the same time each day, ideally in the morning.">
+            <label htmlFor="weight" className="block pt-2 text-sm font-medium text-[#2c3a2e]">
+              Current weight
+            </label>
+            <div className="flex gap-2">
+              <input
+                id="weight"
+                type="text"
+                inputMode="decimal"
+                className={`${numberInput} flex-1`}
+                placeholder={answers.weightUnit === "lbs" ? "165" : "75"}
+                value={answers.weight}
+                onChange={(e) => set("weight", e.target.value)}
+              />
+              <select
+                aria-label="Weight unit"
+                className="rounded-2xl border border-[#dce3d7] bg-white px-4 py-3 text-lg text-[#2c3a2e]"
+                value={answers.weightUnit}
+                onChange={(e) => {
+                  const unit = e.target.value as "lbs" | "kg";
+                  if (unit === answers.weightUnit) return;
+                  // carry a valid number across the unit switch (165 lbs -> 74.8 kg)
+                  setAnswers((a) => ({
+                    ...a,
+                    weightUnit: unit,
+                    weight: isValidWeight(a.weight, a.weightUnit)
+                      ? String(unit === "kg" ? lbsToKg(Number(a.weight)) : kgToLbs(Number(a.weight)))
+                      : a.weight,
+                  }));
+                }}
+              >
+                <option value="lbs">lbs</option>
+                <option value="kg">kg</option>
+              </select>
+            </div>
+            {!valid && <p className="text-sm text-[#829084]">Enter a valid weight</p>}
           </Question>
         );
-      case 3:
-        return (
-          <Question title="What do you weigh right now?" hint="Slide left or right. A morning weigh-in is most consistent.">
-            <div className="rounded-2xl bg-white py-3 shadow-sm">
-              <WheelPicker
-                key="weight"
-                values={WEIGHT_OPTIONS}
-                value={answers.weightLbs}
-                onChange={(v) => set("weightLbs", v)}
-                label="lbs"
-                ariaLabel="Weight in pounds"
-                orientation="horizontal"
-              />
-            </div>
-          </Question>
-        );
+      }
       case 4:
         return (
           <Question title="What's the goal?" hint="You can change this anytime.">
