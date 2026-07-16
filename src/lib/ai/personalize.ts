@@ -51,16 +51,16 @@ export function deterministicFallback(selected: SelectedMeal[], targets: MacroTa
 }
 
 /**
- * Ask the LLM to explain the plan. The LLM cannot alter it: output is
- * validated so every meal id must match the selected set exactly, and any
- * failure falls back to deterministic copy.
+ * The exact prompt payload personalize() sends. Exported so the phrasing
+ * cache can key on it: identical payload means identical prompt, so the
+ * cached copy is exactly what the model would have been asked to write.
  */
-export async function personalize(
+export function buildPersonalizePayload(
   selected: SelectedMeal[],
   targets: MacroTargets,
   profile: ProfileInput,
-): Promise<PersonalizedPlan> {
-  const payload = {
+) {
+  return {
     profile: {
       goal: profile.goal,
       activityLevel: profile.activityLevel,
@@ -84,6 +84,19 @@ export async function personalize(
       fatG: Number(s.meal.fat_g),
     })),
   };
+}
+
+/**
+ * Ask the LLM to explain the plan. The LLM cannot alter it: output is
+ * validated so every meal id must match the selected set exactly, and any
+ * failure falls back to deterministic copy.
+ */
+export async function personalize(
+  selected: SelectedMeal[],
+  targets: MacroTargets,
+  profile: ProfileInput,
+): Promise<PersonalizedPlan> {
+  const payload = buildPersonalizePayload(selected, targets, profile);
 
   try {
     const raw = await getAIProvider().chat({

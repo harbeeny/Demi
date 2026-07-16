@@ -4,7 +4,14 @@ import type { Database, MealPlanEntry } from "@/lib/supabase/types";
 import { calorieFloor, distribute, targets } from "@/lib/nutrition";
 import { applyKcalDeltaToTargets } from "@/lib/log/balance";
 import { selectMeals, type Meal, type SelectionPrefs } from "./select-meals";
-import { deterministicFallback, personalize, type PersonalizedPlan } from "@/lib/ai/personalize";
+import { createHash } from "node:crypto";
+
+import {
+  buildPersonalizePayload,
+  deterministicFallback,
+  personalize,
+  type PersonalizedPlan,
+} from "@/lib/ai/personalize";
 
 type OnboardingRow = Database["public"]["Tables"]["onboarding_answers"]["Row"];
 
@@ -35,6 +42,12 @@ export interface GeneratedPlan {
  * explanation. The LLM never chooses macros; it only explains what the
  * deterministic engine picked from the curated database.
  */
+/** Phrasing-cache hooks; the key is a hash of the exact prompt payload. */
+export interface PhrasingCache {
+  load(key: string): Promise<PersonalizedPlan | null>;
+  save(key: string, plan: PersonalizedPlan): Promise<void>;
+}
+
 export interface GenerateOptions {
   /** hard cap on prep_min + cook_min for eligible meals */
   maxPrepMin?: number;
@@ -42,6 +55,13 @@ export interface GenerateOptions {
   personalizeWithLLM?: boolean;
   /** day_adjustments sum for this date (weekly balancing); floors still apply */
   kcalDelta?: number;
+  /** reuse identical phrasing instead of re-billing the model for it */
+  phrasingCache?: PhrasingCache;
+}
+
+/** Stable content hash of the personalize prompt payload. */
+export function phrasingCacheKey(payload: unknown): string {
+  return createHash("sha256").update(JSON.stringify(payload)).digest("hex");
 }
 
 export async function generatePlan(
@@ -60,10 +80,28 @@ export async function generatePlan(
   const slotTargets = distribute(dayTargets, profile, today);
   const prefs = { ...prefsFromRow(row), maxPrepMin: opts.maxPrepMin };
   const selected = selectMeals(allMeals, slotTargets, prefs, recentlyUsedIds);
+
+  // Same meals + targets + profile = the same prompt, so cached copy is
+  // byte-equivalent to what the model would be asked to produce. Cache
+  // problems must never break generation; they only cost a model call.
+  const cacheKey =
+    opts.personalizeWithLLM !== false && opts.phrasingCache
+      ? phrasingCacheKey(buildPersonalizePayload(selected, dayTargets, profile))
+      : null;
+  let cached: PersonalizedPlan | null = null;
+  if (cacheKey && opts.phrasingCache) {
+    cached = await opts.phrasingCache.load(cacheKey).catch(() => null);
+  }
+
   const rationale =
     opts.personalizeWithLLM === false
       ? deterministicFallback(selected, dayTargets)
-      : await personalize(selected, dayTargets, profile);
+      : (cached ?? (await personalize(selected, dayTargets, profile)));
+
+  // Only real model output is worth keeping (fallback copy is free).
+  if (cacheKey && opts.phrasingCache && !cached && !rationale.fallbackUsed) {
+    await opts.phrasingCache.save(cacheKey, rationale).catch(() => undefined);
+  }
 
   const whyById = new Map(rationale.meals.map((m) => [m.mealId, m.why]));
 

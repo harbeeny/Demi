@@ -446,6 +446,78 @@ export interface Database {
         };
         Relationships: [];
       };
+      usage_events: {
+        Row: {
+          id: string;
+          user_id: string;
+          kind: string;
+          model: string;
+          input_tokens: number;
+          output_tokens: number;
+          est_cost_usd: number;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          user_id: string;
+          kind: string;
+          model: string;
+          input_tokens: number;
+          output_tokens: number;
+          est_cost_usd: number;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          user_id?: string;
+          kind?: string;
+          model?: string;
+          input_tokens?: number;
+          output_tokens?: number;
+          est_cost_usd?: number;
+          created_at?: string;
+        };
+        Relationships: [];
+      };
+      app_config: {
+        Row: {
+          key: string;
+          value: Json;
+          updated_at: string;
+        };
+        Insert: {
+          key: string;
+          value: Json;
+          updated_at?: string;
+        };
+        Update: {
+          key?: string;
+          value?: Json;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
+      plan_cache: {
+        Row: {
+          user_id: string;
+          key: string;
+          payload: Json;
+          created_at: string;
+        };
+        Insert: {
+          user_id: string;
+          key: string;
+          payload: Json;
+          created_at?: string;
+        };
+        Update: {
+          user_id?: string;
+          key?: string;
+          payload?: Json;
+          created_at?: string;
+        };
+        Relationships: [];
+      };
       day_adjustments: {
         Row: {
           id: string;

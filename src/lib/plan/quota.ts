@@ -44,3 +44,34 @@ export function quotaExceeded(bucket: QuotaBucket): NextResponse {
       : "You've reached today's limit for generated suggestions. It resets tomorrow.";
   return NextResponse.json({ error: message }, { status: 429 });
 }
+
+// Global kill switch: app_config.llm_disabled = true stops every model call
+// app-wide, instantly, without a deploy (flip it via SQL as the operator).
+// Memoized per instance so hot paths don't pay a query per request; fails
+// OPEN on read errors because the per-user caps still bound the damage and
+// a config blip should never take the product down.
+const KILL_SWITCH_TTL_MS = 30_000;
+let killSwitchCache: { value: boolean; readAt: number } | null = null;
+
+export async function llmEnabled(supabase: SupabaseClient<Database>): Promise<boolean> {
+  const now = Date.now();
+  if (killSwitchCache && now - killSwitchCache.readAt < KILL_SWITCH_TTL_MS) {
+    return !killSwitchCache.value;
+  }
+  const { data, error } = await supabase
+    .from("app_config")
+    .select("value")
+    .eq("key", "llm_disabled")
+    .single();
+  const disabled = !error && data?.value === true;
+  killSwitchCache = { value: disabled, readAt: now };
+  return !disabled;
+}
+
+/** 503 for LLM-only endpoints while the kill switch is on. */
+export function llmDisabledResponse(): NextResponse {
+  return NextResponse.json(
+    { error: "AI suggestions are taking a short break. Everything else still works." },
+    { status: 503 },
+  );
+}

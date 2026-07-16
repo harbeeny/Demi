@@ -1,5 +1,6 @@
 import "server-only";
 
+import { recordUsage } from "./meter";
 import type { AIMessage, AIProvider } from "./types";
 
 const API_URL = "https://api.anthropic.com/v1/messages";
@@ -48,7 +49,16 @@ export class AnthropicProvider implements AIProvider {
       throw new Error(`Anthropic API error ${res.status}: ${body.slice(0, 300)}`);
     }
 
-    const data = (await res.json()) as { content: Array<{ type: string; text?: string }> };
+    const data = (await res.json()) as {
+      content: Array<{ type: string; text?: string }>;
+      usage?: { input_tokens?: number; output_tokens?: number };
+    };
+    // Spend visibility: report token usage to the ambient request meter
+    // (no-op when a route didn't attach one).
+    recordUsage(this.model, {
+      inputTokens: data.usage?.input_tokens ?? 0,
+      outputTokens: data.usage?.output_tokens ?? 0,
+    });
     return data.content
       .filter((block) => block.type === "text")
       .map((block) => block.text ?? "")
