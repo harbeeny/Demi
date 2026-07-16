@@ -21,57 +21,26 @@ export function timeLabel(timeHour: number): string {
   return formatTimeHour(timeHour, device24HourClock());
 }
 
+// Renders only unconfirmed suggestions: once eaten, MealSection collapses
+// the suggestion into its logged row (which owns Undo), so this card has
+// no logged state.
 interface Props {
   meal: TodayMeal;
-  /** id of this slot's log row when the user has confirmed eating it */
-  loggedId: string | null;
   busy: string | null;
   /** section already names the slot and time, so the card header hides */
   compact?: boolean;
   onConfirm: (slotIndex: number) => void;
-  onUndo: (logId: string) => void;
   onSwap: (slotIndex: number) => void;
   onRecipe: (recipe: NonNullable<TodayMeal["recipe"]>, slotIndex: number) => void;
 }
 
-export function MealCard({ meal, loggedId, busy, compact = false, onConfirm, onUndo, onSwap, onRecipe }: Props) {
-  const logged = loggedId !== null;
-
+export function MealCard({ meal, busy, compact = false, onConfirm, onSwap, onRecipe }: Props) {
   return (
-    <article
-      className={`relative rounded-3xl bg-white p-4 shadow-sm ${
-        logged ? "border-l-4 border-[#d3e29f]" : ""
-      }`}
-    >
-      <div className="flex items-baseline justify-between">
-        <span className="text-xs font-medium uppercase tracking-wide text-[#829084]">
-          {compact ? "Suggested" : `${meal.slot} · ${timeLabel(meal.timeHour)}`}
-        </span>
-        <span className="flex gap-3">
-          {meal.recipe && meal.recipe.instructions.length > 0 && (
-            <button
-              onClick={() => onRecipe(meal.recipe!, meal.slotIndex)}
-              disabled={busy !== null}
-              className="text-xs text-[#7a9a4e] underline-offset-2 hover:underline disabled:opacity-50"
-            >
-              Recipe
-            </button>
-          )}
-          {!logged && (
-            <button
-              onClick={() => onSwap(meal.slotIndex)}
-              disabled={busy !== null}
-              className="text-xs text-[#7a9a4e] underline-offset-2 hover:underline disabled:opacity-50"
-            >
-              {busy === `swap-${meal.slotIndex}` ? "Swapping..." : "Swap"}
-            </button>
-          )}
-        </span>
-      </div>
-      <h2 className="mt-1 font-medium text-[#2c3a2e]">
-        {logged && <span aria-hidden className="mr-1 text-[#7a9a4e]">✓</span>}
-        {meal.name}
-      </h2>
+    <article className="relative rounded-3xl bg-white p-4 shadow-sm">
+      <span className="block text-xs font-medium uppercase tracking-wide text-[#829084]">
+        {compact ? "Suggested" : `${meal.slot} · ${timeLabel(meal.timeHour)}`}
+      </span>
+      <h2 className="mt-1 font-medium text-[#2c3a2e]">{meal.name}</h2>
       <div className="mt-2 flex gap-3 text-xs text-[#5d6b5f]">
         <span>{Math.round(meal.kcal)} kcal</span>
         <span>P {Math.round(meal.proteinG)}g</span>
@@ -79,27 +48,33 @@ export function MealCard({ meal, loggedId, busy, compact = false, onConfirm, onU
         <span>F {Math.round(meal.fatG)}g</span>
       </div>
       {meal.why && <p className="mt-2 text-sm leading-5 text-[#5d6b5f]">{meal.why}</p>}
-      <div className="mt-3">
-        {logged ? (
-          <div className="flex items-center gap-3">
-            <span className="text-sm text-[#5d6b5f]">Logged</span>
-            <button
-              onClick={() => onUndo(loggedId)}
-              disabled={busy !== null}
-              className="text-xs text-[#829084] underline-offset-2 hover:underline disabled:opacity-50"
-            >
-              Undo
-            </button>
-          </div>
-        ) : (
+      {/* One action row, one control vocabulary: quiet pills lead, the
+          primary holds the right edge. The old header text links read as
+          tags, not controls. */}
+      <div className="mt-3 flex flex-wrap items-center gap-2">
+        {meal.recipe && meal.recipe.instructions.length > 0 && (
           <button
-            onClick={() => onConfirm(meal.slotIndex)}
+            onClick={() => onRecipe(meal.recipe!, meal.slotIndex)}
             disabled={busy !== null}
-            className="press rounded-full border border-[#dce3d7] bg-white px-4 py-2 text-sm text-[#2c3a2e] hover:border-[#8aa06f] disabled:opacity-50"
+            className="press rounded-full border border-[#dce3d7] bg-white px-3 py-2 text-xs text-[#2c3a2e] hover:border-[#8aa06f] disabled:opacity-50"
           >
-            {busy === `log-${meal.slotIndex}` ? "Logging..." : "I ate this"}
+            Recipe
           </button>
         )}
+        <button
+          onClick={() => onSwap(meal.slotIndex)}
+          disabled={busy !== null}
+          className="press rounded-full border border-[#dce3d7] bg-white px-3 py-2 text-xs text-[#2c3a2e] hover:border-[#8aa06f] disabled:opacity-50"
+        >
+          {busy === `swap-${meal.slotIndex}` ? "Swapping..." : "Swap"}
+        </button>
+        <button
+          onClick={() => onConfirm(meal.slotIndex)}
+          disabled={busy !== null}
+          className="press ml-auto rounded-full border border-[#dce3d7] bg-white px-4 py-2 text-sm text-[#2c3a2e] hover:border-[#8aa06f] disabled:opacity-50"
+        >
+          {busy === `log-${meal.slotIndex}` ? "Logging..." : "I ate this"}
+        </button>
       </div>
     </article>
   );

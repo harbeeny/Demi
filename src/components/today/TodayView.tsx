@@ -698,11 +698,9 @@ function MealSection({
           <MealCard
             key={meal.slotIndex}
             meal={meal}
-            loggedId={null}
             compact
             busy={busy}
             onConfirm={onConfirm}
-            onUndo={onUndo}
             onSwap={onSwap}
             onRecipe={onRecipe}
           />
