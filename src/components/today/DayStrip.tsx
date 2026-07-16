@@ -48,19 +48,24 @@ export function DayStrip({ week, targetKcal, selectedDate, onSelect }: Props) {
                   stroke="#dce3d7"
                   strokeWidth="3"
                 />
-                {progress > 0 && (
-                  <circle
-                    cx="18"
-                    cy="18"
-                    r={RADIUS}
-                    fill="none"
-                    stroke={selected ? "#d3e29f" : "#8aa06f"}
-                    strokeWidth="3"
-                    strokeLinecap="round"
-                    strokeDasharray={`${progress * CIRCUMFERENCE} ${CIRCUMFERENCE}`}
-                    transform="rotate(-90 18 18)"
-                  />
-                )}
+                {/* Always mounted so today's arc grows when a log lands;
+                    only the dash length transitions — the selection color
+                    snaps together with the pill's fill flip. */}
+                <circle
+                  cx="18"
+                  cy="18"
+                  r={RADIUS}
+                  fill="none"
+                  stroke={selected ? "#d3e29f" : "#8aa06f"}
+                  strokeWidth="3"
+                  strokeLinecap="round"
+                  transform="rotate(-90 18 18)"
+                  className="transition-[stroke-dasharray] duration-700 ease-[cubic-bezier(0.16,1,0.3,1)] motion-reduce:transition-none"
+                  style={{
+                    strokeDasharray: `${progress * CIRCUMFERENCE} ${CIRCUMFERENCE}`,
+                    opacity: progress > 0 ? 1 : 0,
+                  }}
+                />
               </svg>
               <span
                 className={`absolute text-[11px] font-medium ${

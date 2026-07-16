@@ -30,19 +30,21 @@ function Ring({
   return (
     <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} aria-hidden="true">
       <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="#e6ebe0" strokeWidth={stroke} />
-      {filled > 0 && (
-        <circle
-          cx={size / 2}
-          cy={size / 2}
-          r={r}
-          fill="none"
-          stroke={color}
-          strokeWidth={stroke}
-          strokeLinecap="round"
-          strokeDasharray={`${filled * c} ${c}`}
-          transform={`rotate(-90 ${size / 2} ${size / 2})`}
-        />
-      )}
+      {/* Always mounted so value changes transition (the arc grows when a
+          log lands); a fresh mount would jump straight to the new value.
+          Opacity hides the dot a zero-length round-cap dash would paint. */}
+      <circle
+        cx={size / 2}
+        cy={size / 2}
+        r={r}
+        fill="none"
+        stroke={color}
+        strokeWidth={stroke}
+        strokeLinecap="round"
+        transform={`rotate(-90 ${size / 2} ${size / 2})`}
+        className="transition-[stroke-dasharray,stroke] duration-700 ease-[cubic-bezier(0.16,1,0.3,1)] motion-reduce:transition-none"
+        style={{ strokeDasharray: `${filled * c} ${c}`, opacity: filled > 0 ? 1 : 0 }}
+      />
     </svg>
   );
 }

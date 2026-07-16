@@ -13,7 +13,7 @@ import { MacroSummary } from "./MacroSummary";
 import { MealCard, timeLabel, type TodayMeal } from "./MealCard";
 import { LogSheet, type SearchMeal } from "./LogSheet";
 import { VerifiedBadge, type FdcLogFields } from "./FoodSearch";
-import { tapHaptic } from "@/lib/haptics";
+import { successHaptic, tapHaptic } from "@/lib/haptics";
 import { SLOT_LABELS, SLOT_ORDER } from "@/lib/log/slots";
 import type { MealSlot } from "@/lib/supabase/types";
 import { SummaryCard, type DaySummary } from "./SummaryCard";
@@ -137,8 +137,13 @@ export function TodayView({ hasPlan, daySummary, meals, targets, logs, summary, 
       `swap-${slotIndex}`,
     );
 
-  const logPlanned = (slotIndex: number) =>
-    post("/api/log", { source: "planned", slotIndex }, `log-${slotIndex}`);
+  const logPlanned = async (slotIndex: number) => {
+    const ok = await post("/api/log", { source: "planned", slotIndex }, `log-${slotIndex}`);
+    // Fires as the reloaded totals land, so the buzz and the rings growing
+    // read as one confirmation.
+    if (ok) successHaptic();
+    return ok;
+  };
   const unlog = (logId: string) =>
     callApi(
       "/api/log",
