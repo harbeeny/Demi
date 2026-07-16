@@ -50,9 +50,13 @@ export function useTodayData(viewDate?: string | null): {
   const [data, setData] = useState<TodayData | null>(null);
   const reload = useCallback(async () => {
     const supabase = createClient();
+    // getSession reads the locally persisted session; getUser is a network
+    // round trip that can race session restoration on a cold shell launch
+    // and bounce a signed-in user to the landing page.
     const {
-      data: { user },
-    } = await supabase.auth.getUser();
+      data: { session },
+    } = await supabase.auth.getSession();
+    const user = session?.user;
     if (!user) {
       router.replace("/login");
       return;

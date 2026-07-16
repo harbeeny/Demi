@@ -46,11 +46,17 @@ interface Props {
   isToday: boolean;
   streak: number;
   week: Array<{ date: string; kcal: number }>;
+  /**
+   * Switch the viewed day in place (null = today). State-driven on purpose:
+   * a location change would reload the whole shell, flashing the UI and
+   * racing auth restoration on every tap.
+   */
+  onSelectDate: (date: string | null) => void;
   /** re-runs the client data queries after a mutation (replaces router.refresh) */
   onMutated: () => Promise<void>;
 }
 
-export function TodayView({ hasPlan, daySummary, meals, targets, logs, summary, searchMeals, viewedDate, isToday, streak, week, onMutated }: Props) {
+export function TodayView({ hasPlan, daySummary, meals, targets, logs, summary, searchMeals, viewedDate, isToday, streak, week, onSelectDate, onMutated }: Props) {
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
@@ -257,13 +263,13 @@ export function TodayView({ hasPlan, daySummary, meals, targets, logs, summary, 
         selectedDate={viewedDate}
         onSelect={(d) => {
           const today = week[week.length - 1]?.date;
-          window.location.assign(d === today ? "/today" : `/today?date=${d}`);
+          onSelectDate(d === today ? null : d);
         }}
       />
 
       {!isToday && (
         <button
-          onClick={() => window.location.assign("/today")}
+          onClick={() => onSelectDate(null)}
           className="mb-4 text-xs text-[#7a9a4e] underline-offset-2 hover:underline"
         >
           Back to today
