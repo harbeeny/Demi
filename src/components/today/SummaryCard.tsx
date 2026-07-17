@@ -33,25 +33,25 @@ export function SummaryCard({ logsCount, summary, planned, actual, busy, onFinis
 
   if (summary) {
     return (
-      <section className="mt-6 rounded-3xl bg-white p-5 shadow-sm">
-        <h2 className="text-lg font-semibold text-[#2c3a2e]">Your day</h2>
-        <div className="mt-3 space-y-1 text-sm text-[#5d6b5f]">
+      <section className="mt-6 rounded-3xl bg-(--surface) p-5 shadow-sm">
+        <h2 className="text-lg font-semibold text-(--ink)">Your day</h2>
+        <div className="mt-3 space-y-1 text-sm text-(--ink-2)">
           <Row label="" a="Planned" b="Eaten" header />
           <Row label="kcal" a={planned ? String(Math.round(planned.kcal)) : "-"} b={String(Math.round(actual.kcal))} />
           <Row label="Protein" a={planned ? `${Math.round(planned.proteinG)} g` : "-"} b={`${Math.round(actual.proteinG)} g`} />
           <Row label="Carbs" a={planned ? `${Math.round(planned.carbsG)} g` : "-"} b={`${Math.round(actual.carbsG)} g`} />
           <Row label="Fat" a={planned ? `${Math.round(planned.fatG)} g` : "-"} b={`${Math.round(actual.fatG)} g`} />
         </div>
-        <p className="mt-4 rounded-2xl bg-[#e9efdd] p-4 text-sm leading-6 text-[#3c4a3e]">
+        <p className="mt-4 rounded-2xl bg-(--tint) p-4 text-sm leading-6 text-(--tint-ink)">
           {summary.reflection}
         </p>
-        <p className="mt-3 text-sm leading-6 text-[#2c3a2e]">
+        <p className="mt-3 text-sm leading-6 text-(--ink)">
           <span className="font-medium">One tweak for tomorrow:</span> {summary.tweak}
         </p>
         <button
           onClick={() => onFinish(summary.energy, "")}
           disabled={busy !== null}
-          className="mt-4 text-xs text-[#829084] underline-offset-2 hover:underline disabled:opacity-50"
+          className="mt-4 text-xs text-(--muted) underline-offset-2 hover:underline disabled:opacity-50"
         >
           {busy === "finish" ? "Updating..." : "Update summary"}
         </button>
@@ -60,12 +60,12 @@ export function SummaryCard({ logsCount, summary, planned, actual, busy, onFinis
   }
 
   return (
-    <section className="mt-6 rounded-3xl bg-white p-5 shadow-sm">
-      <h2 className="text-lg font-semibold text-[#2c3a2e]">Finish my day</h2>
-      <p className="mt-1 text-sm text-[#829084]">
+    <section className="mt-6 rounded-3xl bg-(--surface) p-5 shadow-sm">
+      <h2 className="text-lg font-semibold text-(--ink)">Finish my day</h2>
+      <p className="mt-1 text-sm text-(--muted)">
         A short recap of planned vs eaten, and one idea for tomorrow.
       </p>
-      <p className="mt-4 text-sm text-[#2c3a2e]">How was your energy today?</p>
+      <p className="mt-4 text-sm text-(--ink)">How was your energy today?</p>
       <div className="mt-2 flex gap-2" role="radiogroup" aria-label="Energy today, 1 to 5">
         {[1, 2, 3, 4, 5].map((n) => (
           <button
@@ -75,8 +75,8 @@ export function SummaryCard({ logsCount, summary, planned, actual, busy, onFinis
             onClick={() => setEnergy(energy === n ? null : n)}
             className={`press h-10 w-10 rounded-full border text-sm ${
               energy === n
-                ? "border-[#2c3a2e] bg-[#2c3a2e] text-white"
-                : "border-[#dce3d7] bg-white text-[#2c3a2e] hover:border-[#8aa06f]"
+                ? "border-(--ink) bg-(--ink) text-(--ink-contrast)"
+                : "border-(--border) bg-(--surface) text-(--ink) hover:border-(--accent)"
             }`}
           >
             {n}
@@ -85,7 +85,7 @@ export function SummaryCard({ logsCount, summary, planned, actual, busy, onFinis
       </div>
       <input
         type="text"
-        className="mt-3 w-full rounded-2xl border border-[#dce3d7] bg-white px-3 py-2 text-sm text-[#2c3a2e] outline-none focus:border-[#8aa06f]"
+        className="mt-3 w-full rounded-2xl border border-(--border) bg-(--surface) px-3 py-2 text-sm text-(--ink) outline-none focus:border-(--accent)"
         placeholder="Anything about today? (optional)"
         maxLength={500}
         value={note}
@@ -94,7 +94,7 @@ export function SummaryCard({ logsCount, summary, planned, actual, busy, onFinis
       <button
         onClick={() => onFinish(energy, note)}
         disabled={busy !== null}
-        className="press mt-4 w-full rounded-2xl bg-[#2c3a2e] px-5 py-3 font-medium text-white disabled:opacity-60"
+        className="press mt-4 w-full rounded-2xl bg-(--ink) px-5 py-3 font-medium text-(--ink-contrast) disabled:opacity-60"
       >
         {busy === "finish" ? "Wrapping up your day..." : "Finish my day"}
       </button>
@@ -104,7 +104,7 @@ export function SummaryCard({ logsCount, summary, planned, actual, busy, onFinis
 
 function Row({ label, a, b, header = false }: { label: string; a: string; b: string; header?: boolean }) {
   return (
-    <div className={`grid grid-cols-3 gap-2 ${header ? "text-xs uppercase tracking-wide text-[#829084]" : ""}`}>
+    <div className={`grid grid-cols-3 gap-2 ${header ? "text-xs uppercase tracking-wide text-(--muted)" : ""}`}>
       <span>{label}</span>
       <span className="text-right">{a}</span>
       <span className="text-right">{b}</span>

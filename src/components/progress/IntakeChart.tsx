@@ -16,7 +16,7 @@ const PAD = { top: 16, right: 6, bottom: 22, left: 34 };
  */
 export function IntakeChart({ days, targetKcal }: Props) {
   if (days.length === 0) {
-    return <p className="text-sm text-[#829084]">Days you log meals show up here.</p>;
+    return <p className="text-sm text-(--muted)">Days you log meals show up here.</p>;
   }
 
   const shown = days.slice(-14);
@@ -41,7 +41,7 @@ export function IntakeChart({ days, targetKcal }: Props) {
         const by = y(d.totalKcal);
         const h = Math.max(2, H - PAD.bottom - by);
         return (
-          <rect key={d.date} x={bx} y={by} width={barW} height={h} rx="3" fill="#7a9a4e">
+          <rect key={d.date} x={bx} y={by} width={barW} height={h} rx="3" fill="var(--accent-strong)">
             <title>{`${shortDate(d.date)}: ${Math.round(d.totalKcal)} kcal`}</title>
           </rect>
         );
@@ -52,17 +52,17 @@ export function IntakeChart({ days, targetKcal }: Props) {
         x2={W - PAD.right}
         y1={y(targetKcal)}
         y2={y(targetKcal)}
-        stroke="#829084"
+        stroke="var(--muted)"
         strokeWidth="1.5"
         strokeDasharray="4 3"
       />
-      <text x={PAD.left} y={y(targetKcal) - 4} fontSize="10" fill="#5d6b5f">
+      <text x={PAD.left} y={y(targetKcal) - 4} fontSize="10" fill="var(--ink-2)">
         target {targetKcal}
       </text>
-      <text x={PAD.left} y={H - 6} fontSize="10" fill="#829084">
+      <text x={PAD.left} y={H - 6} fontSize="10" fill="var(--muted)">
         {shortDate(shown[0].date)}
       </text>
-      <text x={W - PAD.right} y={H - 6} fontSize="10" fill="#829084" textAnchor="end">
+      <text x={W - PAD.right} y={H - 6} fontSize="10" fill="var(--muted)" textAnchor="end">
         {shortDate(shown[shown.length - 1].date)}
       </text>
     </svg>

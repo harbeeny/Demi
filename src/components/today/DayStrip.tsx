@@ -47,8 +47,8 @@ export function DayStrip({ week, selectedDate, onSelect }: Props) {
                   cx="18"
                   cy="18"
                   r={RADIUS}
-                  fill={selected ? "#2c3a2e" : goalMet ? "#eaf2dc" : "white"}
-                  stroke="#dce3d7"
+                  fill={selected ? "var(--ink)" : goalMet ? "var(--tint)" : "var(--surface)"}
+                  stroke="var(--border)"
                   strokeWidth="3"
                 />
                 {/* Always mounted so today's arc grows when a log lands;
@@ -59,7 +59,7 @@ export function DayStrip({ week, selectedDate, onSelect }: Props) {
                   cy="18"
                   r={RADIUS}
                   fill="none"
-                  stroke={selected ? "#d3e29f" : "#8aa06f"}
+                  stroke={selected ? "var(--accent-tint)" : "var(--accent)"}
                   strokeWidth="3"
                   strokeLinecap="round"
                   transform="rotate(-90 18 18)"
@@ -72,17 +72,17 @@ export function DayStrip({ week, selectedDate, onSelect }: Props) {
               </svg>
               <span
                 className={`absolute text-[11px] font-medium ${
-                  selected ? "text-white" : "text-[#2c3a2e]"
+                  selected ? "text-(--ink-contrast)" : "text-(--ink)"
                 }`}
               >
                 {dayInitial(d.date)}
               </span>
               {goalMet && (
                 <span
-                  className="pop-in absolute -right-0.5 -top-0.5 flex h-[14px] w-[14px] items-center justify-center rounded-full bg-[#7a9a4e] ring-2 ring-[#f4f6f2]"
+                  className="pop-in absolute -right-0.5 -top-0.5 flex h-[14px] w-[14px] items-center justify-center rounded-full bg-(--accent-strong) ring-2 ring-(--bg)"
                   aria-hidden="true"
                 >
-                  <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round">
+                  <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="var(--surface)" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round">
                     <polyline points="20 6 9 17 4 12" />
                   </svg>
                 </span>
@@ -92,7 +92,7 @@ export function DayStrip({ week, selectedDate, onSelect }: Props) {
                 never shift the row's layout. */}
             <span
               className={`w-6 text-center text-[11px] tabular-nums ${
-                selected ? "font-semibold text-[#2c3a2e]" : "text-[#829084]"
+                selected ? "font-semibold text-(--ink)" : "text-(--muted)"
               }`}
             >
               {dayNum}

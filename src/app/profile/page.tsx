@@ -11,6 +11,8 @@ import { cmToFtIn, formatFtIn, inchesToCm, kgToLbs, lbsToKg } from "@/lib/units"
 import { localDateISO } from "@/lib/dates";
 import type { ActivityLevel, Budget, CookingSkill, Goal } from "@/lib/supabase/types";
 import { TabBar } from "@/components/TabBar";
+import { applyThemeChoice, getThemeChoice, type ThemeChoice } from "@/lib/theme";
+import { tapHaptic } from "@/lib/haptics";
 
 const GOALS: Array<{ value: Goal; label: string }> = [
   { value: "lose_fat", label: "Lose body fat" },
@@ -35,6 +37,12 @@ const DIET_OPTIONS = ["vegetarian", "vegan", "pescatarian", "gluten_free"];
 const WEEKDAYS = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"];
 
 export default function ProfilePage() {
+  // Device-level theme choice; applied instantly and persisted locally.
+  const [theme, setTheme] = useState<ThemeChoice>("system");
+  useEffect(() => {
+    setTheme(getThemeChoice());
+  }, []);
+
   const router = useRouter();
   const [loading, setLoading] = useState(true);
   const [row, setRow] = useState<OnboardingRow | null>(null);
@@ -181,46 +189,46 @@ export default function ProfilePage() {
   const chip = (selected: boolean) =>
     `press rounded-full border px-4 py-2 text-sm ${
       selected
-        ? "border-[#2c3a2e] bg-[#2c3a2e] text-white"
-        : "border-[#dce3d7] bg-white text-[#2c3a2e] hover:border-[#8aa06f]"
+        ? "border-(--ink) bg-(--ink) text-(--ink-contrast)"
+        : "border-(--border) bg-(--surface) text-(--ink) hover:border-(--accent)"
     }`;
   const input =
-    "w-full rounded-2xl border border-[#dce3d7] bg-white px-3 py-2 text-sm text-[#2c3a2e] outline-none focus:border-[#8aa06f]";
+    "w-full rounded-2xl border border-(--border) bg-(--surface) px-3 py-2 text-sm text-(--ink) outline-none focus:border-(--accent)";
 
   if (loading) {
     return (
-      <main className="mx-auto w-full flex min-h-dvh max-w-md items-center justify-center bg-[#f4f6f2]">
-        <p className="animate-pulse text-[#2c3a2e]">Loading your profile...</p>
+      <main className="mx-auto w-full flex min-h-dvh max-w-md items-center justify-center bg-(--bg)">
+        <p className="animate-pulse text-(--ink)">Loading your profile...</p>
         <TabBar />
       </main>
     );
   }
 
   return (
-    <main className="mx-auto w-full min-h-dvh max-w-md bg-[#f4f6f2] px-5 pb-28 pt-8">
+    <main className="mx-auto w-full min-h-dvh max-w-md bg-(--bg) px-5 pb-28 pt-8">
       <header className="mb-6 flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <span className="flex h-9 w-9 items-center justify-center rounded-full bg-[#d3e29f] font-semibold text-[#2c3a2e]">D</span>
+          <span className="flex h-9 w-9 items-center justify-center rounded-full bg-(--accent-tint) font-semibold text-(--ink)">D</span>
           <div>
-            <h1 className="text-lg font-semibold leading-tight text-[#2c3a2e]">Profile</h1>
-            <p className="text-xs text-[#829084]">Daily target: {kcalNow} kcal</p>
+            <h1 className="text-lg font-semibold leading-tight text-(--ink)">Profile</h1>
+            <p className="text-xs text-(--muted)">Daily target: {kcalNow} kcal</p>
           </div>
         </div>
         <button
           onClick={signOut}
           disabled={busy !== null}
-          className="press rounded-full px-3 py-2 text-sm text-[#829084] hover:text-[#2c3a2e] disabled:opacity-50"
+          className="press rounded-full px-3 py-2 text-sm text-(--muted) hover:text-(--ink) disabled:opacity-50"
         >
           {busy === "signout" ? "Signing out..." : "Sign out"}
         </button>
       </header>
 
-      {error && <p className="mb-4 rounded-2xl bg-red-50 p-3 text-sm text-red-800">{error}</p>}
-      {notice && <p className="mb-4 rounded-2xl bg-[#e9efdd] p-3 text-sm text-[#3c4a3e]">{notice}</p>}
+      {error && <p className="mb-4 rounded-2xl bg-(--danger-bg) p-3 text-sm text-(--danger-ink)">{error}</p>}
+      {notice && <p className="mb-4 rounded-2xl bg-(--tint) p-3 text-sm text-(--tint-ink)">{notice}</p>}
 
-      <section className="space-y-4 rounded-3xl bg-white p-5 shadow-sm">
+      <section className="space-y-4 rounded-3xl bg-(--surface) p-5 shadow-sm">
         <div>
-          <p className="mb-2 text-sm font-medium text-[#2c3a2e]">Goal</p>
+          <p className="mb-2 text-sm font-medium text-(--ink)">Goal</p>
           <div className="flex flex-wrap gap-2">
             {GOALS.map((g) => (
               <button key={g.value} className={chip(goal === g.value)} onClick={() => { setGoal(g.value); setGoalRateLb(null); }}>
@@ -240,7 +248,7 @@ export default function ProfilePage() {
         </div>
 
         <div>
-          <p className="mb-2 text-sm font-medium text-[#2c3a2e]">Activity</p>
+          <p className="mb-2 text-sm font-medium text-(--ink)">Activity</p>
           <div className="flex flex-wrap gap-2">
             {ACTIVITY.map((a) => (
               <button key={a.value} className={chip(activity === a.value)} onClick={() => setActivity(a.value)}>
@@ -251,17 +259,17 @@ export default function ProfilePage() {
         </div>
 
         <div className="grid grid-cols-3 gap-2">
-          <label className="text-xs text-[#829084]">
+          <label className="text-xs text-(--muted)">
             Age
             <input type="number" min={13} max={120} className={`${input} mt-1`} value={age}
               onChange={(e) => setAge(Number(e.target.value))} />
           </label>
-          <label className="text-xs text-[#829084]">
+          <label className="text-xs text-(--muted)">
             Weight (lbs)
             <input type="number" min={80} max={400} className={`${input} mt-1`} value={weightLbs}
               onChange={(e) => setWeightLbs(Number(e.target.value))} />
           </label>
-          <label className="text-xs text-[#829084]">
+          <label className="text-xs text-(--muted)">
             Height ({formatFtIn(heightIn)})
             <input type="number" min={48} max={90} className={`${input} mt-1`} value={heightIn}
               onChange={(e) => setHeightIn(Number(e.target.value))} />
@@ -269,7 +277,7 @@ export default function ProfilePage() {
         </div>
 
         <div>
-          <p className="mb-2 text-sm font-medium text-[#2c3a2e]">Meals per day</p>
+          <p className="mb-2 text-sm font-medium text-(--ink)">Meals per day</p>
           <div className="flex gap-2">
             {[2, 3, 4, 5].map((n) => (
               <button key={n} className={chip(mealsPerDay === n)} onClick={() => setMealsPerDay(n)}>
@@ -280,7 +288,7 @@ export default function ProfilePage() {
         </div>
 
         <div>
-          <p className="mb-2 text-sm font-medium text-[#2c3a2e]">Eating pattern</p>
+          <p className="mb-2 text-sm font-medium text-(--ink)">Eating pattern</p>
           <div className="flex flex-wrap gap-2">
             {DIET_OPTIONS.map((d) => (
               <button key={d} className={chip(dietaryPrefs.includes(d))}
@@ -300,7 +308,7 @@ export default function ProfilePage() {
         </div>
 
         <div>
-          <p className="mb-2 text-sm font-medium text-[#2c3a2e]">Budget and cooking</p>
+          <p className="mb-2 text-sm font-medium text-(--ink)">Budget and cooking</p>
           <div className="flex flex-wrap gap-2">
             {(["low", "medium", "high"] as const).map((b) => (
               <button key={b} className={chip(budget === b)} onClick={() => setBudget(b)}>
@@ -318,7 +326,7 @@ export default function ProfilePage() {
         </div>
 
         <div>
-          <p className="mb-2 text-sm font-medium text-[#2c3a2e]">Training days</p>
+          <p className="mb-2 text-sm font-medium text-(--ink)">Training days</p>
           <div className="flex flex-wrap gap-2">
             {WEEKDAYS.map((d) => (
               <button key={d} className={chip(trainingDays.includes(d))}
@@ -336,28 +344,60 @@ export default function ProfilePage() {
         <button
           onClick={save}
           disabled={busy !== null}
-          className="press w-full rounded-2xl bg-[#2c3a2e] px-5 py-3 font-medium text-white disabled:opacity-60"
+          className="press w-full rounded-2xl bg-(--ink) px-5 py-3 font-medium text-(--ink-contrast) disabled:opacity-60"
         >
           {busy === "save" ? "Saving..." : "Save changes"}
         </button>
       </section>
 
-      <section className="mt-4 rounded-3xl bg-white p-5 shadow-sm">
-        <h2 className="mb-1 text-lg font-semibold text-[#2c3a2e]">Your data</h2>
-        <p className="text-sm leading-6 text-[#5d6b5f]">
+      <section className="mt-4 rounded-3xl bg-(--surface) p-5 shadow-sm">
+        <h2 className="mb-1 text-lg font-semibold text-(--ink)">Appearance</h2>
+        <p className="mb-3 text-sm leading-6 text-(--ink-2)">
+          System follows your device setting.
+        </p>
+        <div
+          className="flex overflow-hidden rounded-2xl border border-(--border)"
+          role="radiogroup"
+          aria-label="Theme"
+        >
+          {(["light", "system", "dark"] as const).map((choice) => (
+            <button
+              key={choice}
+              role="radio"
+              aria-checked={theme === choice}
+              onClick={() => {
+                tapHaptic();
+                setTheme(choice);
+                applyThemeChoice(choice);
+              }}
+              className={`press flex-1 px-3 py-2.5 text-sm capitalize ${
+                theme === choice
+                  ? "bg-(--ink) font-medium text-(--ink-contrast)"
+                  : "bg-(--surface) text-(--ink)"
+              }`}
+            >
+              {choice}
+            </button>
+          ))}
+        </div>
+      </section>
+
+      <section className="mt-4 rounded-3xl bg-(--surface) p-5 shadow-sm">
+        <h2 className="mb-1 text-lg font-semibold text-(--ink)">Your data</h2>
+        <p className="text-sm leading-6 text-(--ink-2)">
           Download everything Demi has stored for you as one JSON file: profile history, plans,
           logs, weigh-ins, and reflections.
         </p>
         <button
           onClick={exportData}
           disabled={busy !== null}
-          className="press mt-3 w-full rounded-2xl border border-[#dce3d7] bg-white px-5 py-3 text-sm font-medium text-[#2c3a2e] hover:border-[#8aa06f] disabled:opacity-50"
+          className="press mt-3 w-full rounded-2xl border border-(--border) bg-(--surface) px-5 py-3 text-sm font-medium text-(--ink) hover:border-(--accent) disabled:opacity-50"
         >
           {busy === "export" ? "Preparing..." : "Export my data"}
         </button>
       </section>
 
-      <p className="mt-8 text-center text-xs leading-5 text-[#829084]">
+      <p className="mt-8 text-center text-xs leading-5 text-(--muted)">
         Demi offers general wellness guidance, not medical advice.
       </p>
 

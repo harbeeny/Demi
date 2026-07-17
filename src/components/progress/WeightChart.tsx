@@ -18,7 +18,7 @@ const PAD = { top: 14, right: 44, bottom: 22, left: 10 };
 export function WeightChart({ weighIns }: Props) {
   if (weighIns.length < 2) {
     return (
-      <p className="text-sm text-[#829084]">
+      <p className="text-sm text-(--muted)">
         Log a couple of weigh-ins and your trend appears here.
       </p>
     );
@@ -58,27 +58,27 @@ export function WeightChart({ weighIns }: Props) {
         {/* recessive grid: min and max only */}
         {[lo, hi].map((v) => (
           <g key={v}>
-            <line x1={PAD.left} x2={W - PAD.right} y1={y(v)} y2={y(v)} stroke="#eef1ea" strokeWidth="1" />
+            <line x1={PAD.left} x2={W - PAD.right} y1={y(v)} y2={y(v)} stroke="var(--control)" strokeWidth="1" />
           </g>
         ))}
-        <path d={path} fill="none" stroke="#7a9a4e" strokeWidth="2" strokeLinejoin="round" strokeLinecap="round" />
+        <path d={path} fill="none" stroke="var(--accent-strong)" strokeWidth="2" strokeLinejoin="round" strokeLinecap="round" />
         {weighIns.map((w) => (
-          <circle key={w.date} cx={x(w.date)} cy={y(kgToLbs(w.weightKg))} r="3.5" fill="#7a9a4e" stroke="#ffffff" strokeWidth="2">
+          <circle key={w.date} cx={x(w.date)} cy={y(kgToLbs(w.weightKg))} r="3.5" fill="var(--accent-strong)" stroke="var(--surface)" strokeWidth="2">
             <title>{`${shortDate(w.date)}: ${kgToLbs(w.weightKg).toFixed(1)} lbs`}</title>
           </circle>
         ))}
         {/* direct labels: first and latest */}
-        <text x={x(first.date)} y={y(kgToLbs(first.weightKg)) - 8} fontSize="10" fill="#5d6b5f" textAnchor="start">
+        <text x={x(first.date)} y={y(kgToLbs(first.weightKg)) - 8} fontSize="10" fill="var(--ink-2)" textAnchor="start">
           {kgToLbs(first.weightKg).toFixed(1)}
         </text>
-        <text x={x(last.date) + 8} y={y(kgToLbs(last.weightKg)) + 3} fontSize="11" fontWeight="600" fill="#2c3a2e" textAnchor="start">
+        <text x={x(last.date) + 8} y={y(kgToLbs(last.weightKg)) + 3} fontSize="11" fontWeight="600" fill="var(--ink)" textAnchor="start">
           {kgToLbs(last.weightKg).toFixed(1)}
         </text>
         {/* x labels: ends only */}
-        <text x={PAD.left} y={H - 6} fontSize="10" fill="#829084">{shortDate(first.date)}</text>
-        <text x={W - PAD.right} y={H - 6} fontSize="10" fill="#829084" textAnchor="end">{shortDate(last.date)}</text>
+        <text x={PAD.left} y={H - 6} fontSize="10" fill="var(--muted)">{shortDate(first.date)}</text>
+        <text x={W - PAD.right} y={H - 6} fontSize="10" fill="var(--muted)" textAnchor="end">{shortDate(last.date)}</text>
       </svg>
-      <p className="mt-1 text-xs text-[#829084]">
+      <p className="mt-1 text-xs text-(--muted)">
         {deltaLbs === 0
           ? "Holding steady over this period."
           : `${deltaLbs > 0 ? "Up" : "Down"} ${Math.abs(deltaLbs).toFixed(1)} lbs over this period.`}

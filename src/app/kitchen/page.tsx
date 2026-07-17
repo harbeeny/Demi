@@ -9,8 +9,8 @@ export default function KitchenPage() {
 
   if (loading || !data) {
     return (
-      <main className="mx-auto w-full flex min-h-dvh max-w-md items-center justify-center bg-[#f4f6f2]">
-        <p className="animate-pulse text-[#2c3a2e]">Loading your kitchen...</p>
+      <main className="mx-auto w-full flex min-h-dvh max-w-md items-center justify-center bg-(--bg)">
+        <p className="animate-pulse text-(--ink)">Loading your kitchen...</p>
         <TabBar />
       </main>
     );

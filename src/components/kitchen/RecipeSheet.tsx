@@ -94,19 +94,19 @@ export function RecipeSheet({ recipe, action = null, onClose }: Props) {
     >
       <div
         ref={sheetRef}
-        className="flex h-[90dvh] w-full max-w-md flex-col overflow-hidden rounded-t-3xl bg-[#f4f6f2] shadow-[0_-8px_40px_rgba(22,32,26,0.18)]"
+        className="flex h-[90dvh] w-full max-w-md flex-col overflow-hidden rounded-t-3xl bg-(--bg) shadow-[var(--shadow-sheet)]"
         style={sheetStyle}
         onClick={(e) => e.stopPropagation()}
         {...handlers}
       >
         <div data-drag-handle className="shrink-0 px-5 pt-3" style={{ touchAction: "none" }}>
-          <div className="mx-auto mb-3 h-1.5 w-10 rounded-full bg-[#cdd6c8]" aria-hidden="true" />
+          <div className="mx-auto mb-3 h-1.5 w-10 rounded-full bg-(--handle)" aria-hidden="true" />
           <div className="mb-3 flex items-start justify-between gap-3">
-            <h2 className="text-lg font-semibold leading-snug text-[#2c3a2e]">{shown.name}</h2>
+            <h2 className="text-lg font-semibold leading-snug text-(--ink)">{shown.name}</h2>
             <button
               onClick={onClose}
               aria-label="Close"
-              className="press -mr-1 flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-[#829084] hover:bg-[#e6ebe0] hover:text-[#2c3a2e]"
+              className="press -mr-1 flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-(--muted) hover:bg-(--track) hover:text-(--ink)"
             >
               <svg
                 width="18"
@@ -129,42 +129,42 @@ export function RecipeSheet({ recipe, action = null, onClose }: Props) {
           className="flex-1 overflow-y-auto px-5 pb-8"
           style={{ touchAction: "pan-y", overscrollBehavior: "contain" }}
         >
-          <p className="mb-3 text-xs text-[#5d6b5f]">
+          <p className="mb-3 text-xs text-(--ink-2)">
             Prep {shown.prepMin} min · Cook {shown.cookMin} min
             {shown.servings !== 1 ? ` · ${shown.servings} servings` : ""}
           </p>
 
           <div className="mb-4 grid grid-cols-4 gap-2">
             {macros.map(([label, value]) => (
-              <div key={label} className="rounded-2xl bg-white p-2.5 text-center shadow-sm">
-                <p className="text-sm font-semibold text-[#2c3a2e]">
+              <div key={label} className="rounded-2xl bg-(--surface) p-2.5 text-center shadow-sm">
+                <p className="text-sm font-semibold text-(--ink)">
                   {Math.round(value)}
                   {label !== "kcal" ? "g" : ""}
                 </p>
-                <p className="text-[10px] text-[#829084]">{label}</p>
+                <p className="text-[10px] text-(--muted)">{label}</p>
               </div>
             ))}
           </div>
 
-          <h3 className="mb-2 text-xs font-medium uppercase tracking-wide text-[#829084]">
+          <h3 className="mb-2 text-xs font-medium uppercase tracking-wide text-(--muted)">
             Ingredients
           </h3>
-          <ul className="mb-4 space-y-1.5 rounded-2xl bg-white p-4 shadow-sm">
+          <ul className="mb-4 space-y-1.5 rounded-2xl bg-(--surface) p-4 shadow-sm">
             {shown.ingredients.map((ing) => (
               <li
                 key={`${ing.item}-${ing.unit}`}
-                className="flex justify-between gap-3 text-sm text-[#2c3a2e]"
+                className="flex justify-between gap-3 text-sm text-(--ink)"
               >
                 <span>{ing.item}</span>
-                <span className="shrink-0 text-[#5d6b5f]">
+                <span className="shrink-0 text-(--ink-2)">
                   {formatQty(ing.qty * shown.servings, ing.unit)}
                 </span>
               </li>
             ))}
           </ul>
 
-          <h3 className="mb-2 text-xs font-medium uppercase tracking-wide text-[#829084]">Steps</h3>
-          <ol className="mb-4 space-y-1 rounded-2xl bg-white p-3 shadow-sm">
+          <h3 className="mb-2 text-xs font-medium uppercase tracking-wide text-(--muted)">Steps</h3>
+          <ol className="mb-4 space-y-1 rounded-2xl bg-(--surface) p-3 shadow-sm">
             {shown.instructions.map((step, i) => {
               const done = doneSteps.has(i);
               return (
@@ -178,15 +178,15 @@ export function RecipeSheet({ recipe, action = null, onClose }: Props) {
                       aria-hidden="true"
                       className={`mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full border text-[10px] ${
                         done
-                          ? "border-[#3e7a46] bg-[#3e7a46] text-white"
-                          : "border-[#c9d3c3] text-[#5d6b5f]"
+                          ? "border-(--accent-deep) bg-(--accent-deep) text-(--ink-contrast)"
+                          : "border-(--border) text-(--ink-2)"
                       }`}
                     >
                       {done ? "✓" : i + 1}
                     </span>
                     <span
                       className={`text-sm leading-6 ${
-                        done ? "text-[#a9b4a6] line-through" : "text-[#2c3a2e]"
+                        done ? "text-(--muted) line-through" : "text-(--ink)"
                       }`}
                     >
                       {step}
@@ -203,8 +203,8 @@ export function RecipeSheet({ recipe, action = null, onClose }: Props) {
               disabled={actionBusy || action.done}
               className={`press mb-3 w-full rounded-2xl px-5 py-3 font-medium ${
                 action.done
-                  ? "bg-[#e9efdd] text-[#3c4a3e]"
-                  : "bg-[#2c3a2e] text-white disabled:opacity-60"
+                  ? "bg-(--tint) text-(--tint-ink)"
+                  : "bg-(--ink) text-(--ink-contrast) disabled:opacity-60"
               }`}
             >
               {action.done
@@ -215,7 +215,7 @@ export function RecipeSheet({ recipe, action = null, onClose }: Props) {
             </button>
           )}
 
-          <p className="text-xs leading-5 text-[#829084]">{shown.source}</p>
+          <p className="text-xs leading-5 text-(--muted)">{shown.source}</p>
         </div>
       </div>
     </div>

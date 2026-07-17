@@ -8,8 +8,16 @@ export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
   viewportFit: "cover",
-  themeColor: "#f4f6f2",
+  themeColor: [
+    { media: "(prefers-color-scheme: light)", color: "#f4f6f2" },
+    { media: "(prefers-color-scheme: dark)", color: "#121612" },
+  ],
 };
+
+// Runs before paint so a chosen theme never flashes the wrong colors.
+// 'light'/'dark' pin data-theme; anything else (system, unset) leaves the
+// attribute off and the CSS media query decides.
+const THEME_BOOT = `try{var t=localStorage.getItem("demi:theme");if(t==="dark"||t==="light")document.documentElement.setAttribute("data-theme",t)}catch(e){}`;
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -35,7 +43,11 @@ export default function RootLayout({
     <html
       lang="en"
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
+      suppressHydrationWarning
     >
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: THEME_BOOT }} />
+      </head>
       <body className="min-h-full flex flex-col">{children}</body>
     </html>
   );

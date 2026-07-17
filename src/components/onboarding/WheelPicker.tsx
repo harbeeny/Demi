@@ -123,10 +123,10 @@ export function WheelPicker({
         className={`flex shrink-0 items-center justify-center ${
           pill
             ? `text-xl transition-colors duration-150 ${
-                selected ? "font-semibold text-[#2c3a2e]" : "text-[#9aa89c]"
+                selected ? "font-semibold text-(--ink)" : "text-(--muted)"
               }`
             : `transition-[transform,color,font-size] duration-100 ${
-                selected ? "scale-110 text-2xl font-semibold text-[#2c3a2e]" : "text-lg text-[#9aa89c]"
+                selected ? "scale-110 text-2xl font-semibold text-(--ink)" : "text-lg text-(--muted)"
               }`
         }`}
         style={horizontal ? { width: ITEM_WIDTH, height: 56 } : { height: ITEM_SIZE, width: itemWidth }}
@@ -142,12 +142,12 @@ export function WheelPicker({
         <div className="relative w-full" style={{ maxWidth: ITEM_WIDTH * VISIBLE_ITEMS }}>
           {/* center selection band */}
           <div
-            className="pointer-events-none absolute inset-y-0 left-1/2 z-10 -translate-x-1/2 rounded-xl border-x-2 border-[#8aa06f] bg-[#d3e29f]/20"
+            className="pointer-events-none absolute inset-y-0 left-1/2 z-10 -translate-x-1/2 rounded-xl border-x-2 border-(--accent) bg-(--accent-tint)/20"
             style={{ width: ITEM_WIDTH }}
           />
           {/* fade edges */}
-          <div className="pointer-events-none absolute inset-y-0 left-0 z-10 w-12 bg-gradient-to-r from-[#f4f6f2] to-transparent" />
-          <div className="pointer-events-none absolute inset-y-0 right-0 z-10 w-12 bg-gradient-to-l from-[#f4f6f2] to-transparent" />
+          <div className="pointer-events-none absolute inset-y-0 left-0 z-10 w-12 bg-gradient-to-r from-(--bg) to-transparent" />
+          <div className="pointer-events-none absolute inset-y-0 right-0 z-10 w-12 bg-gradient-to-l from-(--bg) to-transparent" />
 
           <div
             ref={scrollRef}
@@ -163,7 +163,7 @@ export function WheelPicker({
             <div style={{ width: pad * ITEM_WIDTH }} className="shrink-0" aria-hidden />
           </div>
         </div>
-        {label && <span className="text-sm font-medium text-[#829084]">{label}</span>}
+        {label && <span className="text-sm font-medium text-(--muted)">{label}</span>}
       </div>
     );
   }
@@ -174,19 +174,19 @@ export function WheelPicker({
         {pill ? (
           /* soft pill behind the selected row; scroll container is positioned so text paints above */
           <div
-            className="pointer-events-none absolute inset-x-0 top-1/2 -translate-y-1/2 rounded-2xl bg-white shadow-sm"
+            className="pointer-events-none absolute inset-x-0 top-1/2 -translate-y-1/2 rounded-2xl bg-(--surface) shadow-sm"
             style={{ height: ITEM_SIZE + 4 }}
           />
         ) : (
           /* center selection band */
           <div
-            className="pointer-events-none absolute inset-x-0 top-1/2 z-10 -translate-y-1/2 rounded-xl border-y-2 border-[#8aa06f] bg-[#d3e29f]/20"
+            className="pointer-events-none absolute inset-x-0 top-1/2 z-10 -translate-y-1/2 rounded-xl border-y-2 border-(--accent) bg-(--accent-tint)/20"
             style={{ height: ITEM_SIZE }}
           />
         )}
         {/* fade edges */}
-        <div className="pointer-events-none absolute inset-x-0 top-0 z-10 h-12 bg-gradient-to-b from-[#f4f6f2] to-transparent" />
-        <div className="pointer-events-none absolute inset-x-0 bottom-0 z-10 h-12 bg-gradient-to-t from-[#f4f6f2] to-transparent" />
+        <div className="pointer-events-none absolute inset-x-0 top-0 z-10 h-12 bg-gradient-to-b from-(--bg) to-transparent" />
+        <div className="pointer-events-none absolute inset-x-0 bottom-0 z-10 h-12 bg-gradient-to-t from-(--bg) to-transparent" />
 
         <div
           ref={scrollRef}
@@ -201,7 +201,7 @@ export function WheelPicker({
           <div style={{ height: pad * ITEM_SIZE }} aria-hidden />
         </div>
       </div>
-      {label && <span className="text-sm font-medium text-[#829084]">{label}</span>}
+      {label && <span className="text-sm font-medium text-(--muted)">{label}</span>}
     </div>
   );
 }
