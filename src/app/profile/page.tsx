@@ -11,8 +11,7 @@ import { cmToFtIn, formatFtIn, inchesToCm, kgToLbs, lbsToKg } from "@/lib/units"
 import { localDateISO } from "@/lib/dates";
 import type { ActivityLevel, Budget, CookingSkill, Goal } from "@/lib/supabase/types";
 import { TabBar } from "@/components/TabBar";
-import { applyThemeChoice, getThemeChoice, type ThemeChoice } from "@/lib/theme";
-import { tapHaptic } from "@/lib/haptics";
+import { ThemePill } from "@/components/ThemePill";
 
 const GOALS: Array<{ value: Goal; label: string }> = [
   { value: "lose_fat", label: "Lose body fat" },
@@ -37,12 +36,6 @@ const DIET_OPTIONS = ["vegetarian", "vegan", "pescatarian", "gluten_free"];
 const WEEKDAYS = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"];
 
 export default function ProfilePage() {
-  // Device-level theme choice; applied instantly and persisted locally.
-  const [theme, setTheme] = useState<ThemeChoice>("system");
-  useEffect(() => {
-    setTheme(getThemeChoice());
-  }, []);
-
   const router = useRouter();
   const [loading, setLoading] = useState(true);
   const [row, setRow] = useState<OnboardingRow | null>(null);
@@ -206,7 +199,7 @@ export default function ProfilePage() {
 
   return (
     <main className="mx-auto w-full min-h-dvh max-w-md bg-(--bg) px-5 pb-28 pt-8">
-      <header className="mb-6 flex items-center justify-between">
+      <header className="mb-4 flex items-center justify-between">
         <div className="flex items-center gap-3">
           <span className="flex h-9 w-9 items-center justify-center rounded-full bg-(--accent-tint) font-semibold text-(--ink)">D</span>
           <div>
@@ -222,6 +215,10 @@ export default function ProfilePage() {
           {busy === "signout" ? "Signing out..." : "Sign out"}
         </button>
       </header>
+
+      <div className="mb-6 flex justify-end">
+        <ThemePill />
+      </div>
 
       {error && <p className="mb-4 rounded-2xl bg-(--danger-bg) p-3 text-sm text-(--danger-ink)">{error}</p>}
       {notice && <p className="mb-4 rounded-2xl bg-(--tint) p-3 text-sm text-(--tint-ink)">{notice}</p>}
@@ -348,38 +345,6 @@ export default function ProfilePage() {
         >
           {busy === "save" ? "Saving..." : "Save changes"}
         </button>
-      </section>
-
-      <section className="mt-4 rounded-3xl bg-(--surface) p-5 shadow-sm">
-        <h2 className="mb-1 text-lg font-semibold text-(--ink)">Appearance</h2>
-        <p className="mb-3 text-sm leading-6 text-(--ink-2)">
-          System follows your device setting.
-        </p>
-        <div
-          className="flex overflow-hidden rounded-2xl border border-(--border)"
-          role="radiogroup"
-          aria-label="Theme"
-        >
-          {(["light", "system", "dark"] as const).map((choice) => (
-            <button
-              key={choice}
-              role="radio"
-              aria-checked={theme === choice}
-              onClick={() => {
-                tapHaptic();
-                setTheme(choice);
-                applyThemeChoice(choice);
-              }}
-              className={`press flex-1 px-3 py-2.5 text-sm capitalize ${
-                theme === choice
-                  ? "bg-(--ink) font-medium text-(--ink-contrast)"
-                  : "bg-(--surface) text-(--ink)"
-              }`}
-            >
-              {choice}
-            </button>
-          ))}
-        </div>
       </section>
 
       <section className="mt-4 rounded-3xl bg-(--surface) p-5 shadow-sm">

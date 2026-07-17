@@ -8,6 +8,7 @@ import { apiFetch } from "@/lib/api";
 import { targets, type ProfileInput } from "@/lib/nutrition";
 import { CM_PER_INCH, kgToLbs, lbPerWeekToKgPerWeek, lbsToKg } from "@/lib/units";
 import { WheelPicker } from "@/components/onboarding/WheelPicker";
+import { ThemePill } from "@/components/ThemePill";
 import type { ActivityLevel, Budget, CookingSkill, Goal, Sex } from "@/lib/supabase/types";
 
 type Answers = {
@@ -630,6 +631,11 @@ export default function OnboardingPage() {
 
   return (
     <main className="mx-auto w-full flex min-h-dvh max-w-md flex-col bg-(--bg) px-6 py-8">
+      {/* Theme first: the rest of onboarding is read in the palette picked here */}
+      <div className="mb-4 flex justify-end">
+        <ThemePill />
+      </div>
+
       {/* Progress bar: width only, strong ease-out (emil-design-eng) */}
       <div className="mb-8 h-1.5 w-full overflow-hidden rounded-full bg-(--border)">
         <div
