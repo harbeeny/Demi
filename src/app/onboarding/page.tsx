@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 
 import { createClient } from "@/lib/supabase/client";
@@ -8,7 +8,9 @@ import { apiFetch } from "@/lib/api";
 import { targets, type ProfileInput } from "@/lib/nutrition";
 import { CM_PER_INCH, kgToLbs, lbPerWeekToKgPerWeek, lbsToKg } from "@/lib/units";
 import { WheelPicker } from "@/components/onboarding/WheelPicker";
-import { ThemePill } from "@/components/ThemePill";
+import { THEME_CHOICES, ThemeIcon } from "@/components/ThemePill";
+import { applyThemeChoice, getThemeChoice, type ThemeChoice } from "@/lib/theme";
+import { tapHaptic } from "@/lib/haptics";
 import type { ActivityLevel, Budget, CookingSkill, Goal, Sex } from "@/lib/supabase/types";
 
 type Answers = {
@@ -162,6 +164,14 @@ export default function OnboardingPage() {
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState("");
 
+  // Device-level, not part of answers: applied live so the rest of the
+  // flow is read in the palette picked here. Synced after mount (the page
+  // prerenders without a theme attribute).
+  const [themeChoice, setThemeChoice] = useState<ThemeChoice>("system");
+  useEffect(() => {
+    setThemeChoice(getThemeChoice());
+  }, []);
+
   const set = <K extends keyof Answers>(key: K, value: Answers[K]) =>
     setAnswers((a) => ({ ...a, [key]: value }));
 
@@ -174,20 +184,21 @@ export default function OnboardingPage() {
       return { ...a, dobMonth: month, dobDay: day, dobYear: year };
     });
 
-  // Steps 0..9 are questions; step 10 is the results screen.
-  const TOTAL_QUESTIONS = 10;
+  // Steps 0..10 are questions; step 11 is the results screen.
+  const TOTAL_QUESTIONS = 11;
 
   const stepValid = useMemo(() => {
     switch (step) {
-      case 0: return answers.sex !== null;
-      case 1: {
+      // 0 (appearance) always valid: a choice is always active
+      case 1: return answers.sex !== null;
+      case 2: {
         const age = ageFromDob(answers.dobYear, answers.dobMonth, answers.dobDay);
         return age >= 18 && age <= 120;
       }
-      // 2 (height) is wheel-constrained, always valid
-      case 3: return isValidWeight(answers.weight, answers.weightUnit);
-      case 4: return answers.goal !== null;
-      case 5: return answers.activityLevel !== null;
+      // 3 (height) is wheel-constrained, always valid
+      case 4: return isValidWeight(answers.weight, answers.weightUnit);
+      case 5: return answers.goal !== null;
+      case 6: return answers.activityLevel !== null;
       default: return true; // remaining steps are optional / have defaults
     }
   }, [step, answers]);
@@ -298,6 +309,43 @@ export default function OnboardingPage() {
     switch (step) {
       case 0:
         return (
+          <Question title="How should Demi look?" hint="Applies right away. Change it anytime from your profile.">
+            <div role="radiogroup" aria-label="Theme" className="space-y-2">
+              {THEME_CHOICES.map((t) => (
+                <button
+                  key={t.value}
+                  role="radio"
+                  aria-checked={themeChoice === t.value}
+                  className={`${choiceButton(themeChoice === t.value)} flex items-center gap-4 py-5`}
+                  onClick={() => {
+                    tapHaptic();
+                    setThemeChoice(t.value);
+                    applyThemeChoice(t.value);
+                  }}
+                >
+                  <span
+                    aria-hidden
+                    className={themeChoice === t.value ? "text-(--ink-contrast)/80" : "text-(--muted)"}
+                  >
+                    <ThemeIcon choice={t.value} size={20} />
+                  </span>
+                  <span className="flex-1 font-medium">{t.label}</span>
+                  {t.value === "system" && (
+                    <span
+                      className={`text-sm ${
+                        themeChoice === t.value ? "text-(--ink-contrast)/70" : "text-(--muted)"
+                      }`}
+                    >
+                      Matches your phone
+                    </span>
+                  )}
+                </button>
+              ))}
+            </div>
+          </Question>
+        );
+      case 1:
+        return (
           <Question title="What is your sex?" hint="This drives the BMR equation, nothing else.">
             {([
               { value: "female", label: "Female", icon: "♀" },
@@ -319,7 +367,7 @@ export default function OnboardingPage() {
             ))}
           </Question>
         );
-      case 1: {
+      case 2: {
         const under18 = ageFromDob(answers.dobYear, answers.dobMonth, answers.dobDay) < 18;
         return (
           <div className="flex flex-1 flex-col">
@@ -366,7 +414,7 @@ export default function OnboardingPage() {
           </div>
         );
       }
-      case 2: {
+      case 3: {
         const ftIn = answers.heightUnit === "ft_in";
         return (
           <div className="flex flex-1 flex-col">
@@ -418,7 +466,7 @@ export default function OnboardingPage() {
           </div>
         );
       }
-      case 3: {
+      case 4: {
         const valid = isValidWeight(answers.weight, answers.weightUnit);
         return (
           <Question title="What is your weight?" hint="Weigh at the same time each day, ideally in the morning.">
@@ -460,7 +508,7 @@ export default function OnboardingPage() {
           </Question>
         );
       }
-      case 4:
+      case 5:
         return (
           <Question title="What's the goal?" hint="You can change this anytime.">
             {GOALS.map((g) => (
@@ -484,7 +532,7 @@ export default function OnboardingPage() {
             )}
           </Question>
         );
-      case 5:
+      case 6:
         return (
           <Question title="How active is a normal week?" hint="Count workouts and daily movement together.">
             {ACTIVITY.map((a) => (
@@ -496,7 +544,7 @@ export default function OnboardingPage() {
             ))}
           </Question>
         );
-      case 6:
+      case 7:
         return (
           <Question title="How many meals a day, and when?" hint="We space them evenly inside your eating window.">
             <div className="flex gap-2">
@@ -526,7 +574,7 @@ export default function OnboardingPage() {
             </div>
           </Question>
         );
-      case 7:
+      case 8:
         return (
           <Question title="Any eating pattern or allergies?" hint="Optional. Allergies are hard rules, never suggested.">
             <div className="flex flex-wrap gap-2">
@@ -547,7 +595,7 @@ export default function OnboardingPage() {
               value={answers.dislikes} onChange={(e) => set("dislikes", e.target.value)} />
           </Question>
         );
-      case 8:
+      case 9:
         return (
           <Question title="Budget and kitchen comfort?" hint="So the plan fits your wallet and your patience.">
             <p className="text-sm font-medium text-(--ink)">Grocery budget / week</p>
@@ -568,7 +616,7 @@ export default function OnboardingPage() {
             </div>
           </Question>
         );
-      case 9:
+      case 10:
         return (
           <Question title="Do you train on set days?" hint="Optional. We'll put more carbs near your sessions.">
             <div className="flex flex-wrap gap-2">
@@ -592,7 +640,7 @@ export default function OnboardingPage() {
             )}
           </Question>
         );
-      case 10:
+      case 11:
         return (
           <div>
             <h1 className="text-2xl font-semibold text-(--ink)">Your numbers</h1>
@@ -631,11 +679,6 @@ export default function OnboardingPage() {
 
   return (
     <main className="mx-auto w-full flex min-h-dvh max-w-md flex-col bg-(--bg) px-6 py-8">
-      {/* Theme first: the rest of onboarding is read in the palette picked here */}
-      <div className="mb-4 flex justify-end">
-        <ThemePill />
-      </div>
-
       {/* Progress bar: width only, strong ease-out (emil-design-eng) */}
       <div className="mb-8 h-1.5 w-full overflow-hidden rounded-full bg-(--border)">
         <div
@@ -663,7 +706,7 @@ export default function OnboardingPage() {
             disabled={!stepValid}
             onClick={() => setStep((s) => s + 1)}
           >
-            {step === 1 || (step >= 6 && step <= 9) ? "Continue" : "Next"}
+            {step === 0 || step === 2 || (step >= 7 && step <= 10) ? "Continue" : "Next"}
           </button>
         ) : (
           <button
