@@ -15,7 +15,13 @@ import { BodyFatPicker } from "@/components/onboarding/BodyFatPicker";
 import { LongTermChart } from "@/components/onboarding/LongTermChart";
 import type { ActivityLevel, Budget, CookingSkill, Goal, Sex } from "@/lib/supabase/types";
 
+type Blocker = "consistency" | "eating_habits" | "support" | "schedule" | "meal_inspiration";
+
 type Answers = {
+  /** has the user tried calorie-tracking apps before; null until answered */
+  triedApps: boolean | null;
+  /** main obstacle to their goal; null until answered */
+  blocker: Blocker | null;
   sex: Sex | null;
   /** date of birth; age is derived at validation/save time */
   dobMonth: number; // 0-11
@@ -52,6 +58,8 @@ const DEFAULT_DOB_MONTH = TODAY.getMonth();
 const DEFAULT_DOB_DAY = Math.min(TODAY.getDate(), daysInMonth(DEFAULT_DOB_YEAR, DEFAULT_DOB_MONTH));
 
 const INITIAL: Answers = {
+  triedApps: null,
+  blocker: null,
   sex: null,
   dobMonth: DEFAULT_DOB_MONTH,
   dobDay: DEFAULT_DOB_DAY,
