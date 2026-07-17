@@ -112,7 +112,7 @@ function LoginForm() {
   }
 
   const inputClass =
-    "w-full rounded-2xl border border-(--border) bg-(--surface) px-4 py-3 text-(--ink) outline-none transition-[border-color,box-shadow] duration-150 focus:border-(--accent) focus:shadow-[0_0_0_3px_rgba(138,160,111,0.15)]";
+    "w-full rounded-2xl border border-(--border-input) bg-(--field) px-4 py-3 text-(--ink) outline-none transition-[border-color,box-shadow] duration-150 focus:border-(--accent) focus:shadow-[0_0_0_3px_rgba(138,160,111,0.15)]";
   const buttonClass =
     "press w-full rounded-2xl bg-(--ink) px-4 py-3 font-medium text-(--ink-contrast) disabled:opacity-60";
 

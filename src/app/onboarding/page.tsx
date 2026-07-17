@@ -291,7 +291,7 @@ export default function OnboardingPage() {
     }`;
 
   const numberInput =
-    "w-full rounded-2xl border border-(--border) bg-(--surface) px-4 py-3 text-lg text-(--ink) outline-none transition-[border-color,box-shadow] duration-150 focus:border-(--accent) focus:shadow-[0_0_0_3px_rgba(138,160,111,0.15)]";
+    "w-full rounded-2xl border border-(--border-input) bg-(--field) px-4 py-3 text-lg text-(--ink) outline-none transition-[border-color,box-shadow] duration-150 focus:border-(--accent) focus:shadow-[0_0_0_3px_rgba(138,160,111,0.15)]";
 
   function renderStep() {
     switch (step) {
@@ -436,7 +436,7 @@ export default function OnboardingPage() {
               />
               <select
                 aria-label="Weight unit"
-                className="rounded-2xl border border-(--border) bg-(--surface) px-4 py-3 text-lg text-(--ink)"
+                className="rounded-2xl border border-(--border-input) bg-(--field) px-4 py-3 text-lg text-(--ink)"
                 value={answers.weightUnit}
                 onChange={(e) => {
                   const unit = e.target.value as "lbs" | "kg";
@@ -507,7 +507,7 @@ export default function OnboardingPage() {
             </div>
             <div className="mt-4 flex items-center gap-3 text-(--ink)">
               <label className="text-sm">First meal</label>
-              <select className="rounded-xl border border-(--border) bg-(--surface) px-3 py-2"
+              <select className="rounded-xl border border-(--border-input) bg-(--field) px-3 py-2"
                 value={answers.eatingWindowStart}
                 onChange={(e) => set("eatingWindowStart", Number(e.target.value))}>
                 {Array.from({ length: 12 }, (_, i) => i + 5).map((h) => (
@@ -515,7 +515,7 @@ export default function OnboardingPage() {
                 ))}
               </select>
               <label className="text-sm">Last meal</label>
-              <select className="rounded-xl border border-(--border) bg-(--surface) px-3 py-2"
+              <select className="rounded-xl border border-(--border-input) bg-(--field) px-3 py-2"
                 value={answers.eatingWindowEnd}
                 onChange={(e) => set("eatingWindowEnd", Number(e.target.value))}>
                 {Array.from({ length: 8 }, (_, i) => i + 16).map((h) => (

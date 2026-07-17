@@ -193,7 +193,7 @@ export default function ProfilePage() {
         : "border-(--border) bg-(--surface) text-(--ink) hover:border-(--accent)"
     }`;
   const input =
-    "w-full rounded-2xl border border-(--border) bg-(--surface) px-3 py-2 text-sm text-(--ink) outline-none focus:border-(--accent)";
+    "w-full rounded-2xl border border-(--border-input) bg-(--field) px-3 py-2 text-sm text-(--ink) outline-none focus:border-(--accent)";
 
   if (loading) {
     return (

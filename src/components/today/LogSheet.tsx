@@ -165,7 +165,7 @@ export function LogSheet({ open, onClose, searchMeals, busy, defaultMode = "fdc"
   }
 
   const input =
-    "w-full rounded-2xl border border-(--border) bg-(--surface) px-3 py-2 text-sm text-(--ink) outline-none focus:border-(--accent)";
+    "w-full rounded-2xl border border-(--border-input) bg-(--field) px-3 py-2 text-sm text-(--ink) outline-none focus:border-(--accent)";
 
   return (
     <div

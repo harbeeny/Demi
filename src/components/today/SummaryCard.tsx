@@ -85,7 +85,7 @@ export function SummaryCard({ logsCount, summary, planned, actual, busy, onFinis
       </div>
       <input
         type="text"
-        className="mt-3 w-full rounded-2xl border border-(--border) bg-(--surface) px-3 py-2 text-sm text-(--ink) outline-none focus:border-(--accent)"
+        className="mt-3 w-full rounded-2xl border border-(--border-input) bg-(--field) px-3 py-2 text-sm text-(--ink) outline-none focus:border-(--accent)"
         placeholder="Anything about today? (optional)"
         maxLength={500}
         value={note}

@@ -469,7 +469,7 @@ export function BalanceSheet({
                     onChange={(e) => setCustomKcal(e.target.value)}
                     placeholder="Custom kcal"
                     aria-label="Custom calorie estimate"
-                    className="min-w-0 flex-1 rounded-2xl border border-(--border) bg-(--surface) px-4 py-3 text-sm text-(--ink) outline-none focus:border-(--accent)"
+                    className="min-w-0 flex-1 rounded-2xl border border-(--border-input) bg-(--field) px-4 py-3 text-sm text-(--ink) outline-none focus:border-(--accent)"
                   />
                   <button
                     onClick={() => logRough(Number(customKcal))}
