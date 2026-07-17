@@ -52,6 +52,35 @@ describe("bmr (Mifflin-St Jeor)", () => {
   });
 });
 
+describe("bmr (Katch-McArdle with body fat)", () => {
+  test("male 80kg at 15% = 370 + 21.6*68 = 1839", () => {
+    const r = bmr("male", 30, 180, 80, 15);
+    expect(r.value).toBe(1839);
+    expect(r.reasoning.rule).toBe("katch_mcardle");
+    expect(r.reasoning.inputs.leanMassKg).toBe(68);
+  });
+
+  test("same lean mass gives the same BMR regardless of sex", () => {
+    expect(bmr("female", 30, 165, 80, 15).value).toBe(bmr("male", 30, 180, 80, 15).value);
+  });
+
+  test("null, undefined, and out-of-band body fat fall back to Mifflin", () => {
+    const mifflin = bmr("male", 30, 180, 80).value;
+    expect(bmr("male", 30, 180, 80, null).value).toBe(mifflin);
+    expect(bmr("male", 30, 180, 80, undefined).value).toBe(mifflin);
+    expect(bmr("male", 30, 180, 80, 2).value).toBe(mifflin);
+    expect(bmr("male", 30, 180, 80, 71).value).toBe(mifflin);
+    expect(bmr("male", 30, 180, 80, NaN).value).toBe(mifflin);
+  });
+
+  test("targets use body fat when present", () => {
+    const base = { ...baseProfile, bodyFatPct: null };
+    const withBf = { ...baseProfile, bodyFatPct: 15 };
+    expect(targets(withBf).kcal.reasoning.inputs.bmr).not.toBe(targets(base).kcal.reasoning.inputs.bmr);
+    expect(targets(withBf).kcal.reasoning.inputs.bmr).toBe(bmr(baseProfile.sex, baseProfile.age, baseProfile.heightCm, baseProfile.weightKg, 15).value);
+  });
+});
+
 describe("tdee", () => {
   test("applies each activity multiplier", () => {
     for (const [level, mult] of Object.entries(ACTIVITY_MULTIPLIERS)) {

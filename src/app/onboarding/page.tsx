@@ -11,6 +11,7 @@ import { WheelPicker } from "@/components/onboarding/WheelPicker";
 import { THEME_CHOICES, ThemeIcon } from "@/components/ThemePill";
 import { applyThemeChoice, getThemeChoice, type ThemeChoice } from "@/lib/theme";
 import { tapHaptic } from "@/lib/haptics";
+import { BodyFatPicker } from "@/components/onboarding/BodyFatPicker";
 import type { ActivityLevel, Budget, CookingSkill, Goal, Sex } from "@/lib/supabase/types";
 
 type Answers = {
@@ -25,6 +26,8 @@ type Answers = {
   /** free-text so the field can start empty like a scale readout */
   weight: string;
   weightUnit: "lbs" | "kg";
+  /** self-assessed range midpoint %, null until picked (or skipped) */
+  bodyFatPct: number | null;
   goal: Goal | null;
   /** stored in lb/week for display; converted to kg/week on save */
   goalRateLb: number | null;
@@ -56,6 +59,7 @@ const INITIAL: Answers = {
   heightUnit: "ft_in",
   weight: "",
   weightUnit: "lbs",
+  bodyFatPct: null,
   goal: null,
   goalRateLb: null,
   activityLevel: null,
@@ -184,8 +188,8 @@ export default function OnboardingPage() {
       return { ...a, dobMonth: month, dobDay: day, dobYear: year };
     });
 
-  // Steps 0..10 are questions; step 11 is the results screen.
-  const TOTAL_QUESTIONS = 11;
+  // Steps 0..11 are questions; step 12 is the results screen.
+  const TOTAL_QUESTIONS = 12;
 
   const stepValid = useMemo(() => {
     switch (step) {
@@ -197,8 +201,9 @@ export default function OnboardingPage() {
       }
       // 3 (height) is wheel-constrained, always valid
       case 4: return isValidWeight(answers.weight, answers.weightUnit);
-      case 5: return answers.goal !== null;
-      case 6: return answers.activityLevel !== null;
+      case 5: return answers.bodyFatPct !== null; // the Skip link advances without one
+      case 6: return answers.goal !== null;
+      case 7: return answers.activityLevel !== null;
       default: return true; // remaining steps are optional / have defaults
     }
   }, [step, answers]);
@@ -215,6 +220,7 @@ export default function OnboardingPage() {
           ? lbsToKg(Number(answers.weight))
           : Number(Number(answers.weight).toFixed(1)),
       goal: answers.goal,
+      bodyFatPct: answers.bodyFatPct,
       goalRate: answers.goalRateLb === null ? null : lbPerWeekToKgPerWeek(answers.goalRateLb),
       activityLevel: answers.activityLevel,
       mealsPerDay: answers.mealsPerDay,
@@ -255,6 +261,7 @@ export default function OnboardingPage() {
       height_cm: profile.heightCm,
       weight_kg: profile.weightKg,
       goal: profile.goal,
+      body_fat_pct: answers.bodyFatPct,
       goal_rate: profile.goalRate,
       activity_level: profile.activityLevel,
       dietary_prefs: answers.dietaryPrefs,
@@ -354,7 +361,8 @@ export default function OnboardingPage() {
               <button
                 key={s.value}
                 className={`${choiceButton(answers.sex === s.value)} flex items-center gap-4 py-6`}
-                onClick={() => set("sex", s.value)}
+                // body fat midpoints are per-sex, so a sex change resets that pick
+                onClick={() => setAnswers((a) => ({ ...a, sex: s.value, bodyFatPct: null }))}
               >
                 <span
                   aria-hidden
@@ -510,6 +518,29 @@ export default function OnboardingPage() {
       }
       case 5:
         return (
+          <Question
+            title="What is your body fat level?"
+            hint="Eyeball it from the shapes; close is plenty. It sharpens your daily burn estimate."
+          >
+            <BodyFatPicker
+              sex={answers.sex}
+              value={answers.bodyFatPct}
+              onChange={(midpoint) => set("bodyFatPct", midpoint)}
+            />
+            <button
+              type="button"
+              className="press mx-auto mt-3 block text-sm text-(--muted) underline underline-offset-2"
+              onClick={() => {
+                set("bodyFatPct", null);
+                setStep((s) => s + 1);
+              }}
+            >
+              Not sure? Skip this question
+            </button>
+          </Question>
+        );
+      case 6:
+        return (
           <Question title="What's the goal?" hint="You can change this anytime.">
             {GOALS.map((g) => (
               <button key={g.value} className={choiceButton(answers.goal === g.value)}
@@ -532,7 +563,7 @@ export default function OnboardingPage() {
             )}
           </Question>
         );
-      case 6:
+      case 7:
         return (
           <Question title="How active is a normal week?" hint="Count workouts and daily movement together.">
             {ACTIVITY.map((a) => (
@@ -544,7 +575,7 @@ export default function OnboardingPage() {
             ))}
           </Question>
         );
-      case 7:
+      case 8:
         return (
           <Question title="How many meals a day, and when?" hint="We space them evenly inside your eating window.">
             <div className="flex gap-2">
@@ -574,7 +605,7 @@ export default function OnboardingPage() {
             </div>
           </Question>
         );
-      case 8:
+      case 9:
         return (
           <Question title="Any eating pattern or allergies?" hint="Optional. Allergies are hard rules, never suggested.">
             <div className="flex flex-wrap gap-2">
@@ -595,7 +626,7 @@ export default function OnboardingPage() {
               value={answers.dislikes} onChange={(e) => set("dislikes", e.target.value)} />
           </Question>
         );
-      case 9:
+      case 10:
         return (
           <Question title="Budget and kitchen comfort?" hint="So the plan fits your wallet and your patience.">
             <p className="text-sm font-medium text-(--ink)">Grocery budget / week</p>
@@ -616,7 +647,7 @@ export default function OnboardingPage() {
             </div>
           </Question>
         );
-      case 10:
+      case 11:
         return (
           <Question title="Do you train on set days?" hint="Optional. We'll put more carbs near your sessions.">
             <div className="flex flex-wrap gap-2">
@@ -640,7 +671,7 @@ export default function OnboardingPage() {
             )}
           </Question>
         );
-      case 11:
+      case 12:
         return (
           <div>
             <h1 className="text-2xl font-semibold text-(--ink)">Your numbers</h1>
@@ -706,7 +737,7 @@ export default function OnboardingPage() {
             disabled={!stepValid}
             onClick={() => setStep((s) => s + 1)}
           >
-            {step === 0 || step === 2 || (step >= 7 && step <= 10) ? "Continue" : "Next"}
+            {step === 0 || step === 2 || (step >= 8 && step <= 11) ? "Continue" : "Next"}
           </button>
         ) : (
           <button
