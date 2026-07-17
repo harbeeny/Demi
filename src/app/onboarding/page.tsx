@@ -279,19 +279,19 @@ export default function OnboardingPage() {
   const choiceButton = (selected: boolean) =>
     `press w-full rounded-2xl border px-4 py-3 text-left ${
       selected
-        ? "border-[#2c3a2e] bg-[#2c3a2e] text-white"
-        : "border-[#dce3d7] bg-white text-[#2c3a2e] hover:border-[#8aa06f]"
+        ? "border-(--ink) bg-(--ink) text-(--ink-contrast)"
+        : "border-(--border) bg-(--surface) text-(--ink) hover:border-(--accent)"
     }`;
 
   const chip = (selected: boolean) =>
     `press rounded-full border px-4 py-2 text-sm ${
       selected
-        ? "border-[#2c3a2e] bg-[#2c3a2e] text-white"
-        : "border-[#dce3d7] bg-white text-[#2c3a2e] hover:border-[#8aa06f]"
+        ? "border-(--ink) bg-(--ink) text-(--ink-contrast)"
+        : "border-(--border) bg-(--surface) text-(--ink) hover:border-(--accent)"
     }`;
 
   const numberInput =
-    "w-full rounded-2xl border border-[#dce3d7] bg-white px-4 py-3 text-lg text-[#2c3a2e] outline-none transition-[border-color,box-shadow] duration-150 focus:border-[#8aa06f] focus:shadow-[0_0_0_3px_rgba(138,160,111,0.15)]";
+    "w-full rounded-2xl border border-(--border-input) bg-(--field) px-4 py-3 text-lg text-(--ink) outline-none transition-[border-color,box-shadow] duration-150 focus:border-(--accent) focus:shadow-[0_0_0_3px_rgba(138,160,111,0.15)]";
 
   function renderStep() {
     switch (step) {
@@ -309,7 +309,7 @@ export default function OnboardingPage() {
               >
                 <span
                   aria-hidden
-                  className={`text-2xl ${answers.sex === s.value ? "text-white/80" : "text-[#829084]"}`}
+                  className={`text-2xl ${answers.sex === s.value ? "text-(--ink-contrast)/80" : "text-(--muted)"}`}
                 >
                   {s.icon}
                 </span>
@@ -322,8 +322,8 @@ export default function OnboardingPage() {
         const under18 = ageFromDob(answers.dobYear, answers.dobMonth, answers.dobDay) < 18;
         return (
           <div className="flex flex-1 flex-col">
-            <h1 className="text-2xl font-semibold text-[#2c3a2e]">When were you born?</h1>
-            <p className="mt-1 text-sm text-[#829084]">This calibrates your plan.</p>
+            <h1 className="text-2xl font-semibold text-(--ink)">When were you born?</h1>
+            <p className="mt-1 text-sm text-(--muted)">This calibrates your plan.</p>
             <div className="flex flex-1 items-center justify-center gap-1">
               <WheelPicker
                 key="dob-month"
@@ -369,9 +369,9 @@ export default function OnboardingPage() {
         const ftIn = answers.heightUnit === "ft_in";
         return (
           <div className="flex flex-1 flex-col">
-            <h1 className="text-2xl font-semibold text-[#2c3a2e]">What is your height?</h1>
-            <p className="mt-1 text-sm text-[#829084]">It helps size your calorie and macro targets.</p>
-            <div className="mt-5 flex rounded-2xl border border-[#dce3d7] bg-white p-1" role="tablist" aria-label="Height units">
+            <h1 className="text-2xl font-semibold text-(--ink)">What is your height?</h1>
+            <p className="mt-1 text-sm text-(--muted)">It helps size your calorie and macro targets.</p>
+            <div className="mt-5 flex rounded-2xl border border-(--border) bg-(--surface) p-1" role="tablist" aria-label="Height units">
               {([
                 { value: "ft_in", label: "Feet and inches" },
                 { value: "cm", label: "Centimeters" },
@@ -381,7 +381,7 @@ export default function OnboardingPage() {
                   role="tab"
                   aria-selected={answers.heightUnit === u.value}
                   className={`press flex-1 rounded-xl py-2.5 text-sm font-medium ${
-                    answers.heightUnit === u.value ? "bg-[#2c3a2e] text-white" : "text-[#2c3a2e]"
+                    answers.heightUnit === u.value ? "bg-(--ink) text-(--ink-contrast)" : "text-(--ink)"
                   }`}
                   onClick={() => set("heightUnit", u.value)}
                 >
@@ -421,7 +421,7 @@ export default function OnboardingPage() {
         const valid = isValidWeight(answers.weight, answers.weightUnit);
         return (
           <Question title="What is your weight?" hint="Weigh at the same time each day, ideally in the morning.">
-            <label htmlFor="weight" className="block pt-2 text-sm font-medium text-[#2c3a2e]">
+            <label htmlFor="weight" className="block pt-2 text-sm font-medium text-(--ink)">
               Current weight
             </label>
             <div className="flex gap-2">
@@ -436,7 +436,7 @@ export default function OnboardingPage() {
               />
               <select
                 aria-label="Weight unit"
-                className="rounded-2xl border border-[#dce3d7] bg-white px-4 py-3 text-lg text-[#2c3a2e]"
+                className="rounded-2xl border border-(--border-input) bg-(--field) px-4 py-3 text-lg text-(--ink)"
                 value={answers.weightUnit}
                 onChange={(e) => {
                   const unit = e.target.value as "lbs" | "kg";
@@ -455,7 +455,7 @@ export default function OnboardingPage() {
                 <option value="kg">kg</option>
               </select>
             </div>
-            {!valid && <p className="text-sm text-[#829084]">Enter a valid weight</p>}
+            {!valid && <p className="text-sm text-(--muted)">Enter a valid weight</p>}
           </Question>
         );
       }
@@ -466,12 +466,12 @@ export default function OnboardingPage() {
               <button key={g.value} className={choiceButton(answers.goal === g.value)}
                 onClick={() => { set("goal", g.value); set("goalRateLb", null); }}>
                 <span className="font-medium">{g.label}</span>
-                <span className={`block text-sm ${answers.goal === g.value ? "text-white/70" : "text-[#829084]"}`}>{g.hint}</span>
+                <span className={`block text-sm ${answers.goal === g.value ? "text-(--ink-contrast)/70" : "text-(--muted)"}`}>{g.hint}</span>
               </button>
             ))}
             {(answers.goal === "lose_fat" || answers.goal === "build_muscle") && (
               <div className="pt-2">
-                <p className="mb-2 text-sm text-[#829084]">How fast? (optional, default is the safe middle)</p>
+                <p className="mb-2 text-sm text-(--muted)">How fast? (optional, default is the safe middle)</p>
                 <div className="flex gap-2">
                   {(answers.goal === "lose_fat" ? [0.5, 1, 1.5] : [0.25, 0.5, 1]).map((r) => (
                     <button key={r} className={chip(answers.goalRateLb === r)} onClick={() => set("goalRateLb", r)}>
@@ -490,7 +490,7 @@ export default function OnboardingPage() {
               <button key={a.value} className={choiceButton(answers.activityLevel === a.value)}
                 onClick={() => set("activityLevel", a.value)}>
                 <span className="font-medium">{a.label}</span>
-                <span className={`block text-sm ${answers.activityLevel === a.value ? "text-white/70" : "text-[#829084]"}`}>{a.hint}</span>
+                <span className={`block text-sm ${answers.activityLevel === a.value ? "text-(--ink-contrast)/70" : "text-(--muted)"}`}>{a.hint}</span>
               </button>
             ))}
           </Question>
@@ -505,9 +505,9 @@ export default function OnboardingPage() {
                 </button>
               ))}
             </div>
-            <div className="mt-4 flex items-center gap-3 text-[#2c3a2e]">
+            <div className="mt-4 flex items-center gap-3 text-(--ink)">
               <label className="text-sm">First meal</label>
-              <select className="rounded-xl border border-[#dce3d7] bg-white px-3 py-2"
+              <select className="rounded-xl border border-(--border-input) bg-(--field) px-3 py-2"
                 value={answers.eatingWindowStart}
                 onChange={(e) => set("eatingWindowStart", Number(e.target.value))}>
                 {Array.from({ length: 12 }, (_, i) => i + 5).map((h) => (
@@ -515,7 +515,7 @@ export default function OnboardingPage() {
                 ))}
               </select>
               <label className="text-sm">Last meal</label>
-              <select className="rounded-xl border border-[#dce3d7] bg-white px-3 py-2"
+              <select className="rounded-xl border border-(--border-input) bg-(--field) px-3 py-2"
                 value={answers.eatingWindowEnd}
                 onChange={(e) => set("eatingWindowEnd", Number(e.target.value))}>
                 {Array.from({ length: 8 }, (_, i) => i + 16).map((h) => (
@@ -549,7 +549,7 @@ export default function OnboardingPage() {
       case 8:
         return (
           <Question title="Budget and kitchen comfort?" hint="So the plan fits your wallet and your patience.">
-            <p className="text-sm font-medium text-[#2c3a2e]">Grocery budget / week</p>
+            <p className="text-sm font-medium text-(--ink)">Grocery budget / week</p>
             <div className="flex flex-wrap gap-2">
               {(["low", "medium", "high"] as const).map((b) => (
                 <button key={b} className={chip(answers.budget === b)} onClick={() => set("budget", b)}>
@@ -557,7 +557,7 @@ export default function OnboardingPage() {
                 </button>
               ))}
             </div>
-            <p className="mt-4 text-sm font-medium text-[#2c3a2e]">Cooking</p>
+            <p className="mt-4 text-sm font-medium text-(--ink)">Cooking</p>
             <div className="flex flex-wrap gap-2">
               {(["minimal", "basic", "confident"] as const).map((c) => (
                 <button key={c} className={chip(answers.cookingSkill === c)} onClick={() => set("cookingSkill", c)}>
@@ -584,7 +584,7 @@ export default function OnboardingPage() {
             </div>
             {answers.trainingDays.length > 0 && (
               <div className="mt-3">
-                <label className="mb-1 block text-sm text-[#829084]">Around what time?</label>
+                <label className="mb-1 block text-sm text-(--muted)">Around what time?</label>
                 <input type="time" className={numberInput}
                   value={answers.trainingTime} onChange={(e) => set("trainingTime", e.target.value)} />
               </div>
@@ -594,8 +594,8 @@ export default function OnboardingPage() {
       case 10:
         return (
           <div>
-            <h1 className="text-2xl font-semibold text-[#2c3a2e]">Your numbers</h1>
-            <p className="mt-1 text-sm text-[#829084]">Computed from your answers. Every number has a why.</p>
+            <h1 className="text-2xl font-semibold text-(--ink)">Your numbers</h1>
+            <p className="mt-1 text-sm text-(--muted)">Computed from your answers. Every number has a why.</p>
             {results ? (
               <div className="mt-5 space-y-3">
                 <ResultRow label="Daily calories" value={`${results.kcal.value} kcal`} why={results.kcal.reasoning.explanation} />
@@ -614,7 +614,7 @@ export default function OnboardingPage() {
                   </p>
                 )}
                 {results.underweightMaintenanceApplied && (
-                  <p className="rounded-2xl bg-[#e9efdd] p-4 text-sm leading-6 text-[#3c4a3e]">
+                  <p className="rounded-2xl bg-(--tint) p-4 text-sm leading-6 text-(--tint-ink)">
                     Based on your height and weight, we set your plan to maintenance instead of a deficit; fueling well is the strongest move from here. If food or body image ever feels stressful, support helps: the NEDA helpline (1-800-931-2237) is free and confidential.
                   </p>
                 )}
@@ -629,11 +629,11 @@ export default function OnboardingPage() {
   }
 
   return (
-    <main className="mx-auto w-full flex min-h-dvh max-w-md flex-col bg-[#f4f6f2] px-6 py-8">
+    <main className="mx-auto w-full flex min-h-dvh max-w-md flex-col bg-(--bg) px-6 py-8">
       {/* Progress bar: width only, strong ease-out (emil-design-eng) */}
-      <div className="mb-8 h-1.5 w-full overflow-hidden rounded-full bg-[#dce3d7]">
+      <div className="mb-8 h-1.5 w-full overflow-hidden rounded-full bg-(--border)">
         <div
-          className="h-full rounded-full bg-[#2c3a2e] transition-[width] duration-300 [transition-timing-function:var(--ease-out)]"
+          className="h-full rounded-full bg-(--ink) transition-[width] duration-300 [transition-timing-function:var(--ease-out)]"
           style={{ width: `${(Math.min(step, TOTAL_QUESTIONS) / TOTAL_QUESTIONS) * 100}%` }}
         />
       </div>
@@ -645,7 +645,7 @@ export default function OnboardingPage() {
       <div className="mt-8 flex gap-3">
         {step > 0 && (
           <button
-            className="press rounded-2xl border border-[#dce3d7] bg-white px-5 py-3 text-[#2c3a2e] hover:border-[#8aa06f]"
+            className="press rounded-2xl border border-(--border) bg-(--surface) px-5 py-3 text-(--ink) hover:border-(--accent)"
             onClick={() => setStep((s) => s - 1)}
           >
             Back
@@ -653,7 +653,7 @@ export default function OnboardingPage() {
         )}
         {step < TOTAL_QUESTIONS ? (
           <button
-            className="press flex-1 rounded-2xl bg-[#2c3a2e] px-5 py-3 font-medium text-white disabled:opacity-40"
+            className="press flex-1 rounded-2xl bg-(--ink) px-5 py-3 font-medium text-(--ink-contrast) disabled:opacity-40"
             disabled={!stepValid}
             onClick={() => setStep((s) => s + 1)}
           >
@@ -661,7 +661,7 @@ export default function OnboardingPage() {
           </button>
         ) : (
           <button
-            className="press flex-1 rounded-2xl bg-[#2c3a2e] px-5 py-3 font-medium text-white disabled:opacity-60"
+            className="press flex-1 rounded-2xl bg-(--ink) px-5 py-3 font-medium text-(--ink-contrast) disabled:opacity-60"
             disabled={!results || saving}
             onClick={finish}
           >
@@ -670,7 +670,7 @@ export default function OnboardingPage() {
         )}
       </div>
 
-      <p className="mt-6 text-center text-xs leading-5 text-[#829084]">
+      <p className="mt-6 text-center text-xs leading-5 text-(--muted)">
         Demi offers general wellness guidance, not medical advice.
       </p>
     </main>
@@ -680,8 +680,8 @@ export default function OnboardingPage() {
 function Question({ title, hint, children }: { title: string; hint: string; children: React.ReactNode }) {
   return (
     <div>
-      <h1 className="text-2xl font-semibold text-[#2c3a2e]">{title}</h1>
-      <p className="mb-5 mt-1 text-sm text-[#829084]">{hint}</p>
+      <h1 className="text-2xl font-semibold text-(--ink)">{title}</h1>
+      <p className="mb-5 mt-1 text-sm text-(--muted)">{hint}</p>
       <div className="space-y-2">{children}</div>
     </div>
   );
@@ -689,12 +689,12 @@ function Question({ title, hint, children }: { title: string; hint: string; chil
 
 function ResultRow({ label, value, why }: { label: string; value: string; why: string }) {
   return (
-    <div className="rounded-2xl bg-white p-4 shadow-sm">
+    <div className="rounded-2xl bg-(--surface) p-4 shadow-sm">
       <div className="flex items-baseline justify-between">
-        <span className="text-sm text-[#829084]">{label}</span>
-        <span className="text-lg font-semibold text-[#2c3a2e]">{value}</span>
+        <span className="text-sm text-(--muted)">{label}</span>
+        <span className="text-lg font-semibold text-(--ink)">{value}</span>
       </div>
-      <p className="mt-1 text-sm leading-5 text-[#5d6b5f]">{why}</p>
+      <p className="mt-1 text-sm leading-5 text-(--ink-2)">{why}</p>
     </div>
   );
 }

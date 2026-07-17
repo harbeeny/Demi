@@ -149,8 +149,8 @@ export default function ProgressPage() {
 
   if (loading) {
     return (
-      <main className="mx-auto w-full flex min-h-dvh max-w-md items-center justify-center bg-[#f4f6f2]">
-        <p className="animate-pulse text-[#2c3a2e]">Loading your progress...</p>
+      <main className="mx-auto w-full flex min-h-dvh max-w-md items-center justify-center bg-(--bg)">
+        <p className="animate-pulse text-(--ink)">Loading your progress...</p>
         <TabBar />
       </main>
     );
@@ -159,17 +159,17 @@ export default function ProgressPage() {
   const safetyGated = adjust?.insufficientData.includes("safety_maintenance_active") ?? false;
 
   return (
-    <main className="mx-auto w-full min-h-dvh max-w-md bg-[#f4f6f2] px-5 pb-28 pt-8">
+    <main className="mx-auto w-full min-h-dvh max-w-md bg-(--bg) px-5 pb-28 pt-8">
       <header className="mb-6 flex items-center gap-3">
-        <span className="flex h-9 w-9 items-center justify-center rounded-full bg-[#d3e29f] font-semibold text-[#2c3a2e]">D</span>
-        <h1 className="text-lg font-semibold leading-tight text-[#2c3a2e]">Progress</h1>
+        <span className="flex h-9 w-9 items-center justify-center rounded-full bg-(--accent-tint) font-semibold text-(--ink)">D</span>
+        <h1 className="text-lg font-semibold leading-tight text-(--ink)">Progress</h1>
       </header>
 
-      {error && <p className="mb-4 rounded-2xl bg-red-50 p-3 text-sm text-red-800">{error}</p>}
+      {error && <p className="mb-4 rounded-2xl bg-(--danger-bg) p-3 text-sm text-(--danger-ink)">{error}</p>}
 
-      <section className="mb-4 rounded-3xl bg-white p-5 shadow-sm">
-        <h2 className="mb-2 text-lg font-semibold text-[#2c3a2e]">Weigh in</h2>
-        <div className="rounded-2xl bg-[#f8faf5] py-3">
+      <section className="mb-4 rounded-3xl bg-(--surface) p-5 shadow-sm">
+        <h2 className="mb-2 text-lg font-semibold text-(--ink)">Weigh in</h2>
+        <div className="rounded-2xl bg-(--surface-2) py-3">
           <WheelPicker
             key="checkin"
             values={WEIGHT_OPTIONS}
@@ -183,19 +183,19 @@ export default function ProgressPage() {
         <button
           onClick={saveWeight}
           disabled={busy}
-          className="press mt-3 w-full rounded-2xl bg-[#2c3a2e] px-5 py-3 font-medium text-white disabled:opacity-60"
+          className="press mt-3 w-full rounded-2xl bg-(--ink) px-5 py-3 font-medium text-(--ink-contrast) disabled:opacity-60"
         >
           {busy ? "Saving..." : savedToday ? "Update today's weigh-in" : "Log today's weight"}
         </button>
       </section>
 
-      <section className="mb-4 rounded-3xl bg-white p-5 shadow-sm">
-        <h2 className="mb-2 text-lg font-semibold text-[#2c3a2e]">Weight trend</h2>
+      <section className="mb-4 rounded-3xl bg-(--surface) p-5 shadow-sm">
+        <h2 className="mb-2 text-lg font-semibold text-(--ink)">Weight trend</h2>
         <WeightChart weighIns={weighIns} />
       </section>
 
-      <section className="mb-4 rounded-3xl bg-white p-5 shadow-sm">
-        <h2 className="mb-2 text-lg font-semibold text-[#2c3a2e]">Intake vs target</h2>
+      <section className="mb-4 rounded-3xl bg-(--surface) p-5 shadow-sm">
+        <h2 className="mb-2 text-lg font-semibold text-(--ink)">Intake vs target</h2>
         <IntakeChart days={intakeDays} targetKcal={targetKcal} />
       </section>
 
@@ -203,7 +203,7 @@ export default function ProgressPage() {
         <AdaptCard state={adjust} busy={busy} onResolve={resolveProposal} accepted={accepted} />
       )}
 
-      <p className="mt-8 text-center text-xs leading-5 text-[#829084]">
+      <p className="mt-8 text-center text-xs leading-5 text-(--muted)">
         Demi offers general wellness guidance, not medical advice.
       </p>
 

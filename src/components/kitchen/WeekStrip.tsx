@@ -24,10 +24,10 @@ export function WeekStrip({ days, selectedDate, onSelect }: Props) {
             aria-pressed={selected}
             className={`press flex flex-1 flex-col items-center gap-1 rounded-2xl border py-2 ${
               selected
-                ? "border-[#2c3a2e] bg-[#2c3a2e] text-white"
+                ? "border-(--ink) bg-(--ink) text-(--ink-contrast)"
                 : date === today
-                  ? "border-[#8aa06f] bg-white text-[#2c3a2e]"
-                  : "border-[#dce3d7] bg-white text-[#2c3a2e]"
+                  ? "border-(--accent) bg-(--surface) text-(--ink)"
+                  : "border-(--border) bg-(--surface) text-(--ink)"
             }`}
           >
             <span className="text-[10px] uppercase opacity-70">
@@ -37,7 +37,7 @@ export function WeekStrip({ days, selectedDate, onSelect }: Props) {
             <span
               aria-hidden
               className={`h-1.5 w-1.5 rounded-full ${
-                planned ? "bg-[#d3e29f]" : selected ? "bg-white/30" : "bg-[#eef1ea]"
+                planned ? "bg-(--accent-tint)" : selected ? "bg-(--surface)/30" : "bg-(--control)"
               }`}
             />
           </button>

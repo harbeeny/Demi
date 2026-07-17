@@ -263,22 +263,22 @@ export function BalanceSheet({
     >
       <div
         ref={sheetRef}
-        className="flex max-h-[80dvh] w-full max-w-md flex-col overflow-hidden rounded-t-3xl bg-[#f4f6f2] shadow-[0_-8px_40px_rgba(22,32,26,0.18)]"
+        className="flex max-h-[80dvh] w-full max-w-md flex-col overflow-hidden rounded-t-3xl bg-(--bg) shadow-[var(--shadow-sheet)]"
         style={sheetStyle}
         onClick={(e) => e.stopPropagation()}
         {...handlers}
       >
         <div data-drag-handle className="shrink-0 px-5 pt-3" style={{ touchAction: "none" }}>
-          <div className="mx-auto mb-3 h-1.5 w-10 rounded-full bg-[#cdd6c8]" aria-hidden="true" />
+          <div className="mx-auto mb-3 h-1.5 w-10 rounded-full bg-(--handle)" aria-hidden="true" />
           <div className="mb-1 flex items-start justify-between gap-3">
-            <h2 className="flex items-center gap-2 text-lg font-semibold leading-snug text-[#2c3a2e]">
-              <ScaleIcon className="h-[18px] w-[18px] shrink-0 text-[#829084]" />
+            <h2 className="flex items-center gap-2 text-lg font-semibold leading-snug text-(--ink)">
+              <ScaleIcon className="h-[18px] w-[18px] shrink-0 text-(--muted)" />
               Balance my week
             </h2>
             <button
               onClick={onClose}
               aria-label="Close"
-              className="press -mr-1 flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-[#829084] hover:bg-[#e6ebe0] hover:text-[#2c3a2e]"
+              className="press -mr-1 flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-(--muted) hover:bg-(--track) hover:text-(--ink)"
             >
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" aria-hidden="true">
                 <path d="M6 6l12 12M18 6L6 18" />
@@ -288,11 +288,11 @@ export function BalanceSheet({
         </div>
 
         <div ref={scrollRef} className="min-h-0 flex-1 overflow-y-auto px-5 pb-8 pt-2">
-          {error && <p className="mb-3 rounded-2xl bg-red-50 p-3 text-sm text-red-800">{error}</p>}
+          {error && <p className="mb-3 rounded-2xl bg-(--danger-bg) p-3 text-sm text-(--danger-ink)">{error}</p>}
 
           {applied ? (
             <>
-              <p className="text-sm leading-6 text-[#3c4a3e]">
+              <p className="text-sm leading-6 text-(--tint-ink)">
                 Done. {applied.absorbed} kcal spread across {applied.days}{" "}
                 {applied.days === 1 ? "day" : "days"}
                 {applied.source === "yesterday"
@@ -300,59 +300,59 @@ export function BalanceSheet({
                   : "; your upcoming targets moved down a little."}
               </p>
               {applied.forgiven > 0 && (
-                <p className="mt-2 text-sm leading-6 text-[#5d6b5f]">
+                <p className="mt-2 text-sm leading-6 text-(--ink-2)">
                   The remaining {applied.forgiven} kcal doesn&apos;t carry over. One day never
                   defines a week; the streak you keep does.
                 </p>
               )}
               {applied.morning && (
-                <p className="mt-2 text-sm leading-6 text-[#5d6b5f]">
+                <p className="mt-2 text-sm leading-6 text-(--ink-2)">
                   Today stays a normal day: regular meals and plenty of water. There&apos;s
                   nothing to make up.
                 </p>
               )}
               <button
                 onClick={onClose}
-                className="press mt-5 w-full rounded-2xl bg-[#2c3a2e] px-5 py-3 font-medium text-white"
+                className="press mt-5 w-full rounded-2xl bg-(--ink) px-5 py-3 font-medium text-(--ink-contrast)"
               >
                 Done
               </button>
             </>
           ) : sourceOutgoing && !showRough ? (
             <>
-              <p className="text-sm leading-6 text-[#3c4a3e]">
+              <p className="text-sm leading-6 text-(--tint-ink)">
                 {source === "yesterday" ? "Last night" : "Today"} is already balanced:{" "}
                 {sourceOutgoing.absorbed} kcal spread across {sourceOutgoing.days}{" "}
                 {sourceOutgoing.days === 1 ? "day" : "days"}.
               </p>
-              <p className="mt-2 text-sm leading-6 text-[#5d6b5f]">
+              <p className="mt-2 text-sm leading-6 text-(--ink-2)">
                 Logged more since? Recalculate replaces the current spread with a fresh one.
               </p>
               <button
                 onClick={apply}
                 disabled={busy !== null || sourceOverage <= 0}
-                className="press mt-5 w-full rounded-2xl bg-[#2c3a2e] px-5 py-3 font-medium text-white disabled:opacity-60"
+                className="press mt-5 w-full rounded-2xl bg-(--ink) px-5 py-3 font-medium text-(--ink-contrast) disabled:opacity-60"
               >
                 {busy === "apply" ? "Recalculating..." : "Recalculate"}
               </button>
               <button
                 onClick={remove}
                 disabled={busy !== null}
-                className="press mt-2 w-full rounded-2xl border border-[#dce3d7] bg-white px-5 py-3 text-sm text-[#2c3a2e] disabled:opacity-60"
+                className="press mt-2 w-full rounded-2xl border border-(--border) bg-(--surface) px-5 py-3 text-sm text-(--ink) disabled:opacity-60"
               >
                 {busy === "remove" ? "Removing..." : "Remove the balance"}
               </button>
               <button
                 onClick={() => setShowRough(true)}
                 disabled={busy !== null}
-                className="press mt-2 w-full rounded-2xl border border-[#dce3d7] bg-white px-5 py-3 text-sm text-[#2c3a2e] disabled:opacity-60"
+                className="press mt-2 w-full rounded-2xl border border-(--border) bg-(--surface) px-5 py-3 text-sm text-(--ink) disabled:opacity-60"
               >
                 Big night not logged yet? Add it first
               </button>
             </>
           ) : preview && !showRough ? (
             <>
-              <p className="text-sm leading-6 text-[#3c4a3e]">
+              <p className="text-sm leading-6 text-(--tint-ink)">
                 {source === "yesterday" ? (
                   <>
                     Last night came to about{" "}
@@ -371,38 +371,38 @@ export function BalanceSheet({
                   {preview.days.map((d) => (
                     <li
                       key={d.date}
-                      className="flex items-center justify-between rounded-2xl bg-white px-4 py-2.5 text-sm shadow-sm"
+                      className="flex items-center justify-between rounded-2xl bg-(--surface) px-4 py-2.5 text-sm shadow-sm"
                     >
-                      <span className="text-[#2c3a2e]">
+                      <span className="text-(--ink)">
                         {d.date === today ? "Today" : dayLabel(d.date)}
                       </span>
-                      <span className="tabular-nums text-[#5d6b5f]">{d.deltaKcal} kcal</span>
+                      <span className="tabular-nums text-(--ink-2)">{d.deltaKcal} kcal</span>
                     </li>
                   ))}
                 </ul>
               ) : source === "yesterday" && remainingWeekDates(y.date).length === 0 ? (
-                <p className="mt-3 text-sm leading-6 text-[#5d6b5f]">
+                <p className="mt-3 text-sm leading-6 text-(--ink-2)">
                   Last night closed out its week, and closed weeks don&apos;t carry over. Today
                   starts clean.
                 </p>
               ) : (
-                <p className="mt-3 text-sm leading-6 text-[#5d6b5f]">
+                <p className="mt-3 text-sm leading-6 text-(--ink-2)">
                   There&apos;s no room left in this week to absorb it, so nothing changes.
                 </p>
               )}
               {preview.forgiven > 0 && preview.days.length > 0 && (
-                <p className="mt-3 text-sm leading-6 text-[#5d6b5f]">
+                <p className="mt-3 text-sm leading-6 text-(--ink-2)">
                   Each day gives up at most 10%, so {preview.forgiven} kcal won&apos;t carry over.
                 </p>
               )}
-              <p className="mt-3 text-xs leading-5 text-[#829084]">
+              <p className="mt-3 text-xs leading-5 text-(--muted)">
                 Protein targets stay put; the trim comes from carbs and fat.
               </p>
               {preview.days.length > 0 && (
                 <button
                   onClick={apply}
                   disabled={busy !== null}
-                  className="press mt-4 w-full rounded-2xl bg-[#2c3a2e] px-5 py-3 font-medium text-white disabled:opacity-60"
+                  className="press mt-4 w-full rounded-2xl bg-(--ink) px-5 py-3 font-medium text-(--ink-contrast) disabled:opacity-60"
                 >
                   {busy === "apply" ? "Spreading..." : "Spread it out"}
                 </button>
@@ -410,27 +410,27 @@ export function BalanceSheet({
               <button
                 onClick={() => setShowRough(true)}
                 disabled={busy !== null}
-                className="press mt-2 w-full rounded-2xl border border-[#dce3d7] bg-white px-5 py-3 text-sm text-[#2c3a2e] disabled:opacity-60"
+                className="press mt-2 w-full rounded-2xl border border-(--border) bg-(--surface) px-5 py-3 text-sm text-(--ink) disabled:opacity-60"
               >
                 Big night not logged yet? Add it first
               </button>
             </>
           ) : (
             <>
-              <p className="text-sm leading-6 text-[#3c4a3e]">
+              <p className="text-sm leading-6 text-(--tint-ink)">
                 {overage > 0 || yOverage > 0
                   ? "Add the night as a rough estimate first. Once it's logged, one spread covers all of it."
                   : "You're not over your target right now. If a big night isn't logged yet, say when it was, add a rough estimate, and we'll take it from there."}
               </p>
               {roughLogged && (
-                <p className="mt-2 text-sm leading-6 text-[#5d6b5f]">
+                <p className="mt-2 text-sm leading-6 text-(--ink-2)">
                   {roughLogged === "yesterday"
                     ? "Logged to last night. It stayed within that day's target, so there's nothing to spread and today isn't affected."
                     : "Logged. You're still within today's target, so there's nothing to spread."}
                 </p>
               )}
               <div
-                className="mt-4 flex rounded-2xl border border-[#dce3d7] bg-white p-1"
+                className="mt-4 flex rounded-2xl border border-(--border) bg-(--surface) p-1"
                 role="group"
                 aria-label="When was the big night?"
               >
@@ -441,8 +441,8 @@ export function BalanceSheet({
                     aria-pressed={whenChoice === w}
                     className={`press flex-1 rounded-xl px-3 py-2 text-sm ${
                       whenChoice === w
-                        ? "bg-[#2c3a2e] font-medium text-white"
-                        : "text-[#5d6b5f]"
+                        ? "bg-(--ink) font-medium text-(--ink-contrast)"
+                        : "text-(--ink-2)"
                     }`}
                   >
                     {w === "yesterday" ? "Last night" : "Today"}
@@ -455,10 +455,10 @@ export function BalanceSheet({
                     key={t.kcal}
                     onClick={() => logRough(t.kcal)}
                     disabled={busy !== null}
-                    className="press flex w-full items-center justify-between rounded-2xl border border-[#dce3d7] bg-white px-4 py-3 text-sm text-[#2c3a2e] hover:border-[#8aa06f] disabled:opacity-60"
+                    className="press flex w-full items-center justify-between rounded-2xl border border-(--border) bg-(--surface) px-4 py-3 text-sm text-(--ink) hover:border-(--accent) disabled:opacity-60"
                   >
                     <span>{busy === `rough-${t.kcal}` ? "Logging..." : t.label}</span>
-                    <span className="tabular-nums text-[#829084]">~{t.kcal} kcal</span>
+                    <span className="tabular-nums text-(--muted)">~{t.kcal} kcal</span>
                   </button>
                 ))}
                 <div className="flex gap-2">
@@ -469,18 +469,18 @@ export function BalanceSheet({
                     onChange={(e) => setCustomKcal(e.target.value)}
                     placeholder="Custom kcal"
                     aria-label="Custom calorie estimate"
-                    className="min-w-0 flex-1 rounded-2xl border border-[#dce3d7] bg-white px-4 py-3 text-sm text-[#2c3a2e] outline-none focus:border-[#8aa06f]"
+                    className="min-w-0 flex-1 rounded-2xl border border-(--border-input) bg-(--field) px-4 py-3 text-sm text-(--ink) outline-none focus:border-(--accent)"
                   />
                   <button
                     onClick={() => logRough(Number(customKcal))}
                     disabled={busy !== null || customKcal.trim() === ""}
-                    className="press rounded-2xl bg-[#2c3a2e] px-5 py-3 text-sm font-medium text-white disabled:opacity-60"
+                    className="press rounded-2xl bg-(--ink) px-5 py-3 text-sm font-medium text-(--ink-contrast) disabled:opacity-60"
                   >
                     {busy === `rough-${Number(customKcal)}` ? "Logging..." : "Log it"}
                   </button>
                 </div>
               </div>
-              <p className="mt-3 text-xs leading-5 text-[#829084]">
+              <p className="mt-3 text-xs leading-5 text-(--muted)">
                 It lands in the chosen day&apos;s log as a normal entry.
               </p>
             </>

@@ -36,18 +36,18 @@ interface Props {
 
 export function MealCard({ meal, busy, compact = false, onConfirm, onSwap, onRecipe }: Props) {
   return (
-    <article className="relative rounded-3xl bg-white p-4 shadow-sm">
-      <span className="block text-xs font-medium uppercase tracking-wide text-[#829084]">
+    <article className="relative rounded-3xl bg-(--surface) p-4 shadow-sm">
+      <span className="block text-xs font-medium uppercase tracking-wide text-(--muted)">
         {compact ? "Suggested" : `${meal.slot} · ${timeLabel(meal.timeHour)}`}
       </span>
-      <h2 className="mt-1 font-medium text-[#2c3a2e]">{meal.name}</h2>
-      <div className="mt-2 flex gap-3 text-xs text-[#5d6b5f]">
+      <h2 className="mt-1 font-medium text-(--ink)">{meal.name}</h2>
+      <div className="mt-2 flex gap-3 text-xs text-(--ink-2)">
         <span>{Math.round(meal.kcal)} kcal</span>
         <span>P {Math.round(meal.proteinG)}g</span>
         <span>C {Math.round(meal.carbsG)}g</span>
         <span>F {Math.round(meal.fatG)}g</span>
       </div>
-      {meal.why && <p className="mt-2 text-sm leading-5 text-[#5d6b5f]">{meal.why}</p>}
+      {meal.why && <p className="mt-2 text-sm leading-5 text-(--ink-2)">{meal.why}</p>}
       {/* One action row, one control vocabulary: quiet pills lead, the
           primary holds the right edge. The old header text links read as
           tags, not controls. */}
@@ -56,7 +56,7 @@ export function MealCard({ meal, busy, compact = false, onConfirm, onSwap, onRec
           <button
             onClick={() => onRecipe(meal.recipe!, meal.slotIndex)}
             disabled={busy !== null}
-            className="press rounded-full border border-[#dce3d7] bg-white px-3 py-2 text-xs text-[#2c3a2e] hover:border-[#8aa06f] disabled:opacity-50"
+            className="press rounded-full border border-(--border) bg-(--surface) px-3 py-2 text-xs text-(--ink) hover:border-(--accent) disabled:opacity-50"
           >
             Recipe
           </button>
@@ -64,14 +64,14 @@ export function MealCard({ meal, busy, compact = false, onConfirm, onSwap, onRec
         <button
           onClick={() => onSwap(meal.slotIndex)}
           disabled={busy !== null}
-          className="press rounded-full border border-[#dce3d7] bg-white px-3 py-2 text-xs text-[#2c3a2e] hover:border-[#8aa06f] disabled:opacity-50"
+          className="press rounded-full border border-(--border) bg-(--surface) px-3 py-2 text-xs text-(--ink) hover:border-(--accent) disabled:opacity-50"
         >
           {busy === `swap-${meal.slotIndex}` ? "Swapping..." : "Swap"}
         </button>
         <button
           onClick={() => onConfirm(meal.slotIndex)}
           disabled={busy !== null}
-          className="press ml-auto rounded-full border border-[#dce3d7] bg-white px-4 py-2 text-sm text-[#2c3a2e] hover:border-[#8aa06f] disabled:opacity-50"
+          className="press ml-auto rounded-full border border-(--border) bg-(--surface) px-4 py-2 text-sm text-(--ink) hover:border-(--accent) disabled:opacity-50"
         >
           {busy === `log-${meal.slotIndex}` ? "Logging..." : "I ate this"}
         </button>

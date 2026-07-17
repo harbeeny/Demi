@@ -36,13 +36,13 @@ export function DaySummaryNote({ text }: { text: string }) {
   };
 
   return (
-    <div className="my-5 rounded-3xl bg-[#e9efdd]">
+    <div className="my-5 rounded-3xl bg-(--tint)">
       <button
         onClick={toggle}
         aria-expanded={expanded}
         className="press flex w-full items-center justify-between rounded-3xl px-4 py-3 text-left"
       >
-        <span className="text-xs font-semibold uppercase tracking-wide text-[#5c6b52]">
+        <span className="text-xs font-semibold uppercase tracking-wide text-(--tint-muted)">
           Why this plan
         </span>
         <svg
@@ -50,7 +50,7 @@ export function DaySummaryNote({ text }: { text: string }) {
           height="14"
           viewBox="0 0 24 24"
           fill="none"
-          stroke="#5c6b52"
+          stroke="var(--tint-muted)"
           strokeWidth="2.5"
           strokeLinecap="round"
           strokeLinejoin="round"
@@ -72,7 +72,7 @@ export function DaySummaryNote({ text }: { text: string }) {
           className="overflow-hidden transition-opacity duration-200 motion-reduce:transition-none"
           style={{ opacity: expanded ? 1 : 0 }}
         >
-          <p className="px-4 pb-4 text-sm leading-6 text-[#3c4a3e]">{text}</p>
+          <p className="px-4 pb-4 text-sm leading-6 text-(--tint-ink)">{text}</p>
         </div>
       </div>
     </div>

@@ -54,8 +54,8 @@ export function SlotChips({
           aria-pressed={value === s}
           className={`press rounded-full border px-3 py-1.5 text-xs ${
             value === s
-              ? "border-[#2c3a2e] bg-[#2c3a2e] text-white"
-              : "border-[#dce3d7] bg-white text-[#2c3a2e]"
+              ? "border-(--ink) bg-(--ink) text-(--ink-contrast)"
+              : "border-(--border) bg-(--surface) text-(--ink)"
           }`}
         >
           {SLOT_LABELS[s]}
@@ -86,25 +86,25 @@ function SlotPicker({
       onClick={onCancel}
     >
       <div
-        className="w-full max-w-sm rounded-3xl bg-white p-4 shadow-[0_12px_48px_rgba(22,32,26,0.25)]"
+        className="w-full max-w-sm rounded-3xl bg-(--surface) p-4 shadow-[0_12px_48px_rgba(22,32,26,0.25)]"
         onClick={(e) => e.stopPropagation()}
       >
-        <p className="mb-3 truncate text-sm font-medium text-[#2c3a2e]">Add {name} to...</p>
+        <p className="mb-3 truncate text-sm font-medium text-(--ink)">Add {name} to...</p>
         <div className="space-y-2">
           {ordered.map((s) => (
             <button
               key={s}
               onClick={() => onPick(s)}
-              className="press flex w-full items-center justify-between rounded-2xl border border-[#dce3d7] bg-white px-4 py-3 text-sm text-[#2c3a2e] hover:border-[#8aa06f]"
+              className="press flex w-full items-center justify-between rounded-2xl border border-(--border) bg-(--surface) px-4 py-3 text-sm text-(--ink) hover:border-(--accent)"
             >
               {SLOT_LABELS[s]}
-              {s === suggested && <span className="text-[10px] text-[#829084]">suggested</span>}
+              {s === suggested && <span className="text-[10px] text-(--muted)">suggested</span>}
             </button>
           ))}
         </div>
         <button
           onClick={onCancel}
-          className="press mt-2 w-full rounded-2xl px-4 py-2.5 text-sm text-[#829084] hover:text-[#2c3a2e]"
+          className="press mt-2 w-full rounded-2xl px-4 py-2.5 text-sm text-(--muted) hover:text-(--ink)"
         >
           Cancel
         </button>
@@ -134,14 +134,14 @@ export function VerifiedBadge() {
       role="img"
       aria-label="Verified nutrition data"
       title="Verified nutrition data"
-      className="inline-flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded-full bg-[#3e7a46] align-[-2px]"
+      className="inline-flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded-full bg-(--accent-deep) align-[-2px]"
     >
       <svg
         width="8"
         height="8"
         viewBox="0 0 24 24"
         fill="none"
-        stroke="white"
+        stroke="var(--surface)"
         strokeWidth="4"
         strokeLinecap="round"
         strokeLinejoin="round"
@@ -194,7 +194,7 @@ interface Props {
 }
 
 const input =
-  "w-full rounded-2xl border border-[#dce3d7] bg-white px-3 py-2 text-sm text-[#2c3a2e] outline-none focus:border-[#8aa06f]";
+  "w-full rounded-2xl border border-(--border-input) bg-(--field) px-3 py-2 text-sm text-(--ink) outline-none focus:border-(--accent)";
 
 /** USDA FoodData Central search with portion-aware logging. */
 export function FoodSearch({ busy, searchMeals, forcedSlot = null, onLabelParsed, onLog, onLogDb, onLogEstimate }: Props) {
@@ -600,21 +600,21 @@ export function FoodSearch({ busy, searchMeals, forcedSlot = null, onLabelParsed
         aria-label={confirmed ? `Logged ${r.name}` : `Quick add ${r.name}`}
         className={`press flex w-full items-center gap-2 rounded-2xl border p-3 text-left transition-[background-color,border-color] duration-200 disabled:opacity-50 ${
           confirmed
-            ? "border-[#3e7a46] bg-[#eef6ee]"
-            : "border-[#dce3d7] bg-white hover:border-[#8aa06f]"
+            ? "border-(--accent-deep) bg-(--confirm-bg)"
+            : "border-(--border) bg-(--surface) hover:border-(--accent)"
         }`}
       >
         <span className="min-w-0 flex-1">
-          <span className="flex items-center gap-1.5 text-sm font-medium text-[#2c3a2e]">
+          <span className="flex items-center gap-1.5 text-sm font-medium text-(--ink)">
             <span className="truncate">{r.name}</span>
             {r.verified && <VerifiedBadge />}
             {r.source === "estimate" && (
-              <span className="shrink-0 rounded-full bg-[#fdf3d7] px-2 py-0.5 text-[10px] text-[#7a6420]">
+              <span className="shrink-0 rounded-full bg-(--warn-bg) px-2 py-0.5 text-[10px] text-(--warn-ink)">
                 estimate
               </span>
             )}
           </span>
-          <span className="mt-0.5 block text-xs text-[#5d6b5f]">
+          <span className="mt-0.5 block text-xs text-(--ink-2)">
             {confirmed ? "Added to today" : `${Math.round(r.kcal)} kcal · P ${Math.round(r.proteinG)}g`}
           </span>
         </span>
@@ -622,8 +622,8 @@ export function FoodSearch({ busy, searchMeals, forcedSlot = null, onLabelParsed
           aria-hidden="true"
           className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full border transition-[background-color,border-color,color,transform] duration-200 ease-out ${
             confirmed
-              ? "scale-110 border-[#3e7a46] bg-[#3e7a46] text-white"
-              : "border-[#dce3d7] bg-transparent text-[#2c3a2e]"
+              ? "scale-110 border-(--accent-deep) bg-(--accent-deep) text-(--ink-contrast)"
+              : "border-(--border) bg-transparent text-(--ink)"
           }`}
         >
           <svg
@@ -652,15 +652,15 @@ export function FoodSearch({ busy, searchMeals, forcedSlot = null, onLabelParsed
       <div>
         <button
           onClick={() => setSelected(null)}
-          className="mb-2 text-xs text-[#829084] underline-offset-2 hover:underline"
+          className="mb-2 text-xs text-(--muted) underline-offset-2 hover:underline"
         >
           Back to results
         </button>
-        <p className="flex items-center gap-1.5 text-sm font-medium text-[#2c3a2e]">
+        <p className="flex items-center gap-1.5 text-sm font-medium text-(--ink)">
           {selected.description}
           {verified && <VerifiedBadge />}
         </p>
-        {selected.brand && <p className="text-xs text-[#829084]">{selected.brand}</p>}
+        {selected.brand && <p className="text-xs text-(--muted)">{selected.brand}</p>}
 
         <div className="mt-3 flex flex-wrap gap-2">
           {selected.portions.map((p) => (
@@ -673,8 +673,8 @@ export function FoodSearch({ busy, searchMeals, forcedSlot = null, onLabelParsed
               }}
               className={`press rounded-full border px-3 py-1.5 text-xs ${
                 portionSel?.label === p.label
-                  ? "border-[#2c3a2e] bg-[#2c3a2e] text-white"
-                  : "border-[#dce3d7] bg-white text-[#2c3a2e]"
+                  ? "border-(--ink) bg-(--ink) text-(--ink-contrast)"
+                  : "border-(--border) bg-(--surface) text-(--ink)"
               }`}
             >
               {p.label}
@@ -687,7 +687,7 @@ export function FoodSearch({ busy, searchMeals, forcedSlot = null, onLabelParsed
         {portionSel && /^1\s/.test(portionSel.label) && (
           <div className="mt-3 flex items-center gap-3">
             <div
-              className="flex items-center overflow-hidden rounded-2xl border border-[#dce3d7] bg-white"
+              className="flex items-center overflow-hidden rounded-2xl border border-(--border) bg-(--surface)"
               role="group"
               aria-label="How many"
             >
@@ -700,11 +700,11 @@ export function FoodSearch({ busy, searchMeals, forcedSlot = null, onLabelParsed
                 }}
                 disabled={count <= 1 || busy !== null}
                 aria-label="One fewer"
-                className="press px-4 py-2 text-lg leading-none text-[#2c3a2e] disabled:opacity-40"
+                className="press px-4 py-2 text-lg leading-none text-(--ink) disabled:opacity-40"
               >
                 &minus;
               </button>
-              <span className="min-w-8 text-center text-sm font-semibold tabular-nums text-[#2c3a2e]" aria-live="polite">
+              <span className="min-w-8 text-center text-sm font-semibold tabular-nums text-(--ink)" aria-live="polite">
                 {count}
               </span>
               <button
@@ -716,12 +716,12 @@ export function FoodSearch({ busy, searchMeals, forcedSlot = null, onLabelParsed
                 }}
                 disabled={busy !== null || (count + 1) * portionSel.gramWeight > 2000}
                 aria-label="One more"
-                className="press px-4 py-2 text-lg leading-none text-[#2c3a2e] disabled:opacity-40"
+                className="press px-4 py-2 text-lg leading-none text-(--ink) disabled:opacity-40"
               >
                 +
               </button>
             </div>
-            <span className="text-sm text-[#5d6b5f]">
+            <span className="text-sm text-(--ink-2)">
               {countedLabel(portionSel.label, count)}
             </span>
           </div>
@@ -731,7 +731,7 @@ export function FoodSearch({ busy, searchMeals, forcedSlot = null, onLabelParsed
         </div>
 
         <div className="mt-2 flex items-end gap-2">
-          <label className="block flex-1 text-xs text-[#829084]">
+          <label className="block flex-1 text-xs text-(--muted)">
             {liquid ? "Amount (ml)" : "Amount"}
             <input
               type="number"
@@ -753,14 +753,14 @@ export function FoodSearch({ busy, searchMeals, forcedSlot = null, onLabelParsed
           </label>
           {/* Liquids read in ml only; a weight-oz toggle would mislead there. */}
           {!liquid && (
-            <div className="flex overflow-hidden rounded-2xl border border-[#dce3d7]" role="group" aria-label="Amount unit">
+            <div className="flex overflow-hidden rounded-2xl border border-(--border)" role="group" aria-label="Amount unit">
               {(["g", "oz"] as const).map((u) => (
                 <button
                   key={u}
                   onClick={() => setUnit(u)}
                   aria-pressed={unit === u}
                   className={`press px-3 py-2 text-sm ${
-                    unit === u ? "bg-[#2c3a2e] text-white" : "bg-white text-[#2c3a2e]"
+                    unit === u ? "bg-(--ink) text-(--ink-contrast)" : "bg-(--surface) text-(--ink)"
                   }`}
                 >
                   {u}
@@ -770,7 +770,7 @@ export function FoodSearch({ busy, searchMeals, forcedSlot = null, onLabelParsed
           )}
         </div>
 
-        <p className="mt-2 text-sm text-[#5d6b5f]">
+        <p className="mt-2 text-sm text-(--ink-2)">
           {macros.kcal} kcal · P {macros.proteinG}g · C {macros.carbsG}g · F {macros.fatG}g
         </p>
 
@@ -799,7 +799,7 @@ export function FoodSearch({ busy, searchMeals, forcedSlot = null, onLabelParsed
             )
           }
           disabled={busy !== null}
-          className="press mt-3 w-full rounded-2xl bg-[#2c3a2e] px-5 py-3 font-medium text-white disabled:opacity-60"
+          className="press mt-3 w-full rounded-2xl bg-(--ink) px-5 py-3 font-medium text-(--ink-contrast) disabled:opacity-60"
         >
           {busy === "log-fdc"
             ? "Logging..."
@@ -843,7 +843,7 @@ export function FoodSearch({ busy, searchMeals, forcedSlot = null, onLabelParsed
           {scanLookup && (
             <span
               role="status"
-              className="absolute inset-0 z-10 flex items-center gap-2 rounded-2xl border border-[#dce3d7] bg-white px-3 text-sm text-[#5d6b5f]"
+              className="absolute inset-0 z-10 flex items-center gap-2 rounded-2xl border border-(--border) bg-(--surface) px-3 text-sm text-(--ink-2)"
             >
               <svg
                 width="14"
@@ -866,7 +866,7 @@ export function FoodSearch({ busy, searchMeals, forcedSlot = null, onLabelParsed
               onClick={clearSearch}
               onMouseDown={(e) => e.preventDefault()}
               aria-label="Clear search"
-              className="press absolute right-2 top-1/2 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-full bg-[#eef1ea] text-[#5d6b5f] hover:bg-[#e2e8dc] hover:text-[#2c3a2e]"
+              className="press absolute right-2 top-1/2 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-full bg-(--control) text-(--ink-2) hover:bg-(--border) hover:text-(--ink)"
             >
               <svg
                 width="12"
@@ -888,7 +888,7 @@ export function FoodSearch({ busy, searchMeals, forcedSlot = null, onLabelParsed
             onClick={() => setScanChooser(true)}
             disabled={busy !== null || labelBusy}
             aria-label="Scan a barcode or photograph the label"
-            className="press flex w-11 shrink-0 items-center justify-center self-stretch rounded-2xl border border-[#dce3d7] bg-white text-[#2c3a2e] hover:border-[#8aa06f] disabled:opacity-50"
+            className="press flex w-11 shrink-0 items-center justify-center self-stretch rounded-2xl border border-(--border) bg-(--surface) text-(--ink) hover:border-(--accent) disabled:opacity-50"
           >
             <svg
               width="20"
@@ -905,34 +905,34 @@ export function FoodSearch({ busy, searchMeals, forcedSlot = null, onLabelParsed
           </button>
         )}
       </div>
-      {searching && !scanLookup && <p className="mt-2 text-xs text-[#829084]">Searching...</p>}
-      {labelBusy && <p className="mt-2 text-xs text-[#829084]">Reading the label photo...</p>}
-      {labelError && !labelBusy && <p className="mt-2 text-sm text-[#829084]">{labelError}</p>}
-      {message && !searching && <p className="mt-2 text-sm text-[#829084]">{message}</p>}
+      {searching && !scanLookup && <p className="mt-2 text-xs text-(--muted)">Searching...</p>}
+      {labelBusy && <p className="mt-2 text-xs text-(--muted)">Reading the label photo...</p>}
+      {labelError && !labelBusy && <p className="mt-2 text-sm text-(--muted)">{labelError}</p>}
+      {message && !searching && <p className="mt-2 text-sm text-(--muted)">{message}</p>}
       {/* Scan misses render from scanMiss (the digits were cleared, so the
           barcode-query check below can't see them anymore). */}
       {scanMiss && !scanLookup && !searching && (
-        <p className="mt-2 text-sm text-[#829084]">{scanMiss}</p>
+        <p className="mt-2 text-sm text-(--muted)">{scanMiss}</p>
       )}
       {((message && !searching && canScan && isBarcodeQuery(query.trim())) ||
         (scanMiss && !scanLookup && !searching && canScan)) && (
         <button
           onClick={captureLabel}
           disabled={busy !== null || labelBusy}
-          className="press mt-2 w-full rounded-2xl border border-dashed border-[#8aa06f] bg-transparent px-4 py-2.5 text-sm text-[#2c3a2e] disabled:opacity-50"
+          className="press mt-2 w-full rounded-2xl border border-dashed border-(--accent) bg-transparent px-4 py-2.5 text-sm text-(--ink) disabled:opacity-50"
         >
           Photograph the nutrition label instead
         </button>
       )}
       {correctedTo && !searching && results.length > 0 && (
-        <p className="mt-2 text-xs text-[#829084]">
+        <p className="mt-2 text-xs text-(--muted)">
           Showing results for &quot;{correctedTo}&quot;
         </p>
       )}
 
       {results.length === 0 && query.trim().length < 2 && recents.length > 0 && (
         <div className="mt-3">
-          <h3 className="mb-2 text-xs font-medium uppercase tracking-wide text-[#829084]">
+          <h3 className="mb-2 text-xs font-medium uppercase tracking-wide text-(--muted)">
             Recent foods
           </h3>
           <div className="space-y-2">{recents.map(quickRow)}</div>
@@ -941,14 +941,14 @@ export function FoodSearch({ busy, searchMeals, forcedSlot = null, onLabelParsed
 
       {localMatches.length > 0 && (
         <div className="mt-3">
-          <h3 className="mb-2 text-xs font-medium uppercase tracking-wide text-[#829084]">
+          <h3 className="mb-2 text-xs font-medium uppercase tracking-wide text-(--muted)">
             From your foods
           </h3>
           <div className="space-y-2">{localMatches.map(quickRow)}</div>
         </div>
       )}
       {localMatches.length > 0 && results.length > 0 && (
-        <h3 className="mt-3 text-xs font-medium uppercase tracking-wide text-[#829084]">
+        <h3 className="mt-3 text-xs font-medium uppercase tracking-wide text-(--muted)">
           Food database
         </h3>
       )}
@@ -961,7 +961,7 @@ export function FoodSearch({ busy, searchMeals, forcedSlot = null, onLabelParsed
           return (
             <div
               key={f.fdcId || f.gtinUpc || f.description}
-              className="flex items-center gap-2 rounded-2xl border border-[#dce3d7] bg-white p-3 hover:border-[#8aa06f]"
+              className="flex items-center gap-2 rounded-2xl border border-(--border) bg-(--surface) p-3 hover:border-(--accent)"
             >
               <button
                 onClick={() => {
@@ -973,11 +973,11 @@ export function FoodSearch({ busy, searchMeals, forcedSlot = null, onLabelParsed
                 disabled={busy !== null}
                 className="press min-w-0 flex-1 text-left disabled:opacity-50"
               >
-                <span className="flex items-center gap-1.5 text-sm font-medium text-[#2c3a2e]">
+                <span className="flex items-center gap-1.5 text-sm font-medium text-(--ink)">
                   <span className="truncate">{f.description}</span>
                   {isVerifiedSource(f.dataType) && <VerifiedBadge />}
                 </span>
-                <span className="mt-0.5 block text-xs text-[#5d6b5f]">
+                <span className="mt-0.5 block text-xs text-(--ink-2)">
                   {f.brand ? `${f.brand} · ` : ""}
                   {Math.round(f.per100g.kcal)} kcal per 100 g
                 </span>
@@ -1002,7 +1002,7 @@ export function FoodSearch({ busy, searchMeals, forcedSlot = null, onLabelParsed
                 }
                 disabled={busy !== null}
                 aria-label={`Quick add ${f.description}, ${portionLabel}`}
-                className="press flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-[#dce3d7] text-[#2c3a2e] hover:border-[#8aa06f] hover:bg-[#f0f4ec] disabled:opacity-50"
+                className="press flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-(--border) text-(--ink) hover:border-(--accent) hover:bg-(--control) disabled:opacity-50"
               >
                 <svg
                   width="16"
@@ -1022,7 +1022,7 @@ export function FoodSearch({ busy, searchMeals, forcedSlot = null, onLabelParsed
         })}
       </div>
 
-      <p className="mt-4 text-center text-[10px] text-[#829084]">
+      <p className="mt-4 text-center text-[10px] text-(--muted)">
         Food data: USDA FoodData Central · Open Food Facts
       </p>
 
@@ -1044,7 +1044,7 @@ export function FoodSearch({ busy, searchMeals, forcedSlot = null, onLabelParsed
           onClick={() => setScanChooser(false)}
         >
           <div
-            className="w-full max-w-sm rounded-3xl bg-white p-4 shadow-[0_12px_48px_rgba(22,32,26,0.25)]"
+            className="w-full max-w-sm rounded-3xl bg-(--surface) p-4 shadow-[0_12px_48px_rgba(22,32,26,0.25)]"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="space-y-2">
@@ -1053,10 +1053,10 @@ export function FoodSearch({ busy, searchMeals, forcedSlot = null, onLabelParsed
                   setScanChooser(false);
                   void scanBarcode();
                 }}
-                className="press w-full rounded-2xl border border-[#dce3d7] bg-white px-4 py-3 text-left text-sm text-[#2c3a2e] hover:border-[#8aa06f]"
+                className="press w-full rounded-2xl border border-(--border) bg-(--surface) px-4 py-3 text-left text-sm text-(--ink) hover:border-(--accent)"
               >
                 Scan a barcode
-                <span className="mt-0.5 block text-xs text-[#829084]">
+                <span className="mt-0.5 block text-xs text-(--muted)">
                   Fastest when the product is in the database
                 </span>
               </button>
@@ -1065,17 +1065,17 @@ export function FoodSearch({ busy, searchMeals, forcedSlot = null, onLabelParsed
                   setScanChooser(false);
                   void captureLabel();
                 }}
-                className="press w-full rounded-2xl border border-[#dce3d7] bg-white px-4 py-3 text-left text-sm text-[#2c3a2e] hover:border-[#8aa06f]"
+                className="press w-full rounded-2xl border border-(--border) bg-(--surface) px-4 py-3 text-left text-sm text-(--ink) hover:border-(--accent)"
               >
                 Photograph the nutrition label
-                <span className="mt-0.5 block text-xs text-[#829084]">
+                <span className="mt-0.5 block text-xs text-(--muted)">
                   For anything a barcode can&apos;t find
                 </span>
               </button>
             </div>
             <button
               onClick={() => setScanChooser(false)}
-              className="press mt-2 w-full rounded-2xl px-4 py-2.5 text-sm text-[#829084] hover:text-[#2c3a2e]"
+              className="press mt-2 w-full rounded-2xl px-4 py-2.5 text-sm text-(--muted) hover:text-(--ink)"
             >
               Cancel
             </button>

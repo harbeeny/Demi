@@ -1,5 +1,8 @@
 "use client";
 
+import { useEffect } from "react";
+import { watchSystemTheme } from "@/lib/theme";
+
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
@@ -12,11 +15,14 @@ const TABS = [
 
 /** Bottom tab bar for the three app screens. Safe-area aware for the shell. */
 export function TabBar() {
+  // Status bar follows the on-screen theme, including OS flips in system mode.
+  useEffect(() => watchSystemTheme(), []);
+
   const pathname = usePathname();
 
   return (
     <nav
-      className="fixed inset-x-0 bottom-0 z-30 border-t border-[#e3e8de]/60 bg-[#fbfcfa] backdrop-blur-xl supports-[backdrop-filter]:bg-[#fbfcfa]/75"
+      className="fixed inset-x-0 bottom-0 z-30 border-t border-(--border)/60 bg-(--surface-2) backdrop-blur-xl supports-[backdrop-filter]:bg-(--surface-2)/75"
       style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
       aria-label="Main"
     >
@@ -29,13 +35,13 @@ export function TabBar() {
               href={tab.href}
               aria-current={active ? "page" : undefined}
               className={`flex flex-1 flex-col items-center gap-0.5 py-2.5 text-xs ${
-                active ? "font-semibold text-[#2c3a2e]" : "text-[#829084]"
+                active ? "font-semibold text-(--ink)" : "text-(--muted)"
               }`}
             >
               <span
                 aria-hidden
                 className={`grid h-6 w-10 place-items-center rounded-full text-sm ${
-                  active ? "bg-[#d3e29f]" : ""
+                  active ? "bg-(--accent-tint)" : ""
                 }`}
               >
                 {tab.icon}

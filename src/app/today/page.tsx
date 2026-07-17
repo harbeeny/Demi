@@ -40,8 +40,8 @@ export default function TodayPage() {
 
   if (loading || !data) {
     return (
-      <main className="mx-auto w-full flex min-h-dvh max-w-md items-center justify-center bg-[#f4f6f2]">
-        <p className="animate-pulse text-[#2c3a2e]">Loading your day...</p>
+      <main className="mx-auto w-full flex min-h-dvh max-w-md items-center justify-center bg-(--bg)">
+        <p className="animate-pulse text-(--ink)">Loading your day...</p>
         <TabBar />
       </main>
     );

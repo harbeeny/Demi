@@ -112,24 +112,24 @@ function LoginForm() {
   }
 
   const inputClass =
-    "w-full rounded-2xl border border-[#dce3d7] bg-white px-4 py-3 text-[#2c3a2e] outline-none transition-[border-color,box-shadow] duration-150 focus:border-[#8aa06f] focus:shadow-[0_0_0_3px_rgba(138,160,111,0.15)]";
+    "w-full rounded-2xl border border-(--border-input) bg-(--field) px-4 py-3 text-(--ink) outline-none transition-[border-color,box-shadow] duration-150 focus:border-(--accent) focus:shadow-[0_0_0_3px_rgba(138,160,111,0.15)]";
   const buttonClass =
-    "press w-full rounded-2xl bg-[#2c3a2e] px-4 py-3 font-medium text-white disabled:opacity-60";
+    "press w-full rounded-2xl bg-(--ink) px-4 py-3 font-medium text-(--ink-contrast) disabled:opacity-60";
 
   return (
-    <main className="flex min-h-dvh items-center justify-center bg-[#f4f6f2] px-6">
+    <main className="flex min-h-dvh items-center justify-center bg-(--bg) px-6">
       <div className="w-full max-w-sm">
         <div className="mb-8 flex items-center gap-3">
-          <span className="flex h-10 w-10 items-center justify-center rounded-full bg-[#d3e29f] text-lg font-semibold text-[#2c3a2e]">
+          <span className="flex h-10 w-10 items-center justify-center rounded-full bg-(--accent-tint) text-lg font-semibold text-(--ink)">
             D
           </span>
-          <span className="text-2xl font-semibold tracking-tight text-[#2c3a2e]">Demi</span>
+          <span className="text-2xl font-semibold tracking-tight text-(--ink)">Demi</span>
         </div>
 
         {step === "email" ? (
           <>
-            <h1 className="text-xl font-semibold text-[#2c3a2e]">Sign in with a code</h1>
-            <p className="mt-1 text-sm text-[#829084]">
+            <h1 className="text-xl font-semibold text-(--ink)">Sign in with a code</h1>
+            <p className="mt-1 text-sm text-(--muted)">
               No password. We email you a 6-digit code and you&apos;re in.
             </p>
             <form onSubmit={sendCode} className="mt-6 space-y-3">
@@ -146,27 +146,27 @@ function LoginForm() {
                 {busy ? "Sending..." : "Email me a code"}
               </button>
             </form>
-            <div className="mt-4 flex items-center gap-3 text-xs text-[#829084]">
-              <span className="h-px flex-1 bg-[#dce3d7]" />
+            <div className="mt-4 flex items-center gap-3 text-xs text-(--muted)">
+              <span className="h-px flex-1 bg-(--border)" />
               or
-              <span className="h-px flex-1 bg-[#dce3d7]" />
+              <span className="h-px flex-1 bg-(--border)" />
             </div>
             <button
               type="button"
               disabled={busy}
               onClick={skipSignIn}
-              className="press mt-4 w-full rounded-2xl border border-[#dce3d7] bg-white px-4 py-3 font-medium text-[#2c3a2e] hover:border-[#8aa06f] disabled:opacity-60"
+              className="press mt-4 w-full rounded-2xl border border-(--border) bg-(--surface) px-4 py-3 font-medium text-(--ink) hover:border-(--accent) disabled:opacity-60"
             >
               Skip sign-in for now
             </button>
-            <p className="mt-2 text-center text-xs text-[#829084]">
+            <p className="mt-2 text-center text-xs text-(--muted)">
               Temporary guest session while email delivery is being set up.
             </p>
           </>
         ) : (
           <>
-            <h1 className="text-xl font-semibold text-[#2c3a2e]">Enter your code</h1>
-            <p className="mt-1 text-sm text-[#829084]">
+            <h1 className="text-xl font-semibold text-(--ink)">Enter your code</h1>
+            <p className="mt-1 text-sm text-(--muted)">
               Sent to {email.trim()}. It expires in about an hour.
             </p>
             <form onSubmit={verifyCode} className="mt-6 space-y-3">
@@ -189,7 +189,7 @@ function LoginForm() {
               <div className="flex justify-between text-sm">
                 <button
                   type="button"
-                  className="text-[#7a9a4e] underline-offset-2 hover:underline"
+                  className="text-(--accent-strong) underline-offset-2 hover:underline"
                   onClick={() => {
                     setStep("email");
                     setCode("");
@@ -202,7 +202,7 @@ function LoginForm() {
                 <button
                   type="button"
                   disabled={busy}
-                  className="text-[#7a9a4e] underline-offset-2 hover:underline disabled:opacity-50"
+                  className="text-(--accent-strong) underline-offset-2 hover:underline disabled:opacity-50"
                   onClick={() => sendCode()}
                 >
                   Resend code
@@ -212,14 +212,14 @@ function LoginForm() {
           </>
         )}
 
-        {notice && !errorMessage && <p className="mt-3 text-sm text-[#5d6b5f]">{notice}</p>}
+        {notice && !errorMessage && <p className="mt-3 text-sm text-(--ink-2)">{notice}</p>}
         {(errorMessage || linkError) && (
           <p className="mt-3 text-sm text-red-700">
             {errorMessage || "That link expired or was invalid. Request a code instead."}
           </p>
         )}
 
-        <p className="mt-6 text-center text-xs leading-5 text-[#829084]">
+        <p className="mt-6 text-center text-xs leading-5 text-(--muted)">
           Demi offers general wellness guidance, not medical advice.
         </p>
       </div>

@@ -290,7 +290,7 @@ export function TodayView({ hasPlan, daySummary, meals, targets, logs, summary, 
     <>
       <MacroSummary targets={targets} eaten={eatenTotals} />
       {incomingDelta < 0 && (
-        <p className="mt-2 px-1 text-xs leading-5 text-[#829084]">
+        <p className="mt-2 px-1 text-xs leading-5 text-(--muted)">
           Target trimmed {-incomingDelta} kcal today, balancing{" "}
           {balance.incoming.map((a) => dateShort(a.sourceDate)).join(" and ")}.
         </p>
@@ -302,7 +302,7 @@ export function TodayView({ hasPlan, daySummary, meals, targets, logs, summary, 
             setBalanceOpen(true);
           }}
           disabled={!isToday}
-          className="mt-2 px-1 text-left text-xs leading-5 text-[#829084] enabled:underline-offset-2 enabled:hover:underline"
+          className="mt-2 px-1 text-left text-xs leading-5 text-(--muted) enabled:underline-offset-2 enabled:hover:underline"
         >
           This day&apos;s extra ({balance.outgoing.absorbed} kcal) is spread across{" "}
           {balance.outgoing.days} {balance.outgoing.days === 1 ? "day" : "days"}.
@@ -323,9 +323,9 @@ export function TodayView({ hasPlan, daySummary, meals, targets, logs, summary, 
               setBalanceOpen(true);
             }}
             disabled={busy !== null}
-            className="press mt-3 flex w-full items-center justify-center gap-2 rounded-2xl border border-[#8aa06f] bg-white px-4 py-3 text-sm text-[#2c3a2e] disabled:opacity-50"
+            className="press mt-3 flex w-full items-center justify-center gap-2 rounded-2xl border border-(--accent) bg-(--surface) px-4 py-3 text-sm text-(--ink) disabled:opacity-50"
           >
-            <ScaleIcon className="h-4 w-4 shrink-0 text-[#829084]" />
+            <ScaleIcon className="h-4 w-4 shrink-0 text-(--muted)" />
             {overKcal} kcal over? Balance my week
           </button>
         ) : (
@@ -337,9 +337,9 @@ export function TodayView({ hasPlan, daySummary, meals, targets, logs, summary, 
               setBalanceOpen(true);
             }}
             disabled={busy !== null}
-            className="press mt-3 flex w-full items-center justify-center gap-2 rounded-2xl border border-[#dce3d7] bg-white px-4 py-3 text-sm text-[#2c3a2e] hover:border-[#8aa06f] disabled:opacity-50"
+            className="press mt-3 flex w-full items-center justify-center gap-2 rounded-2xl border border-(--border) bg-(--surface) px-4 py-3 text-sm text-(--ink) hover:border-(--accent) disabled:opacity-50"
           >
-            <ScaleIcon className="h-4 w-4 shrink-0 text-[#829084]" />
+            <ScaleIcon className="h-4 w-4 shrink-0 text-(--muted)" />
             Had a big night? Balance my week
           </button>
       )}
@@ -347,20 +347,20 @@ export function TodayView({ hasPlan, daySummary, meals, targets, logs, summary, 
   );
 
   return (
-    <main className="mx-auto w-full min-h-dvh max-w-md bg-[#f4f6f2] px-5 pb-36 pt-8">
+    <main className="mx-auto w-full min-h-dvh max-w-md bg-(--bg) px-5 pb-36 pt-8">
       <header className="mb-4 flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <span className="flex h-9 w-9 items-center justify-center rounded-full bg-[#d3e29f] font-semibold text-[#2c3a2e]">D</span>
-          <h1 className="text-lg font-semibold leading-tight text-[#2c3a2e]">
+          <span className="flex h-9 w-9 items-center justify-center rounded-full bg-(--accent-tint) font-semibold text-(--ink)">D</span>
+          <h1 className="text-lg font-semibold leading-tight text-(--ink)">
             {isToday ? "Today" : dateHeading(viewedDate)}
           </h1>
         </div>
         <div className="flex items-center gap-2">
           <span
-            className="flex items-center gap-1 rounded-full border border-[#dce3d7] bg-white px-3 py-1.5 text-sm font-medium text-[#2c3a2e]"
+            className="flex items-center gap-1 rounded-full border border-(--border) bg-(--surface) px-3 py-1.5 text-sm font-medium text-(--ink)"
             title={`${streak}-day logging streak`}
           >
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="#d97f3e" aria-hidden="true">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="var(--flame)" aria-hidden="true">
               <path d="M12 2c1 4-3 5.5-3 9a3 3 0 0 0 6 .2c1.6 1.3 2.5 3 2.5 4.8A5.5 5.5 0 0 1 12 21.5 5.5 5.5 0 0 1 6.5 16C6.5 10.5 12 8.5 12 2z" />
             </svg>
             <span aria-label={`${streak} day logging streak`}>{streak}</span>
@@ -369,7 +369,7 @@ export function TodayView({ hasPlan, daySummary, meals, targets, logs, summary, 
             <button
               onClick={() => generate(true)}
               disabled={busy !== null}
-              className="press rounded-full border border-[#dce3d7] bg-white px-4 py-2 text-sm text-[#2c3a2e] hover:border-[#8aa06f] disabled:opacity-50"
+              className="press rounded-full border border-(--border) bg-(--surface) px-4 py-2 text-sm text-(--ink) hover:border-(--accent) disabled:opacity-50"
             >
               {busy === "generate" ? "Working..." : "Regenerate"}
             </button>
@@ -380,7 +380,7 @@ export function TodayView({ hasPlan, daySummary, meals, targets, logs, summary, 
             <button
               onClick={() => chooseMode("plan")}
               disabled={busy !== null}
-              className="press rounded-full border border-[#dce3d7] bg-white px-4 py-2 text-sm text-[#2c3a2e] hover:border-[#8aa06f] disabled:opacity-50"
+              className="press rounded-full border border-(--border) bg-(--surface) px-4 py-2 text-sm text-(--ink) hover:border-(--accent) disabled:opacity-50"
             >
               {busy === "generate" ? "Building..." : "Get meal ideas"}
             </button>
@@ -400,15 +400,15 @@ export function TodayView({ hasPlan, daySummary, meals, targets, logs, summary, 
       {!isToday && (
         <button
           onClick={() => onSelectDate(null)}
-          className="mb-4 text-xs text-[#7a9a4e] underline-offset-2 hover:underline"
+          className="mb-4 text-xs text-(--accent-strong) underline-offset-2 hover:underline"
         >
           Back to today
         </button>
       )}
 
-      {error && <p className="mb-4 rounded-2xl bg-red-50 p-3 text-sm text-red-800">{error}</p>}
+      {error && <p className="mb-4 rounded-2xl bg-(--danger-bg) p-3 text-sm text-(--danger-ink)">{error}</p>}
       {notice && (
-        <p className="mb-4 rounded-2xl bg-[#e9efdd] p-4 text-sm leading-6 text-[#3c4a3e]">{notice}</p>
+        <p className="mb-4 rounded-2xl bg-(--tint) p-4 text-sm leading-6 text-(--tint-ink)">{notice}</p>
       )}
 
       {/* Keyed by day so switching replays a short enter transition: the
@@ -434,12 +434,12 @@ export function TodayView({ hasPlan, daySummary, meals, targets, logs, summary, 
           ))}
           <OtherSection logs={logs} busy={busy} readOnly onUndo={unlog} />
           {summary && (
-            <section className="mt-6 rounded-3xl bg-white p-4 shadow-sm">
-              <h2 className="text-xs font-medium uppercase tracking-wide text-[#829084]">
+            <section className="mt-6 rounded-3xl bg-(--surface) p-4 shadow-sm">
+              <h2 className="text-xs font-medium uppercase tracking-wide text-(--muted)">
                 Day reflection
               </h2>
-              <p className="mt-2 text-sm leading-6 text-[#3c4a3e]">{summary.reflection}</p>
-              <p className="mt-2 text-sm leading-6 text-[#3c4a3e]">{summary.tweak}</p>
+              <p className="mt-2 text-sm leading-6 text-(--tint-ink)">{summary.reflection}</p>
+              <p className="mt-2 text-sm leading-6 text-(--tint-ink)">{summary.tweak}</p>
             </section>
           )}
         </>
@@ -478,23 +478,23 @@ export function TodayView({ hasPlan, daySummary, meals, targets, logs, summary, 
           <button
             onClick={() => chooseMode("plan")}
             disabled={busy !== null}
-            className="mt-6 w-full text-center text-xs text-[#829084] underline-offset-2 hover:underline disabled:opacity-50"
+            className="mt-6 w-full text-center text-xs text-(--muted) underline-offset-2 hover:underline disabled:opacity-50"
           >
             Switch to a meal plan
           </button>
         </>
       ) : isToday && !hasPlan && dayMode === null && modeLoaded && !busy ? (
         <div className="mt-16 space-y-3 text-center">
-          <p className="text-[#2c3a2e]">How do you want to run today?</p>
+          <p className="text-(--ink)">How do you want to run today?</p>
           <button
             onClick={() => chooseMode("plan")}
-            className="press w-full rounded-2xl bg-[#2c3a2e] px-6 py-3 font-medium text-white"
+            className="press w-full rounded-2xl bg-(--ink) px-6 py-3 font-medium text-(--ink-contrast)"
           >
             Build today&apos;s plan
           </button>
           <button
             onClick={() => chooseMode("track")}
-            className="press w-full rounded-2xl border border-[#dce3d7] bg-white px-6 py-3 font-medium text-[#2c3a2e] hover:border-[#8aa06f]"
+            className="press w-full rounded-2xl border border-(--border) bg-(--surface) px-6 py-3 font-medium text-(--ink) hover:border-(--accent)"
           >
             Just track what I eat
           </button>
@@ -505,12 +505,12 @@ export function TodayView({ hasPlan, daySummary, meals, targets, logs, summary, 
             <button
               onClick={() => generate(false)}
               disabled={busy !== null}
-              className="press rounded-2xl bg-[#2c3a2e] px-6 py-3 font-medium text-white disabled:opacity-60"
+              className="press rounded-2xl bg-(--ink) px-6 py-3 font-medium text-(--ink-contrast) disabled:opacity-60"
             >
               Try again
             </button>
           ) : (
-            <p className="animate-pulse text-[#2c3a2e]">Building your day...</p>
+            <p className="animate-pulse text-(--ink)">Building your day...</p>
           )}
         </div>
       ) : isToday && hasPlan ? (
@@ -521,7 +521,7 @@ export function TodayView({ hasPlan, daySummary, meals, targets, logs, summary, 
             <button
               onClick={rebalance}
               disabled={busy !== null}
-              className="press mb-6 w-full rounded-2xl border border-[#8aa06f] bg-white px-4 py-3 text-sm text-[#2c3a2e] disabled:opacity-50"
+              className="press mb-6 w-full rounded-2xl border border-(--accent) bg-(--surface) px-4 py-3 text-sm text-(--ink) disabled:opacity-50"
             >
               {busy === "rebalance"
                 ? "Rebalancing..."
@@ -562,7 +562,7 @@ export function TodayView({ hasPlan, daySummary, meals, targets, logs, summary, 
       ) : null}
       </div>
 
-      <p className="mt-10 text-center text-xs leading-5 text-[#829084]">
+      <p className="mt-10 text-center text-xs leading-5 text-(--muted)">
         Demi offers general wellness guidance, not medical advice.
       </p>
 
@@ -574,7 +574,7 @@ export function TodayView({ hasPlan, daySummary, meals, targets, logs, summary, 
           onClick={() => openSheetFor(null)}
           disabled={busy !== null}
           aria-label="Log a food"
-          className="press fixed bottom-[calc(env(safe-area-inset-bottom)+4.75rem)] right-[max(1.25rem,calc(50vw-14rem+1.25rem))] z-30 flex h-14 w-14 items-center justify-center rounded-full bg-[#2c3a2e] text-white shadow-[0_8px_24px_rgba(22,32,26,0.35)] hover:bg-[#243027] disabled:opacity-60"
+          className="press fixed bottom-[calc(env(safe-area-inset-bottom)+4.75rem)] right-[max(1.25rem,calc(50vw-14rem+1.25rem))] z-30 flex h-14 w-14 items-center justify-center rounded-full bg-(--ink) text-(--ink-contrast) shadow-[0_8px_24px_rgba(22,32,26,0.35)] hover:bg-(--ink) disabled:opacity-60"
         >
           <svg
             width="26"
@@ -685,12 +685,12 @@ function MealSection({
   return (
     <section className="mt-5">
       <div className="mb-2 flex items-baseline justify-between">
-        <h2 className="text-xs font-medium uppercase tracking-wide text-[#829084]">
+        <h2 className="text-xs font-medium uppercase tracking-wide text-(--muted)">
           {SLOT_LABELS[slot]}
           {time !== undefined ? ` · ${timeLabel(time)}` : ""}
         </h2>
         {sectionKcal > 0 && (
-          <span className="text-xs text-[#829084]">{Math.round(sectionKcal)} kcal</span>
+          <span className="text-xs text-(--muted)">{Math.round(sectionKcal)} kcal</span>
         )}
       </div>
       <div className="space-y-2">
@@ -711,7 +711,7 @@ function MealSection({
         {/* A reviewed day keeps a quiet body in empty sections; bare headings
             collapse the page and read as the screen shrinking. */}
         {readOnly && plannedMeals.length === 0 && logs.length === 0 && (
-          <p className="rounded-2xl border border-dashed border-[#e0e6db] px-4 py-2.5 text-sm text-[#a9b4a6]">
+          <p className="rounded-2xl border border-dashed border-(--border) px-4 py-2.5 text-sm text-(--muted)">
             Nothing logged
           </p>
         )}
@@ -719,7 +719,7 @@ function MealSection({
           <button
             onClick={() => onAdd(slot)}
             disabled={busy !== null}
-            className="press w-full rounded-2xl border border-dashed border-[#c9d3c3] bg-transparent px-4 py-2.5 text-left text-sm text-[#829084] hover:border-[#8aa06f] hover:text-[#2c3a2e] disabled:opacity-50"
+            className="press w-full rounded-2xl border border-dashed border-(--border) bg-transparent px-4 py-2.5 text-left text-sm text-(--muted) hover:border-(--accent) hover:text-(--ink) disabled:opacity-50"
           >
             + Add
           </button>
@@ -745,7 +745,7 @@ function OtherSection({
   if (items.length === 0) return null;
   return (
     <section className="mt-5">
-      <h2 className="mb-2 text-xs font-medium uppercase tracking-wide text-[#829084]">Other</h2>
+      <h2 className="mb-2 text-xs font-medium uppercase tracking-wide text-(--muted)">Other</h2>
       <div className="space-y-2">
         {items.map((l) => (
           <LogRow key={l.id} log={l} busy={busy} readOnly={readOnly} onUndo={onUndo} />
@@ -767,16 +767,16 @@ function LogRow({
   onUndo: (id: string) => void;
 }) {
   return (
-    <div className="flex items-center justify-between rounded-2xl bg-white p-3 shadow-sm">
+    <div className="flex items-center justify-between rounded-2xl bg-(--surface) p-3 shadow-sm">
       <div className="min-w-0">
-        <p className="flex items-center gap-1.5 text-sm font-medium text-[#2c3a2e]">
+        <p className="flex items-center gap-1.5 text-sm font-medium text-(--ink)">
           <span className="truncate">{log.name}</span>
           {log.verified && <VerifiedBadge />}
           {log.source === "estimate" && (
-            <span className="shrink-0 rounded-full bg-[#fdf3d7] px-2 py-0.5 text-[10px] text-[#7a6420]">estimate</span>
+            <span className="shrink-0 rounded-full bg-(--warn-bg) px-2 py-0.5 text-[10px] text-(--warn-ink)">estimate</span>
           )}
         </p>
-        <p className="mt-0.5 text-xs text-[#5d6b5f]">
+        <p className="mt-0.5 text-xs text-(--ink-2)">
           {Math.round(log.kcal)} kcal · P {Math.round(log.proteinG)}g
         </p>
       </div>
@@ -784,7 +784,7 @@ function LogRow({
         <button
           onClick={() => onUndo(log.id)}
           disabled={busy !== null}
-          className="text-xs text-[#829084] underline-offset-2 hover:underline disabled:opacity-50"
+          className="text-xs text-(--muted) underline-offset-2 hover:underline disabled:opacity-50"
         >
           Undo
         </button>

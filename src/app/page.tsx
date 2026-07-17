@@ -9,10 +9,10 @@
 import { AppRedirect } from "@/components/AppRedirect";
 
 const SAMPLE_RINGS = [
-  { label: "kcal", value: 1470, target: 2240, color: "#2c3a2e" },
-  { label: "protein", value: 106, target: 164, color: "#7a9a4e" },
-  { label: "carbs", value: 160, target: 248, color: "#c9a44c" },
-  { label: "fat", value: 40, target: 66, color: "#a4785c" },
+  { label: "kcal", value: 1470, target: 2240, color: "var(--ink)" },
+  { label: "protein", value: 106, target: 164, color: "var(--accent-strong)" },
+  { label: "carbs", value: 160, target: 248, color: "var(--macro-carbs)" },
+  { label: "fat", value: 40, target: 66, color: "var(--flame)" },
 ];
 
 const SAMPLE_MEALS = [
@@ -75,37 +75,37 @@ function PreviewRing({ label, value, target, color }: (typeof SAMPLE_RINGS)[numb
   return (
     <div className="flex flex-col items-center">
       <svg width="44" height="44" viewBox="0 0 44 44" aria-hidden>
-        <circle cx="22" cy="22" r={r} fill="none" stroke="#eef1ea" strokeWidth="4" />
+        <circle cx="22" cy="22" r={r} fill="none" stroke="var(--control)" strokeWidth="4" />
         <circle
           cx="22" cy="22" r={r} fill="none"
           stroke={color} strokeWidth="4" strokeLinecap="round"
           strokeDasharray={c} strokeDashoffset={c * (1 - pct)}
           transform="rotate(-90 22 22)"
         />
-        <text x="22" y="25" textAnchor="middle" fontSize="9" fontWeight="600" fill="#2c3a2e">
+        <text x="22" y="25" textAnchor="middle" fontSize="9" fontWeight="600" fill="var(--ink)">
           {value}
         </text>
       </svg>
-      <span className="mt-0.5 text-[8px] text-[#829084]">{label}</span>
+      <span className="mt-0.5 text-[8px] text-(--muted)">{label}</span>
     </div>
   );
 }
 
 export default function LandingPage() {
   return (
-    <div className="bg-[#f4f6f2] text-[#2c3a2e]">
+    <div className="bg-(--bg) text-(--ink)">
       <AppRedirect />
       {/* Nav: single line, 64px */}
       <header className="mx-auto flex h-16 max-w-6xl items-center justify-between px-6">
         <div className="flex items-center gap-2.5">
-          <span className="grid h-9 w-9 place-items-center rounded-full bg-[#d8ee9a] font-semibold text-[#1e3d2a]">
+          <span className="grid h-9 w-9 place-items-center rounded-full bg-(--accent-tint) font-semibold text-(--ink)">
             D
           </span>
           <span className="text-lg font-semibold tracking-tight">Demi</span>
         </div>
         <a
           href="/login"
-          className="press rounded-full border border-[#dce3d7] bg-white px-4 py-2 text-sm font-medium hover:border-[#8aa06f]"
+          className="press rounded-full border border-(--border) bg-(--surface) px-4 py-2 text-sm font-medium hover:border-(--accent)"
         >
           Sign in
         </a>
@@ -121,7 +121,7 @@ export default function LandingPage() {
             Meals planned around your numbers.
           </h1>
           <p
-            className="rise-in mt-5 max-w-[46ch] text-base leading-relaxed text-[#5d6b5f] md:text-lg"
+            className="rise-in mt-5 max-w-[46ch] text-base leading-relaxed text-(--ink-2) md:text-lg"
             style={{ "--rise-index": 1 } as React.CSSProperties}
           >
             Demi computes your calories and macros, picks real meals that fit, and explains why each one earns its place.
@@ -132,13 +132,13 @@ export default function LandingPage() {
           >
             <a
               href="/login"
-              className="press rounded-full bg-[#1e3d2a] px-7 py-3.5 font-medium text-white"
+              className="press rounded-full bg-(--ink) px-7 py-3.5 font-medium text-(--ink-contrast)"
             >
               Get started
             </a>
             <a
               href="#how"
-              className="press rounded-full px-4 py-3.5 font-medium text-[#3c4a3e] underline-offset-4 hover:underline"
+              className="press rounded-full px-4 py-3.5 font-medium text-(--tint-ink) underline-offset-4 hover:underline"
             >
               How it works
             </a>
@@ -150,22 +150,22 @@ export default function LandingPage() {
           className="rise-in mx-auto w-full max-w-[320px]"
           style={{ "--rise-index": 3 } as React.CSSProperties}
         >
-          <div className="rounded-[2rem] border border-[#dce3d7] bg-white p-4 shadow-[0_24px_60px_rgba(44,58,46,0.12)]">
-            <p className="px-1 text-xs font-medium text-[#829084]">Today · sample day</p>
-            <div className="mt-3 grid grid-cols-4 gap-1 rounded-2xl bg-[#f4f6f2] p-3">
+          <div className="rounded-[2rem] border border-(--border) bg-(--surface) p-4 shadow-[0_24px_60px_rgba(44,58,46,0.12)]">
+            <p className="px-1 text-xs font-medium text-(--muted)">Today · sample day</p>
+            <div className="mt-3 grid grid-cols-4 gap-1 rounded-2xl bg-(--bg) p-3">
               {SAMPLE_RINGS.map((ring) => (
                 <PreviewRing key={ring.label} {...ring} />
               ))}
             </div>
             <div className="mt-3 space-y-2.5">
               {SAMPLE_MEALS.map((meal) => (
-                <div key={meal.slot} className="rounded-2xl border border-[#eef1ea] p-3">
-                  <p className="text-[9px] font-medium uppercase tracking-wide text-[#829084]">
+                <div key={meal.slot} className="rounded-2xl border border-(--control) p-3">
+                  <p className="text-[9px] font-medium uppercase tracking-wide text-(--muted)">
                     {meal.slot}
                   </p>
                   <p className="mt-0.5 text-sm font-medium">{meal.name}</p>
-                  <p className="mt-0.5 text-[10px] text-[#5d6b5f]">{meal.macros}</p>
-                  <p className="mt-1 text-[11px] leading-4 text-[#5d6b5f]">{meal.why}</p>
+                  <p className="mt-0.5 text-[10px] text-(--ink-2)">{meal.macros}</p>
+                  <p className="mt-1 text-[11px] leading-4 text-(--ink-2)">{meal.why}</p>
                 </div>
               ))}
             </div>
@@ -174,7 +174,7 @@ export default function LandingPage() {
       </section>
 
       {/* How it works: numbered vertical rail, asymmetric columns */}
-      <section id="how" className="border-t border-[#e3e9df] bg-white">
+      <section id="how" className="border-t border-(--border) bg-(--surface)">
         <div className="mx-auto max-w-6xl px-6 py-20 md:py-28">
           <h2 className="text-3xl font-semibold tracking-tighter md:text-4xl">
             From ten answers to tonight&apos;s dinner
@@ -182,11 +182,11 @@ export default function LandingPage() {
           <div className="mt-12 space-y-10 md:mt-16">
             {STEPS.map((step, i) => (
               <div key={step.title} className="grid gap-2 md:grid-cols-[1fr_2fr_2fr] md:gap-8">
-                <span className="text-5xl font-semibold tracking-tighter text-[#c9d6c2] md:text-6xl">
+                <span className="text-5xl font-semibold tracking-tighter text-(--border) md:text-6xl">
                   {i + 1}
                 </span>
                 <h3 className="text-xl font-semibold tracking-tight md:pt-3">{step.title}</h3>
-                <p className="max-w-[52ch] leading-relaxed text-[#5d6b5f] md:pt-3">{step.body}</p>
+                <p className="max-w-[52ch] leading-relaxed text-(--ink-2) md:pt-3">{step.body}</p>
               </div>
             ))}
           </div>
@@ -194,19 +194,19 @@ export default function LandingPage() {
       </section>
 
       {/* Statement band: the one deliberate theme block on the page */}
-      <section className="bg-[#1e3d2a] text-[#f5f4e9]">
+      <section className="bg-(--ink) text-(--surface-2)">
         <div className="mx-auto max-w-6xl px-6 py-20 md:py-28">
           <h2 className="max-w-[16ch] text-3xl font-semibold leading-[1.1] tracking-tighter md:text-5xl">
             Every number has a why.
           </h2>
-          <p className="mt-5 max-w-[52ch] leading-relaxed text-[#c9d9c8]">
+          <p className="mt-5 max-w-[52ch] leading-relaxed text-(--border)">
             Nothing in your plan is a black box. Tap any figure and Demi shows the rule behind it.
           </p>
-          <figure className="mt-10 max-w-xl rounded-2xl border border-[#4c6b53] bg-[#244630] p-5">
-            <p className="text-sm leading-6 text-[#e9efdd]">
+          <figure className="mt-10 max-w-xl rounded-2xl border border-(--ink-2) bg-(--accent-deep) p-5">
+            <p className="text-sm leading-6 text-(--tint)">
               A 1 lb/week loss works out to 495 kcal below your 2,703 kcal daily burn.
             </p>
-            <figcaption className="mt-2 text-xs text-[#8fae95]">
+            <figcaption className="mt-2 text-xs text-(--accent)">
               Example reasoning from a sample profile
             </figcaption>
           </figure>
@@ -218,7 +218,7 @@ export default function LandingPage() {
         <h2 className="text-3xl font-semibold tracking-tighter md:text-4xl">
           Built to keep you safe, not hooked
         </h2>
-        <p className="mt-4 max-w-[52ch] leading-relaxed text-[#5d6b5f]">
+        <p className="mt-4 max-w-[52ch] leading-relaxed text-(--ink-2)">
           The guardrails are code, not promises. They run on the server where neither a clever prompt nor a bad day can switch them off.
         </p>
         <div className="mt-12 grid gap-4 md:grid-cols-2">
@@ -227,16 +227,16 @@ export default function LandingPage() {
               key={g.title}
               className={
                 g.tone === "dark"
-                  ? "rounded-2xl bg-[#1e3d2a] p-7 text-[#f5f4e9]"
+                  ? "rounded-2xl bg-(--ink) p-7 text-(--surface-2)"
                   : g.tone === "lime"
-                    ? "rounded-2xl bg-[#e4efc4] p-7"
-                    : "rounded-2xl border border-[#dce3d7] bg-white p-7"
+                    ? "rounded-2xl bg-(--tint) p-7"
+                    : "rounded-2xl border border-(--border) bg-(--surface) p-7"
               }
             >
               <h3 className="text-lg font-semibold tracking-tight">{g.title}</h3>
               <p
                 className={`mt-2 leading-relaxed ${
-                  g.tone === "dark" ? "text-[#c9d9c8]" : "text-[#5d6b5f]"
+                  g.tone === "dark" ? "text-(--border)" : "text-(--ink-2)"
                 }`}
               >
                 {g.body}
@@ -247,20 +247,20 @@ export default function LandingPage() {
       </section>
 
       {/* Closer + footer */}
-      <section className="border-t border-[#e3e9df] bg-white">
+      <section className="border-t border-(--border) bg-(--surface)">
         <div className="mx-auto max-w-6xl px-6 py-20 text-center md:py-24">
           <h2 className="mx-auto max-w-[20ch] text-3xl font-semibold tracking-tighter md:text-4xl">
             Know what to eat tonight.
           </h2>
           <a
             href="/login"
-            className="press mt-8 inline-block rounded-full bg-[#1e3d2a] px-8 py-4 font-medium text-white"
+            className="press mt-8 inline-block rounded-full bg-(--ink) px-8 py-4 font-medium text-(--ink-contrast)"
           >
             Get started
           </a>
         </div>
-        <footer className="border-t border-[#e3e9df]">
-          <div className="mx-auto flex max-w-6xl flex-col items-center justify-between gap-3 px-6 py-8 text-sm text-[#829084] md:flex-row">
+        <footer className="border-t border-(--border)">
+          <div className="mx-auto flex max-w-6xl flex-col items-center justify-between gap-3 px-6 py-8 text-sm text-(--muted) md:flex-row">
             <span>Demi</span>
             <span>General wellness guidance, not medical advice.</span>
           </div>

@@ -50,14 +50,14 @@ export function GroceryList({ sections, storageKey }: Props) {
   const { checked, toggle } = useCheckedItems(storageKey);
 
   if (sections.length === 0) {
-    return <p className="text-sm text-[#829084]">Plan some meals and the list builds itself.</p>;
+    return <p className="text-sm text-(--muted)">Plan some meals and the list builds itself.</p>;
   }
 
   return (
     <div className="space-y-4">
       {sections.map((section) => (
         <div key={section.aisle}>
-          <h3 className="mb-2 text-xs font-medium uppercase tracking-wide text-[#829084]">
+          <h3 className="mb-2 text-xs font-medium uppercase tracking-wide text-(--muted)">
             {section.aisle}
           </h3>
           <ul className="space-y-1.5">
@@ -69,24 +69,24 @@ export function GroceryList({ sections, storageKey }: Props) {
                   <button
                     onClick={() => toggle(key)}
                     aria-pressed={done}
-                    className="press flex w-full items-center gap-3 rounded-2xl bg-white px-4 py-2.5 text-left shadow-sm"
+                    className="press flex w-full items-center gap-3 rounded-2xl bg-(--surface) px-4 py-2.5 text-left shadow-sm"
                   >
                     <span
                       aria-hidden
                       className={`grid h-5 w-5 shrink-0 place-items-center rounded-full border text-xs ${
-                        done ? "border-[#7a9a4e] bg-[#d3e29f] text-[#2c3a2e]" : "border-[#dce3d7]"
+                        done ? "border-(--accent-strong) bg-(--accent-tint) text-(--ink)" : "border-(--border)"
                       }`}
                     >
                       {done ? "✓" : ""}
                     </span>
                     <span
                       className={`flex-1 text-sm ${
-                        done ? "text-[#829084] line-through" : "text-[#2c3a2e]"
+                        done ? "text-(--muted) line-through" : "text-(--ink)"
                       }`}
                     >
                       {line.item}
                     </span>
-                    <span className="shrink-0 text-xs text-[#5d6b5f]">{line.display}</span>
+                    <span className="shrink-0 text-xs text-(--ink-2)">{line.display}</span>
                   </button>
                 </li>
               );

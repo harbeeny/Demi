@@ -57,11 +57,11 @@ function Ring({
           patternUnits="userSpaceOnUse"
           patternTransform="rotate(45)"
         >
-          <rect width="4" height="4" fill="#d9a521" />
-          <rect width="2" height="4" fill="#f2cf6b" />
+          <rect width="4" height="4" fill="var(--over)" />
+          <rect width="2" height="4" fill="var(--over-stripe)" />
         </pattern>
       </defs>
-      <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="#e6ebe0" strokeWidth={stroke} />
+      <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="var(--track)" strokeWidth={stroke} />
       {/* Always mounted so value changes transition (the arc grows when a
           log lands); a fresh mount would jump straight to the new value.
           Opacity hides the dot a zero-length round-cap dash would paint. */}
@@ -125,9 +125,9 @@ export function MacroSummary({ targets, eaten }: Props) {
 
   const kcal = remainingParts(targets.kcal, eaten.kcal);
   const macros = [
-    { label: "Protein", ...remainingParts(targets.proteinG, eaten.proteinG), target: targets.proteinG, had: eaten.proteinG, color: "#b25d4c" },
-    { label: "Carbs", ...remainingParts(targets.carbsG, eaten.carbsG), target: targets.carbsG, had: eaten.carbsG, color: "#c9a227" },
-    { label: "Fat", ...remainingParts(targets.fatG, eaten.fatG), target: targets.fatG, had: eaten.fatG, color: "#5b7fa6" },
+    { label: "Protein", ...remainingParts(targets.proteinG, eaten.proteinG), target: targets.proteinG, had: eaten.proteinG, color: "var(--macro-protein)" },
+    { label: "Carbs", ...remainingParts(targets.carbsG, eaten.carbsG), target: targets.carbsG, had: eaten.carbsG, color: "var(--macro-carbs)" },
+    { label: "Fat", ...remainingParts(targets.fatG, eaten.fatG), target: targets.fatG, had: eaten.fatG, color: "var(--macro-fat)" },
   ];
 
   const heroValue =
@@ -147,13 +147,13 @@ export function MacroSummary({ targets, eaten }: Props) {
 
   return (
     <section aria-label="Macro summary">
-      <div className="relative flex items-center justify-between rounded-3xl bg-white p-5 shadow-sm">
+      <div className="relative flex items-center justify-between rounded-3xl bg-(--surface) p-5 shadow-sm">
         {/* Icon-only: the subtitle under the number already names the view,
             so the control stays a quiet corner glyph instead of a chip. */}
         <button
           onClick={cycleView}
           aria-label={`Showing ${VIEW_LABELS[view].toLowerCase()} values. Switch view.`}
-          className="press absolute right-2.5 top-2.5 flex h-9 w-9 items-center justify-center rounded-full text-[#9aa89c] hover:bg-[#f0f3ec] hover:text-[#5d6b5f]"
+          className="press absolute right-2.5 top-2.5 flex h-9 w-9 items-center justify-center rounded-full text-(--muted) hover:bg-(--control) hover:text-(--ink-2)"
         >
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.25" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
             <path d="M17 2v6h-6" />
@@ -162,8 +162,8 @@ export function MacroSummary({ targets, eaten }: Props) {
           </svg>
         </button>
         <div>
-          <p className="text-4xl font-semibold tracking-tight text-[#2c3a2e]">{heroValue}</p>
-          <p className="mt-1 text-sm text-[#5d6b5f]">{heroSub}</p>
+          <p className="text-4xl font-semibold tracking-tight text-(--ink)">{heroValue}</p>
+          <p className="mt-1 text-sm text-(--ink-2)">{heroSub}</p>
         </div>
         <div className="relative mt-4 flex items-center justify-center">
           {/* Base stays green even when over: the striped layer carries the
@@ -172,7 +172,7 @@ export function MacroSummary({ targets, eaten }: Props) {
             progress={targets.kcal > 0 ? eaten.kcal / targets.kcal : 0}
             size={84}
             stroke={8}
-            color="#7a9a4e"
+            color="var(--accent-strong)"
           />
           <span aria-hidden="true" className="absolute text-lg">
             {kcal.over ? "◆" : "❋"}
@@ -182,15 +182,15 @@ export function MacroSummary({ targets, eaten }: Props) {
 
       <div className="mt-3 grid grid-cols-3 gap-3">
         {macros.map((m) => (
-          <div key={m.label} className="rounded-3xl bg-white p-3 text-center shadow-sm">
-            <p className="text-lg font-semibold text-[#2c3a2e]">
+          <div key={m.label} className="rounded-3xl bg-(--surface) p-3 text-center shadow-sm">
+            <p className="text-lg font-semibold text-(--ink)">
               {view === "left"
                 ? `${m.value}g`
                 : view === "eaten"
                   ? `${Math.round(m.had)}g`
                   : `${pct(m.had, m.target)}%`}
             </p>
-            <p className="text-[11px] text-[#829084]">
+            <p className="text-[11px] text-(--muted)">
               {view === "left"
                 ? `${m.label} ${m.over ? "over" : "left"}`
                 : view === "eaten"

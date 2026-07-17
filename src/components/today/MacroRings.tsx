@@ -23,15 +23,15 @@ export function MacroRings({ planned, eaten, targets }: Props) {
   const mode = eaten ? "eaten" : "planned";
 
   return (
-    <section className="mb-6 rounded-3xl bg-white p-4 shadow-sm">
+    <section className="mb-6 rounded-3xl bg-(--surface) p-4 shadow-sm">
       <div className="grid grid-cols-4 gap-2">
-        <MacroRing label="kcal" mode={mode} value={values.kcal} target={targets.kcal} color="#2c3a2e" />
-        <MacroRing label="protein" mode={mode} value={values.proteinG} target={targets.proteinG} color="#7a9a4e" unit="g" />
-        <MacroRing label="carbs" mode={mode} value={values.carbsG} target={targets.carbsG} color="#c9a44c" unit="g" />
-        <MacroRing label="fat" mode={mode} value={values.fatG} target={targets.fatG} color="#a4785c" unit="g" />
+        <MacroRing label="kcal" mode={mode} value={values.kcal} target={targets.kcal} color="var(--ink)" />
+        <MacroRing label="protein" mode={mode} value={values.proteinG} target={targets.proteinG} color="var(--accent-strong)" unit="g" />
+        <MacroRing label="carbs" mode={mode} value={values.carbsG} target={targets.carbsG} color="var(--macro-carbs)" unit="g" />
+        <MacroRing label="fat" mode={mode} value={values.fatG} target={targets.fatG} color="var(--flame)" unit="g" />
       </div>
       {eaten && (
-        <p className="mt-3 text-center text-sm text-[#829084]">
+        <p className="mt-3 text-center text-sm text-(--muted)">
           {remainingCopy(remainingBudget(targets, eaten))}
         </p>
       )}
@@ -75,7 +75,7 @@ function MacroRing({
         role="img"
         aria-label={`${label} ${mode}: ${Math.round(value)} of ${target}${unit}`}
       >
-        <circle cx="34" cy="34" r={r} fill="none" stroke="#eef1ea" strokeWidth="6" />
+        <circle cx="34" cy="34" r={r} fill="none" stroke="var(--control)" strokeWidth="6" />
         <circle
           cx="34" cy="34" r={r} fill="none"
           stroke={color} strokeWidth="6" strokeLinecap="round"
@@ -84,11 +84,11 @@ function MacroRing({
           transform="rotate(-90 34 34)"
           style={{ transition: "stroke-dashoffset 600ms var(--ease-out)" }}
         />
-        <text x="34" y="38" textAnchor="middle" fontSize="13" fontWeight="600" fill="#2c3a2e">
+        <text x="34" y="38" textAnchor="middle" fontSize="13" fontWeight="600" fill="var(--ink)">
           {Math.round(value)}
         </text>
       </svg>
-      <span className="mt-1 text-[10px] text-[#829084]">
+      <span className="mt-1 text-[10px] text-(--muted)">
         {label} / {target}{unit}
       </span>
     </div>

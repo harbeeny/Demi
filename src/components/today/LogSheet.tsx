@@ -165,7 +165,7 @@ export function LogSheet({ open, onClose, searchMeals, busy, defaultMode = "fdc"
   }
 
   const input =
-    "w-full rounded-2xl border border-[#dce3d7] bg-white px-3 py-2 text-sm text-[#2c3a2e] outline-none focus:border-[#8aa06f]";
+    "w-full rounded-2xl border border-(--border-input) bg-(--field) px-3 py-2 text-sm text-(--ink) outline-none focus:border-(--accent)";
 
   return (
     <div
@@ -175,7 +175,7 @@ export function LogSheet({ open, onClose, searchMeals, busy, defaultMode = "fdc"
     >
       <div
         ref={sheetRef}
-        className="flex h-[90dvh] w-full max-w-md flex-col overflow-hidden rounded-t-3xl bg-[#f4f6f2] shadow-[0_-8px_40px_rgba(22,32,26,0.18)]"
+        className="flex h-[90dvh] w-full max-w-md flex-col overflow-hidden rounded-t-3xl bg-(--bg) shadow-[var(--shadow-sheet)]"
         style={sheetStyle}
         onClick={(e) => e.stopPropagation()}
         {...handlers}
@@ -184,15 +184,15 @@ export function LogSheet({ open, onClose, searchMeals, busy, defaultMode = "fdc"
             touch-action:none keeps the pull from fighting the content scroll. */}
         <div data-drag-handle className="shrink-0 px-5 pt-3" style={{ touchAction: "none" }}>
           <div
-            className="mx-auto mb-3 h-1.5 w-10 rounded-full bg-[#cdd6c8]"
+            className="mx-auto mb-3 h-1.5 w-10 rounded-full bg-(--handle)"
             aria-hidden="true"
           />
           <div className="mb-4 flex items-center justify-between">
-            <h2 className="text-lg font-semibold text-[#2c3a2e]">Log something else</h2>
+            <h2 className="text-lg font-semibold text-(--ink)">Log something else</h2>
             <button
               onClick={onClose}
               aria-label="Close"
-              className="press -mr-1 flex h-9 w-9 items-center justify-center rounded-full text-[#829084] hover:bg-[#e6ebe0] hover:text-[#2c3a2e]"
+              className="press -mr-1 flex h-9 w-9 items-center justify-center rounded-full text-(--muted) hover:bg-(--track) hover:text-(--ink)"
             >
               <svg
                 width="18"
@@ -216,7 +216,7 @@ export function LogSheet({ open, onClose, searchMeals, busy, defaultMode = "fdc"
           style={{ touchAction: "pan-y", overscrollBehavior: "contain" }}
         >
           {supportive ? (
-            <p className="rounded-2xl bg-[#e9efdd] p-4 text-sm leading-6 text-[#3c4a3e]">{supportive.text}</p>
+            <p className="rounded-2xl bg-(--tint) p-4 text-sm leading-6 text-(--tint-ink)">{supportive.text}</p>
           ) : (
             <>
               <div className="mb-4 flex gap-2">
@@ -226,8 +226,8 @@ export function LogSheet({ open, onClose, searchMeals, busy, defaultMode = "fdc"
                   onClick={() => { setMode(m); setMessage(""); }}
                   className={`press rounded-full border px-4 py-2 text-sm ${
                     mode === m
-                      ? "border-[#2c3a2e] bg-[#2c3a2e] text-white"
-                      : "border-[#dce3d7] bg-white text-[#2c3a2e]"
+                      ? "border-(--ink) bg-(--ink) text-(--ink-contrast)"
+                      : "border-(--border) bg-(--surface) text-(--ink)"
                   }`}
                 >
                   {m === "fdc" ? "Search foods" : m === "search" ? "Meals" : "Quick add"}
@@ -279,18 +279,18 @@ export function LogSheet({ open, onClose, searchMeals, busy, defaultMode = "fdc"
                       onClick={() => setSelectedId(m.id)}
                       className={`press w-full rounded-2xl border p-3 text-left ${
                         selectedId === m.id
-                          ? "border-[#2c3a2e] bg-white"
-                          : "border-[#dce3d7] bg-white hover:border-[#8aa06f]"
+                          ? "border-(--ink) bg-(--surface)"
+                          : "border-(--border) bg-(--surface) hover:border-(--accent)"
                       }`}
                     >
-                      <span className="block text-sm font-medium text-[#2c3a2e]">{m.name}</span>
-                      <span className="mt-1 block text-xs text-[#5d6b5f]">
+                      <span className="block text-sm font-medium text-(--ink)">{m.name}</span>
+                      <span className="mt-1 block text-xs text-(--ink-2)">
                         {Math.round(m.kcal)} kcal · P {Math.round(m.proteinG)}g · C {Math.round(m.carbsG)}g · F {Math.round(m.fatG)}g
                       </span>
                     </button>
                   ))}
                   {results.length === 0 && (
-                    <p className="text-sm text-[#829084]">No matches. Try Quick add instead.</p>
+                    <p className="text-sm text-(--muted)">No matches. Try Quick add instead.</p>
                   )}
                 </div>
                 {selected && (
@@ -308,7 +308,7 @@ export function LogSheet({ open, onClose, searchMeals, busy, defaultMode = "fdc"
                     <button
                       onClick={() => void onLogDb(selected.id, note, { slot })}
                       disabled={busy !== null}
-                      className="press mt-3 w-full rounded-2xl bg-[#2c3a2e] px-5 py-3 font-medium text-white disabled:opacity-60"
+                      className="press mt-3 w-full rounded-2xl bg-(--ink) px-5 py-3 font-medium text-(--ink-contrast) disabled:opacity-60"
                     >
                       {busy === "log-db" ? "Logging..." : `Log ${selected.name}`}
                     </button>
@@ -329,7 +329,7 @@ export function LogSheet({ open, onClose, searchMeals, busy, defaultMode = "fdc"
                     <button
                       onClick={runEstimate}
                       disabled={estimating || !quickText.trim()}
-                      className="press mt-3 w-full rounded-2xl bg-[#2c3a2e] px-5 py-3 font-medium text-white disabled:opacity-60"
+                      className="press mt-3 w-full rounded-2xl bg-(--ink) px-5 py-3 font-medium text-(--ink-contrast) disabled:opacity-60"
                     >
                       {estimating ? "Estimating..." : "Estimate macros"}
                     </button>
@@ -337,18 +337,18 @@ export function LogSheet({ open, onClose, searchMeals, busy, defaultMode = "fdc"
                 ) : (
                   <div className="space-y-2">
                     {isEstimate && (
-                      <p className="rounded-xl bg-[#fdf3d7] px-3 py-2 text-xs text-[#7a6420]">
+                      <p className="rounded-xl bg-(--warn-bg) px-3 py-2 text-xs text-(--warn-ink)">
                         Estimate. Check the numbers before saving.
                         {fields.assumptions ? ` ${fields.assumptions}` : ""}
                       </p>
                     )}
-                    {message && <p className="text-sm text-[#829084]">{message}</p>}
+                    {message && <p className="text-sm text-(--muted)">{message}</p>}
                     <SlotChips value={slot} onChange={setSlot} />
                     <input type="text" className={input} placeholder="Name" value={fields.name}
                       onChange={(e) => setFields({ ...fields, name: e.target.value })} />
                     <div className="grid grid-cols-4 gap-2">
                       {(["kcal", "proteinG", "carbsG", "fatG"] as const).map((k) => (
-                        <label key={k} className="text-xs text-[#829084]">
+                        <label key={k} className="text-xs text-(--muted)">
                           {k === "kcal" ? "kcal" : k === "proteinG" ? "P (g)" : k === "carbsG" ? "C (g)" : "F (g)"}
                           <input
                             type="number" min="0" inputMode="numeric"
@@ -369,14 +369,14 @@ export function LogSheet({ open, onClose, searchMeals, busy, defaultMode = "fdc"
                     <div className="flex gap-2">
                       <button
                         onClick={() => { setFields(null); setMessage(""); }}
-                        className="press rounded-2xl border border-[#dce3d7] bg-white px-4 py-3 text-sm text-[#2c3a2e]"
+                        className="press rounded-2xl border border-(--border) bg-(--surface) px-4 py-3 text-sm text-(--ink)"
                       >
                         Back
                       </button>
                       <button
                         onClick={saveEstimate}
                         disabled={busy !== null || !fields.name.trim() || Number(fields.kcal) < 0}
-                        className="press flex-1 rounded-2xl bg-[#2c3a2e] px-5 py-3 font-medium text-white disabled:opacity-60"
+                        className="press flex-1 rounded-2xl bg-(--ink) px-5 py-3 font-medium text-(--ink-contrast) disabled:opacity-60"
                       >
                         {busy === "log-estimate" ? "Saving..." : "Save log"}
                       </button>

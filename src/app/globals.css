@@ -1,13 +1,140 @@
 @import "tailwindcss";
 
 :root {
-  --background: #f5f7f3;
-  --foreground: #16201a;
+  /* Theme tokens. Light values here; dark values below. Every pairing is
+     WCAG-AA verified by scripts/check-contrast.py (text >=4.5:1 on its
+     backgrounds, meaningful graphics >=3:1); rerun it when touching these. */
+  --bg: #f4f6f2;
+  --surface: #ffffff;
+  --surface-2: #f8faf5;
+  --control: #eef1ea;
+  --ink: #2c3a2e;
+  --ink-2: #5d6b5f;
+  --muted: #617065;
+  --border: #dce3d7;
+  --border-input: #c3cdbb;
+  --field: #ffffff;
+  --focus: #55703a;
+  --accent: #8aa06f;
+  --accent-strong: #7a9a4e;
+  --accent-text: #55703a;
+  --accent-deep: #3e7a46;
+  --accent-tint: #d3e29f;
+  --tint: #e9efdd;
+  --tint-ink: #3c4a3e;
+  --tint-muted: #4f5e44;
+  --warn-bg: #fdf3d7;
+  --warn-ink: #7a6420;
+  --confirm-bg: #eef6ee;
+  --track: #e6ebe0;
+  --handle: #cdd6c8;
+  --over: #a8790a;
+  --over-stripe: #e4bc45;
+  --flame: #c05f1d;
+  --macro-protein: #b25d4c;
+  --macro-carbs: #9a7c14;
+  --macro-fat: #5b7fa6;
+  --danger-bg: #fdeceb;
+  --danger-ink: #8f2318;
+  --ink-contrast: #ffffff;
+  --shadow-sheet: 0 -8px 40px rgba(22, 32, 26, 0.18);
+
+  --background: var(--bg);
+  --foreground: var(--ink);
+  color-scheme: light;
 
   /* Strong custom easings; built-in CSS easings are too weak (emil-design-eng) */
   --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
   --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
   --ease-drawer: cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+/* Dark palette: same hue family, AA-verified. Applied when the user chose
+   dark, or chose system (no data-theme) and the OS is dark. */
+[data-theme="dark"] {
+  --bg: #121612;
+  --surface: #1c221c;
+  --surface-2: #222922;
+  --control: #2a322a;
+  --ink: #e6ece3;
+  --ink-2: #b4c0b0;
+  --muted: #93a190;
+  --border: #38423a;
+  --border-input: #66755f;
+  --field: #242d24;
+  --focus: #a8c580;
+  --accent: #7f9a63;
+  --accent-strong: #8fb164;
+  --accent-text: #a8c580;
+  --accent-deep: #6fbf7d;
+  --accent-tint: #3c4a2c;
+  --tint: #252e1f;
+  --tint-ink: #c8d4c0;
+  --tint-muted: #a9b997;
+  --warn-bg: #3a301a;
+  --warn-ink: #e0c069;
+  --confirm-bg: #213526;
+  --track: #2c352c;
+  --handle: #4a564a;
+  --over: #d9a92e;
+  --over-stripe: #8a6c12;
+  --flame: #e08340;
+  --macro-protein: #d98874;
+  --macro-carbs: #cfa72e;
+  --macro-fat: #88a9cc;
+  --danger-bg: #3a2220;
+  --danger-ink: #f0a29a;
+  --ink-contrast: #121612;
+  --shadow-sheet: 0 -8px 40px rgba(0, 0, 0, 0.5);
+  color-scheme: dark;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]):not([data-theme="dark"]) {
+    --bg: #121612;
+    --surface: #1c221c;
+    --surface-2: #222922;
+    --control: #2a322a;
+    --ink: #e6ece3;
+    --ink-2: #b4c0b0;
+    --muted: #93a190;
+    --border: #38423a;
+    --border-input: #66755f;
+    --field: #242d24;
+    --focus: #a8c580;
+    --accent: #7f9a63;
+    --accent-strong: #8fb164;
+    --accent-text: #a8c580;
+    --accent-deep: #6fbf7d;
+    --accent-tint: #3c4a2c;
+    --tint: #252e1f;
+    --tint-ink: #c8d4c0;
+    --tint-muted: #a9b997;
+    --warn-bg: #3a301a;
+    --warn-ink: #e0c069;
+    --confirm-bg: #213526;
+    --track: #2c352c;
+    --handle: #4a564a;
+    --over: #d9a92e;
+    --over-stripe: #8a6c12;
+    --flame: #e08340;
+    --macro-protein: #d98874;
+    --macro-carbs: #cfa72e;
+    --macro-fat: #88a9cc;
+    --danger-bg: #3a2220;
+    --danger-ink: #f0a29a;
+    --ink-contrast: #121612;
+    --shadow-sheet: 0 -8px 40px rgba(0, 0, 0, 0.5);
+    color-scheme: dark;
+  }
+}
+
+/* Keyboard focus must be visible on every control (WCAG 2.4.7): a 2px
+   accent ring, offset so it reads on any surface. Pointer users keep the
+   quieter styles. */
+:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
 }
 
 @theme inline {
@@ -59,8 +186,8 @@ body {
 }
 
 ::selection {
-  background: #cce5c9;
-  color: #16201a;
+  background: var(--accent-tint);
+  color: var(--ink);
 }
 
 /*
