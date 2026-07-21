@@ -663,6 +663,48 @@ export interface Database {
         };
         Relationships: [];
       };
+      pantry_items: {
+        Row: {
+          user_id: string;
+          item: string;
+          unit: string;
+          qty: number;
+          updated_at: string;
+        };
+        Insert: {
+          user_id: string;
+          item: string;
+          unit: string;
+          qty?: number;
+          updated_at?: string;
+        };
+        Update: {
+          user_id?: string;
+          item?: string;
+          unit?: string;
+          qty?: number;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
+      pantry_state: {
+        Row: {
+          user_id: string;
+          consumed_until: string;
+          updated_at: string;
+        };
+        Insert: {
+          user_id: string;
+          consumed_until: string;
+          updated_at?: string;
+        };
+        Update: {
+          user_id?: string;
+          consumed_until?: string;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
       day_adjustments: {
         Row: {
           id: string;
@@ -699,6 +741,10 @@ export interface Database {
       consume_quota: {
         Args: { p_bucket: string; p_limit: number };
         Returns: boolean;
+      };
+      pantry_add: {
+        Args: { p_item: string; p_unit: string; p_delta: number };
+        Returns: undefined;
       };
     };
     Enums: { [_ in never]: never };
