@@ -12,6 +12,12 @@ export interface TakeoutIntent {
   hadMacroMatch: boolean;
   goal: Goal | null;
   surface: TakeoutSurface;
+  /**
+   * Coarse coordinates (~1.1 km, pre-rounded in lib/takeout/region.ts) to
+   * aim the provider's search; only ever present when the user granted
+   * location through the priming flow. Not logged, only handed off.
+   */
+  geo?: { lat: number; lng: number };
 }
 
 /**
@@ -32,7 +38,7 @@ export async function recordAndOpenTakeout(intent: TakeoutIntent): Promise<void>
   if (Capacitor.isNativePlatform()) {
     await Promise.race([insert, sleep(LOG_CAP_MS)]);
   }
-  await openTakeoutSearch(intent.provider, intent.dishQuery);
+  await openTakeoutSearch(intent.provider, intent.dishQuery, intent.geo);
 }
 
 const LOG_CAP_MS = 600;

@@ -15,8 +15,9 @@ import { buildTakeoutSearchUrl, PROVIDER_HOMEPAGES } from "./deeplinks";
 export async function openTakeoutSearch(
   provider: TakeoutProvider,
   dishQuery: string,
+  geo?: { lat: number; lng: number },
 ): Promise<void> {
-  if (!(await openExternal(buildTakeoutSearchUrl(provider, dishQuery)))) {
+  if (!(await openExternal(buildTakeoutSearchUrl(provider, dishQuery, geo)))) {
     await openExternal(PROVIDER_HOMEPAGES[provider]);
   }
 }
