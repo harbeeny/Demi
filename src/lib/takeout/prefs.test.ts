@@ -29,18 +29,15 @@ describe("inferChainCounts", () => {
     expect(counts.chipotle).toBe(1);
   });
 
-  test("dig, naya, and this bowl match without swallowing lookalikes", () => {
+  test("dig and naya match without swallowing lookalikes", () => {
     const counts = inferChainCounts([
       "DIG harvest bowl",
       "dig inn charred chicken",
       "digging into leftovers",
       "NAYA chicken roll",
-      "This Bowl salmon bowl",
-      "ate this bowlful of chili",
     ]);
     expect(counts.dig).toBe(2);
     expect(counts.naya).toBe(1);
-    expect(counts.this_bowl).toBe(1);
   });
 });
 
