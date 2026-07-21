@@ -72,6 +72,8 @@ export interface Database {
           weight_kg: number;
           goal: Goal;
           body_fat_pct: number | null;
+          tried_tracking_apps: boolean | null;
+          main_blocker: string | null;
           goal_rate: number | null;
           activity_level: ActivityLevel;
           dietary_prefs: string[];
@@ -96,6 +98,8 @@ export interface Database {
           weight_kg: number;
           goal: Goal;
           body_fat_pct?: number | null;
+          tried_tracking_apps?: boolean | null;
+          main_blocker?: string | null;
           goal_rate?: number | null;
           activity_level: ActivityLevel;
           dietary_prefs?: string[];
@@ -120,6 +124,8 @@ export interface Database {
           weight_kg?: number;
           goal?: Goal;
           body_fat_pct?: number | null;
+          tried_tracking_apps?: boolean | null;
+          main_blocker?: string | null;
           goal_rate?: number | null;
           activity_level?: ActivityLevel;
           dietary_prefs?: string[];

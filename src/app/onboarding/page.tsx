@@ -12,9 +12,16 @@ import { THEME_CHOICES, ThemeIcon } from "@/components/ThemePill";
 import { applyThemeChoice, getThemeChoice, type ThemeChoice } from "@/lib/theme";
 import { tapHaptic } from "@/lib/haptics";
 import { BodyFatPicker } from "@/components/onboarding/BodyFatPicker";
+import { LongTermChart } from "@/components/onboarding/LongTermChart";
 import type { ActivityLevel, Budget, CookingSkill, Goal, Sex } from "@/lib/supabase/types";
 
+type Blocker = "consistency" | "eating_habits" | "support" | "schedule" | "meal_inspiration";
+
 type Answers = {
+  /** has the user tried calorie-tracking apps before; null until answered */
+  triedApps: boolean | null;
+  /** main obstacle to their goal; null until answered */
+  blocker: Blocker | null;
   sex: Sex | null;
   /** date of birth; age is derived at validation/save time */
   dobMonth: number; // 0-11
@@ -51,6 +58,8 @@ const DEFAULT_DOB_MONTH = TODAY.getMonth();
 const DEFAULT_DOB_DAY = Math.min(TODAY.getDate(), daysInMonth(DEFAULT_DOB_YEAR, DEFAULT_DOB_MONTH));
 
 const INITIAL: Answers = {
+  triedApps: null,
+  blocker: null,
   sex: null,
   dobMonth: DEFAULT_DOB_MONTH,
   dobDay: DEFAULT_DOB_DAY,
@@ -88,6 +97,35 @@ const ACTIVITY: Array<{ value: ActivityLevel; label: string; hint: string }> = [
   { value: "moderate", label: "Moderately active", hint: "3-5 workouts a week" },
   { value: "active", label: "Active", hint: "6-7 workouts a week" },
   { value: "very_active", label: "Very active", hint: "Physical job or 2x daily" },
+];
+
+/** Minimal monochrome glyphs (no emoji, per app convention). */
+const GLYPHS: Record<string, React.ReactNode> = {
+  thumb_up: <path d="M7 11v9M7 11l3.5-6.5c.4-.8 1.1-1 1.8-.6.7.4 1 1.2.8 2L12.5 9H18a2 2 0 0 1 2 2c0 .3-.05.6-.15.9l-2.1 6.3A2.6 2.6 0 0 1 15.3 20H7M7 11H4v9h3" />,
+  thumb_down: <path d="M17 13V4M17 13l-3.5 6.5c-.4.8-1.1 1-1.8.6-.7-.4-1-1.2-.8-2l.6-3.1H6a2 2 0 0 1-2-2c0-.3.05-.6.15-.9l2.1-6.3A2.6 2.6 0 0 1 8.7 4H17M17 13h3V4h-3" />,
+  bars: <path d="M5 20v-6M12 20V9M19 20V4" />,
+  burger: <path d="M4 9c0-3 3.6-5 8-5s8 2 8 5H4ZM3 13h18M4 17c0 1.7 1.3 3 3 3h10c1.7 0 3-1.3 3-3H4Z" />,
+  hands: <path d="M12 20 5.5 13.4a3.8 3.8 0 0 1 0-5.3 3.6 3.6 0 0 1 5.2 0L12 9.4l1.3-1.3a3.6 3.6 0 0 1 5.2 0 3.8 3.8 0 0 1 0 5.3L12 20Z" />,
+  calendar: <path d="M5 6h14a1 1 0 0 1 1 1v12a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1ZM4 10h16M8 4v4M16 4v4" />,
+  apple: <path d="M12 7c-3.5-2-7 .3-7 4.4C5 15.6 8 20 10.2 20c.8 0 1.1-.5 1.8-.5s1 .5 1.8.5C16 20 19 15.6 19 11.4c0-4.1-3.5-6.4-7-4.4ZM12 7c0-2 1.2-3.4 3-4" />,
+};
+
+function Glyph({ name, className }: { name: keyof typeof GLYPHS; className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden focusable="false" fill="none" stroke="currentColor"
+      strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"
+      className={className ?? "h-5 w-5"}>
+      {GLYPHS[name]}
+    </svg>
+  );
+}
+
+const BLOCKERS: Array<{ value: Blocker; label: string; glyph: keyof typeof GLYPHS }> = [
+  { value: "consistency", label: "Lack of consistency", glyph: "bars" },
+  { value: "eating_habits", label: "Unhealthy eating habits", glyph: "burger" },
+  { value: "support", label: "Lack of support", glyph: "hands" },
+  { value: "schedule", label: "Busy schedule", glyph: "calendar" },
+  { value: "meal_inspiration", label: "Lack of meal inspiration", glyph: "apple" },
 ];
 
 const DIET_OPTIONS = ["vegetarian", "vegan", "pescatarian", "gluten_free"];
@@ -188,22 +226,25 @@ export default function OnboardingPage() {
       return { ...a, dobMonth: month, dobDay: day, dobYear: year };
     });
 
-  // Steps 0..11 are questions; step 12 is the results screen.
-  const TOTAL_QUESTIONS = 12;
+  // Steps 0..14 are questions; step 15 is the results screen.
+  const TOTAL_QUESTIONS = 15;
 
   const stepValid = useMemo(() => {
     switch (step) {
       // 0 (appearance) always valid: a choice is always active
-      case 1: return answers.sex !== null;
-      case 2: {
+      case 1: return answers.triedApps !== null;
+      // 2 (long-term interstitial) has nothing to answer
+      case 3: return answers.sex !== null;
+      case 4: {
         const age = ageFromDob(answers.dobYear, answers.dobMonth, answers.dobDay);
         return age >= 18 && age <= 120;
       }
-      // 3 (height) is wheel-constrained, always valid
-      case 4: return isValidWeight(answers.weight, answers.weightUnit);
-      case 5: return answers.bodyFatPct !== null; // the Skip link advances without one
-      case 6: return answers.goal !== null;
-      case 7: return answers.activityLevel !== null;
+      // 5 (height) is wheel-constrained, always valid
+      case 6: return isValidWeight(answers.weight, answers.weightUnit);
+      case 7: return answers.bodyFatPct !== null; // the Skip link advances without one
+      case 8: return answers.goal !== null;
+      case 9: return answers.blocker !== null;
+      case 10: return answers.activityLevel !== null;
       default: return true; // remaining steps are optional / have defaults
     }
   }, [step, answers]);
@@ -256,6 +297,8 @@ export default function OnboardingPage() {
 
     const { error: insertError } = await supabase.from("onboarding_answers").insert({
       user_id: user.id,
+      tried_tracking_apps: answers.triedApps,
+      main_blocker: answers.blocker,
       sex: profile.sex,
       age: profile.age,
       height_cm: profile.heightCm,
@@ -353,6 +396,34 @@ export default function OnboardingPage() {
         );
       case 1:
         return (
+          <Question title="Have you tried calorie tracking before?" hint="Either answer is a fine starting point.">
+            {([
+              { value: false, label: "No", glyph: "thumb_down" as const },
+              { value: true, label: "Yes", glyph: "thumb_up" as const },
+            ]).map((o) => (
+              <button
+                key={o.label}
+                className={`${choiceButton(answers.triedApps === o.value)} flex items-center gap-4 py-5`}
+                onClick={() => set("triedApps", o.value)}
+              >
+                <Glyph name={o.glyph} className={`h-5 w-5 ${answers.triedApps === o.value ? "text-(--ink-contrast)/80" : "text-(--muted)"}`} />
+                <span className="font-medium">{o.label}</span>
+              </button>
+            ))}
+          </Question>
+        );
+      case 2:
+        return (
+          <div>
+            <h1 className="text-2xl font-semibold text-(--ink)">Demi plays the long game</h1>
+            <p className="mb-5 mt-1 text-sm text-(--muted)">
+              Tracking works when the pace is one you can live with.
+            </p>
+            <LongTermChart />
+          </div>
+        );
+      case 3:
+        return (
           <Question title="What is your sex?" hint="This drives the BMR equation, nothing else.">
             {([
               { value: "female", label: "Female", icon: "♀" },
@@ -375,7 +446,7 @@ export default function OnboardingPage() {
             ))}
           </Question>
         );
-      case 2: {
+      case 4: {
         const under18 = ageFromDob(answers.dobYear, answers.dobMonth, answers.dobDay) < 18;
         return (
           <div className="flex flex-1 flex-col">
@@ -422,7 +493,7 @@ export default function OnboardingPage() {
           </div>
         );
       }
-      case 3: {
+      case 5: {
         const ftIn = answers.heightUnit === "ft_in";
         return (
           <div className="flex flex-1 flex-col">
@@ -474,7 +545,7 @@ export default function OnboardingPage() {
           </div>
         );
       }
-      case 4: {
+      case 6: {
         const valid = isValidWeight(answers.weight, answers.weightUnit);
         return (
           <Question title="What is your weight?" hint="Weigh at the same time each day, ideally in the morning.">
@@ -516,7 +587,7 @@ export default function OnboardingPage() {
           </Question>
         );
       }
-      case 5:
+      case 7:
         return (
           <Question
             title="What is your body fat level?"
@@ -539,7 +610,7 @@ export default function OnboardingPage() {
             </button>
           </Question>
         );
-      case 6:
+      case 8:
         return (
           <Question title="What's the goal?" hint="You can change this anytime.">
             {GOALS.map((g) => (
@@ -563,7 +634,22 @@ export default function OnboardingPage() {
             )}
           </Question>
         );
-      case 7:
+      case 9:
+        return (
+          <Question title="What's stopping you from reaching your goals?" hint="Pick the biggest one. We'll shape the plan around it.">
+            {BLOCKERS.map((b) => (
+              <button
+                key={b.value}
+                className={`${choiceButton(answers.blocker === b.value)} flex items-center gap-4`}
+                onClick={() => set("blocker", b.value)}
+              >
+                <Glyph name={b.glyph} className={`h-5 w-5 shrink-0 ${answers.blocker === b.value ? "text-(--ink-contrast)/80" : "text-(--muted)"}`} />
+                <span className="font-medium">{b.label}</span>
+              </button>
+            ))}
+          </Question>
+        );
+      case 10:
         return (
           <Question title="How active is a normal week?" hint="Count workouts and daily movement together.">
             {ACTIVITY.map((a) => (
@@ -575,7 +661,7 @@ export default function OnboardingPage() {
             ))}
           </Question>
         );
-      case 8:
+      case 11:
         return (
           <Question title="How many meals a day, and when?" hint="We space them evenly inside your eating window.">
             <div className="flex gap-2">
@@ -605,7 +691,7 @@ export default function OnboardingPage() {
             </div>
           </Question>
         );
-      case 9:
+      case 12:
         return (
           <Question title="Any eating pattern or allergies?" hint="Optional. Allergies are hard rules, never suggested.">
             <div className="flex flex-wrap gap-2">
@@ -626,7 +712,7 @@ export default function OnboardingPage() {
               value={answers.dislikes} onChange={(e) => set("dislikes", e.target.value)} />
           </Question>
         );
-      case 10:
+      case 13:
         return (
           <Question title="Budget and kitchen comfort?" hint="So the plan fits your wallet and your patience.">
             <p className="text-sm font-medium text-(--ink)">Grocery budget / week</p>
@@ -647,7 +733,7 @@ export default function OnboardingPage() {
             </div>
           </Question>
         );
-      case 11:
+      case 14:
         return (
           <Question title="Do you train on set days?" hint="Optional. We'll put more carbs near your sessions.">
             <div className="flex flex-wrap gap-2">
@@ -671,7 +757,7 @@ export default function OnboardingPage() {
             )}
           </Question>
         );
-      case 12:
+      case 15:
         return (
           <div>
             <h1 className="text-2xl font-semibold text-(--ink)">Your numbers</h1>
@@ -737,7 +823,7 @@ export default function OnboardingPage() {
             disabled={!stepValid}
             onClick={() => setStep((s) => s + 1)}
           >
-            {step === 0 || step === 2 || (step >= 8 && step <= 11) ? "Continue" : "Next"}
+            {step === 0 || step === 2 || step === 4 || (step >= 11 && step <= 14) ? "Continue" : "Next"}
           </button>
         ) : (
           <button
