@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 
 import { createClient } from "@/lib/supabase/client";
+import { readSnapshot, writeSnapshot } from "@/lib/tab-cache";
 import { weekDates } from "@/lib/plan/week";
 import type { Ingredient } from "@/lib/plan/grocery";
 import type { Budget, MealPlanEntry, MealSlot } from "@/lib/supabase/types";
@@ -48,28 +49,38 @@ export function useKitchenData(): {
 
   const reload = useCallback(async () => {
     const supabase = createClient();
+    // Local session read, not the getUser network round trip: the gate only
+    // routes; API and RLS still verify the token on every real request.
     const {
-      data: { user },
-    } = await supabase.auth.getUser();
+      data: { session },
+    } = await supabase.auth.getSession();
+    const user = session?.user;
     if (!user) {
       router.replace("/login");
       return;
     }
 
-    const { data: onboarding } = await supabase
-      .from("onboarding_answers")
-      .select("budget")
-      .eq("user_id", user.id)
-      .order("created_at", { ascending: false })
-      .limit(1)
-      .single();
-    if (!onboarding) {
-      router.replace("/onboarding");
-      return;
+    const dates = weekDates(localDateISO());
+
+    // Stale-while-revalidate: paint the last snapshot for this user+week
+    // immediately; the fresh fetch below replaces it silently.
+    const snapKey = `kitchen:${user.id}:${dates[0]}`;
+    const snap = readSnapshot<KitchenData>(snapKey);
+    if (snap) {
+      setData(snap);
+      setLoading(false);
     }
 
-    const dates = weekDates(localDateISO());
-    const [{ data: planRows }, { data: mealRows }] = await Promise.all([
+    // One round trip: onboarding rides with the week's data instead of
+    // gating it (un-onboarded visitors just redirect after).
+    const [{ data: onboarding }, { data: planRows }, { data: mealRows }] = await Promise.all([
+      supabase
+        .from("onboarding_answers")
+        .select("budget")
+        .eq("user_id", user.id)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .single(),
       supabase
         .from("meal_plans")
         .select("date, meals")
@@ -78,6 +89,10 @@ export function useKitchenData(): {
         .lte("date", dates[6]),
       supabase.from("meals").select("*"),
     ]);
+    if (!onboarding) {
+      router.replace("/onboarding");
+      return;
+    }
 
     const byId = new Map((mealRows ?? []).map((m) => [m.id, m]));
     const plansByDate = new Map((planRows ?? []).map((p) => [p.date, p.meals as MealPlanEntry[]]));
@@ -108,7 +123,9 @@ export function useKitchenData(): {
       }),
     }));
 
-    setData({ days, budget: onboarding.budget });
+    const fresh: KitchenData = { days, budget: onboarding.budget };
+    writeSnapshot(snapKey, fresh);
+    setData(fresh);
     setLoading(false);
   }, [router]);
 
