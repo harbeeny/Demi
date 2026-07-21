@@ -638,6 +638,7 @@ export function TodayView({ hasPlan, daySummary, meals, targets, logs, summary, 
         meal={takeoutMeal}
         goal={goal}
         surface="today_screen"
+        remaining={remainingBudget(targets, eatenTotals)}
         onClose={() => setTakeoutMeal(null)}
       />
 

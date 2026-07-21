@@ -49,6 +49,7 @@ export interface Database {
           onboarding_complete: boolean;
           timezone: string | null;
           prefers_24h_time: boolean | null;
+          takeout_region: Json | null;
         };
         Insert: {
           id: string;
@@ -56,6 +57,7 @@ export interface Database {
           onboarding_complete?: boolean;
           timezone?: string | null;
           prefers_24h_time?: boolean | null;
+          takeout_region?: Json | null;
         };
         Update: {
           id?: string;
@@ -63,6 +65,7 @@ export interface Database {
           onboarding_complete?: boolean;
           timezone?: string | null;
           prefers_24h_time?: boolean | null;
+          takeout_region?: Json | null;
         };
         Relationships: [];
       };
@@ -534,6 +537,30 @@ export interface Database {
           had_macro_match?: boolean;
           goal?: Goal | null;
           surface?: TakeoutSurface;
+        };
+        Relationships: [];
+      };
+      user_takeout_prefs: {
+        Row: {
+          user_id: string;
+          chain_name: string;
+          affinity: "liked" | "hidden";
+          source: "picker" | "inferred" | "favorited";
+          updated_at: string;
+        };
+        Insert: {
+          user_id: string;
+          chain_name: string;
+          affinity?: "liked" | "hidden";
+          source?: "picker" | "inferred" | "favorited";
+          updated_at?: string;
+        };
+        Update: {
+          user_id?: string;
+          chain_name?: string;
+          affinity?: "liked" | "hidden";
+          source?: "picker" | "inferred" | "favorited";
+          updated_at?: string;
         };
         Relationships: [];
       };

@@ -41,6 +41,7 @@ Stack: Next.js 15 (App Router) on Vercel, Supabase (Postgres + Auth), Capacitor 
 - Encryption at rest is provided by Supabase (AES-256); all transport is TLS.
 - Data export exists (`/api/export`) and a delete path is provided so a user can remove their account and data on request.
 - Free-text notes are screened for disordered-eating signals (`safety-filter.ts`) and dropped rather than stored when flagged.
+- Location (takeout feature): the OS permission is requested only from the in-context priming screen, never in onboarding. A precise fix is used transiently in the request path and is rounded to ~1.1 km (`lib/takeout/region.ts`) before anything stores or transmits it; `profiles.takeout_region` holds ONE coarse value overwritten in place, so no location history trail can exist. Coordinates passed to a delivery provider's search URL are the rounded ones. Deleting the account removes the value with the profile row.
 
 ## 6. Deployment configuration
 
