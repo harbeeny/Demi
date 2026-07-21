@@ -1,16 +1,18 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 
 import { apiFetch, awaitPlanJob } from "@/lib/api";
+import { createClient } from "@/lib/supabase/client";
 import { device24HourClock, formatTimeHour } from "@/lib/dates";
-import { listHash, rollupGroceries } from "@/lib/plan/grocery";
+import { applyPantry, effectiveOnHand, listHash, rollupGroceries } from "@/lib/plan/grocery";
+import { logPurchase, pantryAdd, readPurchaseLog, unlogPurchase } from "@/lib/pantry";
 import type { Budget } from "@/lib/supabase/types";
 import { WeekStrip } from "./WeekStrip";
 import { GroceryList } from "./GroceryList";
 import { RecipeSheet, type RecipeData } from "./RecipeSheet";
-import type { Ingredient } from "@/lib/plan/grocery";
+import type { CoveredLine, GroceryLine, Ingredient } from "@/lib/plan/grocery";
 
 const EXTRAS_KEY = "demi:grocery:extras";
 
@@ -139,8 +141,73 @@ export function KitchenView({ data, onMutated }: Props) {
     ];
   }, [data.days, range, extras]);
 
+  // Raw rollup drives the check-off key: pantry coverage moving lines
+  // around must never re-hash the list and wipe mid-shop checks.
   const sections = useMemo(() => rollupGroceries(groceryEntries), [groceryEntries]);
   const storageKey = `demi:grocery:${range}:${today}:${listHash(sections)}`;
+
+  // Items tapped "I'm out" this session; cleared when fresh pantry data lands.
+  const [outKeys, setOutKeys] = useState<ReadonlySet<string>>(new Set());
+  useEffect(() => {
+    setOutKeys(new Set());
+  }, [data]);
+
+  const { toBuy, covered, staleFor } = useMemo(() => {
+    const { onHand, stale } = effectiveOnHand(sections, data.pantry, Date.now());
+    // Purchases already checked off against THIS list don't cover this list;
+    // subtracting them keeps the split identical across a mid-shop reload.
+    const log = readPurchaseLog(storageKey);
+    for (const [key, amount] of Object.entries(log)) {
+      const have = onHand.get(key);
+      if (have === undefined) continue;
+      const left = have - amount;
+      if (left > 0) onHand.set(key, left);
+      else onHand.delete(key);
+    }
+    for (const key of outKeys) onHand.delete(key);
+    return { ...applyPantry(sections, onHand), staleFor: stale };
+  }, [sections, data.pantry, storageKey, outKeys]);
+
+  /** A check-off is a purchase (or a "yep, have it"): the package amount
+   *  lands in the pantry; un-checking takes exactly that amount back. */
+  const handleToggleLine = (line: GroceryLine, nowChecked: boolean) => {
+    const key = `${line.item}|${line.unit}`;
+    const supabase = createClient();
+    if (nowChecked) {
+      // Buying fresh replaces expired stock instead of stacking on top of it.
+      const staleQty = staleFor.get(key) ?? 0;
+      if (staleQty > 0) void pantryAdd(supabase, { item: line.item, unit: line.unit, delta: -staleQty });
+      void pantryAdd(supabase, { item: line.item, unit: line.unit, delta: line.buyQty });
+      logPurchase(storageKey, key, line.buyQty);
+      if (outKeys.has(key)) {
+        setOutKeys((prev) => {
+          const next = new Set(prev);
+          next.delete(key);
+          return next;
+        });
+      }
+    } else {
+      const logged = unlogPurchase(storageKey, key);
+      void pantryAdd(supabase, { item: line.item, unit: line.unit, delta: -(logged ?? line.buyQty) });
+    }
+  };
+
+  /** "I'm out": zero the pantry row and put the line back on the buy list. */
+  const handleOutOf = (line: CoveredLine) => {
+    const key = `${line.item}|${line.unit}`;
+    setOutKeys((prev) => new Set(prev).add(key));
+    const supabase = createClient();
+    void supabase
+      .from("pantry_items")
+      .update({ qty: 0 })
+      .eq("item", line.item)
+      .eq("unit", line.unit)
+      .then(({ error }) => {
+        // Absolute zero failed (likely offline): fall back to a delta, which
+        // parks itself in the outbox and replays later.
+        if (error) void pantryAdd(supabase, { item: line.item, unit: line.unit, delta: -line.have });
+      });
+  };
 
   const openRecipe = (m: KitchenMeal) =>
     setRecipe({
@@ -246,6 +313,10 @@ export function KitchenView({ data, onMutated }: Props) {
             ))}
           </div>
         </div>
+        <p className="mb-3 text-xs text-(--muted)">
+          Amounts are what you grab at the store. Check off what you buy and
+          Demi counts the leftovers toward next week.
+        </p>
         {extras.length > 0 && (
           <p className="mb-2 flex items-center justify-between text-xs text-(--muted)">
             <span>
@@ -259,7 +330,13 @@ export function KitchenView({ data, onMutated }: Props) {
             </button>
           </p>
         )}
-        <GroceryList sections={sections} storageKey={storageKey} />
+        <GroceryList
+          sections={toBuy}
+          covered={covered}
+          storageKey={storageKey}
+          onToggleLine={handleToggleLine}
+          onOutOf={handleOutOf}
+        />
       </section>
 
       <p className="mt-8 text-center text-xs leading-5 text-(--muted)">

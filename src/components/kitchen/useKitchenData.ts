@@ -3,10 +3,12 @@
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 
+import { apiFetch } from "@/lib/api";
 import { createClient } from "@/lib/supabase/client";
 import { readSnapshot, writeSnapshot } from "@/lib/tab-cache";
 import { weekDates } from "@/lib/plan/week";
-import type { Ingredient } from "@/lib/plan/grocery";
+import { flushPantryOutbox } from "@/lib/pantry";
+import type { Ingredient, PantryRow } from "@/lib/plan/grocery";
 import type { Budget, MealPlanEntry, MealSlot } from "@/lib/supabase/types";
 import { localDateISO } from "@/lib/dates";
 
@@ -35,6 +37,27 @@ export interface KitchenDay {
 export interface KitchenData {
   days: KitchenDay[]; // always 7; entries empty when unplanned
   budget: Budget;
+  /** rows with qty > 0; what the grocery list subtracts as already-at-home */
+  pantry: PantryRow[];
+}
+
+const CONSUME_PING_KEY = "demi:pantry:consumedPing";
+
+/** Once per local day, ask the server to deduct yesterday's planned cooking
+ *  from the pantry. Failures just retry on the next Kitchen visit. */
+async function maybeConsume(): Promise<void> {
+  const today = localDateISO();
+  try {
+    if (localStorage.getItem(CONSUME_PING_KEY) === today) return;
+  } catch {
+    // storage unavailable: ping every load; the route early-exits cheaply
+  }
+  try {
+    const res = await apiFetch("/api/pantry/consume", { method: "POST" });
+    if (res.ok) localStorage.setItem(CONSUME_PING_KEY, today);
+  } catch {
+    // offline: the pantry just stays a day generous until we're back
+  }
 }
 
 /** Client data for the Kitchen tab; guards auth/onboarding like useTodayData. */
@@ -71,9 +94,13 @@ export function useKitchenData(): {
       setLoading(false);
     }
 
+    // Pantry writes queued offline and yesterday's cooking both settle
+    // before the pantry read below; each is a no-op on a normal day.
+    await Promise.all([flushPantryOutbox(supabase), maybeConsume()]);
+
     // One round trip: onboarding rides with the week's data instead of
     // gating it (un-onboarded visitors just redirect after).
-    const [{ data: onboarding }, { data: planRows }, { data: mealRows }] = await Promise.all([
+    const [{ data: onboarding }, { data: planRows }, { data: mealRows }, { data: pantryRows }] = await Promise.all([
       supabase
         .from("onboarding_answers")
         .select("budget")
@@ -88,6 +115,11 @@ export function useKitchenData(): {
         .gte("date", dates[0])
         .lte("date", dates[6]),
       supabase.from("meals").select("*"),
+      supabase
+        .from("pantry_items")
+        .select("item, unit, qty, updated_at")
+        .eq("user_id", user.id)
+        .gt("qty", 0),
     ]);
     if (!onboarding) {
       router.replace("/onboarding");
@@ -123,7 +155,7 @@ export function useKitchenData(): {
       }),
     }));
 
-    const fresh: KitchenData = { days, budget: onboarding.budget };
+    const fresh: KitchenData = { days, budget: onboarding.budget, pantry: pantryRows ?? [] };
     writeSnapshot(snapKey, fresh);
     setData(fresh);
     setLoading(false);

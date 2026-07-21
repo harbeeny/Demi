@@ -23,7 +23,9 @@ describe("rollupGroceries", () => {
     ]);
     expect(sections).toHaveLength(1);
     expect(sections[0].lines[0].qty).toBe(270);
-    expect(sections[0].lines[0].display).toBe("270 g");
+    // 270 g of a by-the-pound item rounds up to the next quarter pound
+    expect(sections[0].lines[0].display).toBe("¾ lb");
+    expect(sections[0].lines[0].buyQty).toBeGreaterThanOrEqual(270);
   });
 
   test("scales by servings", () => {
