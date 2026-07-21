@@ -18,9 +18,10 @@ import { kcalGoalMet } from "@/lib/log/goal";
 import { BalanceSheet, roughEstimateMacros, ScaleIcon } from "./BalanceSheet";
 import type { BalanceInfo } from "./useTodayData";
 import { SLOT_LABELS, SLOT_ORDER, suggestSlot } from "@/lib/log/slots";
-import type { MealSlot } from "@/lib/supabase/types";
+import type { Goal, MealSlot } from "@/lib/supabase/types";
 import { SummaryCard, type DaySummary } from "./SummaryCard";
 import { RecipeSheet, type RecipeData } from "@/components/kitchen/RecipeSheet";
+import { TakeoutSheet } from "./TakeoutSheet";
 
 export type { TodayMeal };
 
@@ -51,6 +52,10 @@ interface Props {
   streak: number;
   week: Array<{ date: string; kcal: number; targetKcal: number }>;
   balance: BalanceInfo;
+  /** onboarding goal at load time, recorded with takeout intent taps */
+  goal: Goal | null;
+  /** takeout fake-door flag: gates the order button on meal cards */
+  takeoutEnabled: boolean;
   /**
    * Switch the viewed day in place (null = today). State-driven on purpose:
    * a location change would reload the whole shell, flashing the UI and
@@ -61,7 +66,7 @@ interface Props {
   onMutated: () => Promise<void>;
 }
 
-export function TodayView({ hasPlan, daySummary, meals, targets, logs, summary, searchMeals, viewedDate, isToday, streak, week, balance, onSelectDate, onMutated }: Props) {
+export function TodayView({ hasPlan, daySummary, meals, targets, logs, summary, searchMeals, viewedDate, isToday, streak, week, balance, goal, takeoutEnabled, onSelectDate, onMutated }: Props) {
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
@@ -76,6 +81,14 @@ export function TodayView({ hasPlan, daySummary, meals, targets, logs, summary, 
   };
   const [recipe, setRecipe] = useState<{ data: RecipeData; slotIndex: number | null } | null>(null);
   const [balanceOpen, setBalanceOpen] = useState(false);
+  // Takeout fake-door: the meal whose handoff sheet is open (null = closed).
+  const [takeoutMeal, setTakeoutMeal] = useState<TodayMeal | null>(null);
+  const openTakeoutFor = takeoutEnabled
+    ? (meal: TodayMeal) => {
+        tapHaptic();
+        setTakeoutMeal(meal);
+      }
+    : undefined;
   // "plan" auto-builds a meal plan; "track" is the standalone macro tracker;
   // null means the user has never chosen (first no-plan visit shows a choice).
   // Lazy read, not a mount effect: this view only mounts client-side (behind
@@ -546,6 +559,7 @@ export function TodayView({ hasPlan, daySummary, meals, targets, logs, summary, 
               onSwap={swap}
               onRecipe={(r, slotIndex) => setRecipe({ data: r, slotIndex })}
               onAdd={openSheetFor}
+              onOrder={openTakeoutFor}
             />
           ))}
           <OtherSection logs={logs} busy={busy} onUndo={unlog} />
@@ -620,6 +634,13 @@ export function TodayView({ hasPlan, daySummary, meals, targets, logs, summary, 
         onLogFdc={logFdc}
       />
 
+      <TakeoutSheet
+        meal={takeoutMeal}
+        goal={goal}
+        surface="today_screen"
+        onClose={() => setTakeoutMeal(null)}
+      />
+
       <BalanceSheet
         open={balanceOpen}
         onClose={() => setBalanceOpen(false)}
@@ -667,6 +688,7 @@ function MealSection({
   onSwap,
   onRecipe,
   onAdd,
+  onOrder,
 }: {
   slot: MealSlot;
   plannedMeals: TodayMeal[];
@@ -678,6 +700,7 @@ function MealSection({
   onSwap: (slotIndex: number) => void;
   onRecipe: (recipe: NonNullable<TodayMeal["recipe"]>, slotIndex: number) => void;
   onAdd: (slot: MealSlot) => void;
+  onOrder?: (meal: TodayMeal) => void;
 }) {
   const sectionKcal = logs.reduce((sum, l) => sum + l.kcal, 0);
   const time = plannedMeals[0]?.timeHour;
@@ -703,6 +726,7 @@ function MealSection({
             onConfirm={onConfirm}
             onSwap={onSwap}
             onRecipe={onRecipe}
+            onOrder={onOrder}
           />
         ))}
         {logs.map((l) => (
