@@ -71,6 +71,7 @@ export interface Database {
           height_cm: number;
           weight_kg: number;
           goal: Goal;
+          body_fat_pct: number | null;
           goal_rate: number | null;
           activity_level: ActivityLevel;
           dietary_prefs: string[];
@@ -94,6 +95,7 @@ export interface Database {
           height_cm: number;
           weight_kg: number;
           goal: Goal;
+          body_fat_pct?: number | null;
           goal_rate?: number | null;
           activity_level: ActivityLevel;
           dietary_prefs?: string[];
@@ -117,6 +119,7 @@ export interface Database {
           height_cm?: number;
           weight_kg?: number;
           goal?: Goal;
+          body_fat_pct?: number | null;
           goal_rate?: number | null;
           activity_level?: ActivityLevel;
           dietary_prefs?: string[];

@@ -69,7 +69,7 @@ const LBS_PER_KG_DISPLAY = 2.20462;
  * line targets() itself enforces.
  */
 export function calorieFloor(profile: ProfileInput): number {
-  const basal = bmr(profile.sex, profile.age, profile.heightCm, profile.weightKg);
+  const basal = bmr(profile.sex, profile.age, profile.heightCm, profile.weightKg, profile.bodyFatPct);
   return Math.max(CALORIE_FLOORS[profile.sex], Math.round(basal.value * BMR_FLOOR_FRACTION));
 }
 
@@ -79,7 +79,7 @@ export function targets(profile: ProfileInput, options: TargetOptions = {}): Mac
     us
       ? `${Number((kgPerWeek * LBS_PER_KG_DISPLAY).toFixed(1))} lb/week`
       : `${kgPerWeek} kg/week`;
-  const basal = bmr(profile.sex, profile.age, profile.heightCm, profile.weightKg);
+  const basal = bmr(profile.sex, profile.age, profile.heightCm, profile.weightKg, profile.bodyFatPct);
   const expenditure = tdee(basal.value, profile.activityLevel);
 
   // Adaptive TDEE correction (accepted by the user from logged results).

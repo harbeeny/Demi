@@ -21,6 +21,8 @@ export interface ProfileInput {
   heightCm: number;
   weightKg: number;
   goal: Goal;
+  /** self-assessed body fat %, 3-70; null/absent falls back to Mifflin-St Jeor */
+  bodyFatPct?: number | null;
   /** kg per week; null uses the default rate for the goal */
   goalRate: number | null;
   activityLevel: ActivityLevel;

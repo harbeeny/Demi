@@ -14,6 +14,7 @@ export function profileFromRow(row: OnboardingRow): ProfileInput {
     heightCm: Number(row.height_cm),
     weightKg: Number(row.weight_kg),
     goal: row.goal,
+    bodyFatPct: row.body_fat_pct,
     goalRate: row.goal_rate === null ? null : Number(row.goal_rate),
     activityLevel: row.activity_level,
     mealsPerDay: row.meals_per_day,

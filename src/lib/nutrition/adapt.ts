@@ -134,7 +134,7 @@ export function detectAdjustment(args: {
   if (reasons.length > 0) return { proposal: null, insufficientData: reasons };
 
   const existingCorrection = Math.round(profile.tdeeCorrection ?? 0);
-  const basal = bmr(profile.sex, profile.age, profile.heightCm, profile.weightKg).value;
+  const basal = bmr(profile.sex, profile.age, profile.heightCm, profile.weightKg, profile.bodyFatPct).value;
   const mifflinTdee = tdee(basal, profile.activityLevel).value;
   const currentEstTdee = mifflinTdee + existingCorrection;
 
