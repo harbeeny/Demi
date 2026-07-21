@@ -7,6 +7,8 @@ export interface TodayMeal {
   slotIndex: number;
   slot: string;
   timeHour: number;
+  /** id of the meals row backing this suggestion */
+  mealId: string;
   name: string;
   kcal: number;
   proteinG: number;
@@ -32,9 +34,11 @@ interface Props {
   onConfirm: (slotIndex: number) => void;
   onSwap: (slotIndex: number) => void;
   onRecipe: (recipe: NonNullable<TodayMeal["recipe"]>, slotIndex: number) => void;
+  /** takeout fake-door; absent while the flag is off, so no button renders */
+  onOrder?: (meal: TodayMeal) => void;
 }
 
-export function MealCard({ meal, busy, compact = false, onConfirm, onSwap, onRecipe }: Props) {
+export function MealCard({ meal, busy, compact = false, onConfirm, onSwap, onRecipe, onOrder }: Props) {
   return (
     <article className="relative rounded-3xl bg-(--surface) p-4 shadow-sm">
       <span className="block text-xs font-medium uppercase tracking-wide text-(--muted)">
@@ -76,6 +80,19 @@ export function MealCard({ meal, busy, compact = false, onConfirm, onSwap, onRec
           {busy === `log-${meal.slotIndex}` ? "Logging..." : "I ate this"}
         </button>
       </div>
+      {/* Takeout fake-door on its own quiet line: sharing the row above
+          would wrap on 375px and strand the primary action alone. */}
+      {onOrder && (
+        <div className="mt-2">
+          <button
+            onClick={() => onOrder(meal)}
+            disabled={busy !== null}
+            className="press rounded-full border border-(--border) bg-(--surface) px-3 py-2 text-xs text-(--ink) hover:border-(--accent) disabled:opacity-50"
+          >
+            Order this on-plan 🛵
+          </button>
+        </div>
+      )}
     </article>
   );
 }

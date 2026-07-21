@@ -13,7 +13,7 @@ import { profileFromRow, prefsFromRow } from "@/lib/plan/rows";
 import { shiftDeltaFor } from "@/lib/plan/shift";
 import { isEligible, type Meal } from "@/lib/plan/select-meals";
 import { readSnapshot, writeSnapshot } from "@/lib/tab-cache";
-import type { MealPlanEntry } from "@/lib/supabase/types";
+import type { Goal, MealPlanEntry } from "@/lib/supabase/types";
 import type { Ingredient } from "@/lib/plan/grocery";
 import type { MacroTotals } from "@/lib/log/remaining";
 import type { TodayMeal, TodayLog } from "./TodayView";
@@ -63,6 +63,10 @@ export interface TodayData {
   /** trailing week, ascending, with eaten kcal and that day's adjusted target */
   week: Array<{ date: string; kcal: number; targetKcal: number }>;
   balance: BalanceInfo;
+  /** onboarding goal at load time, recorded with takeout intent taps */
+  goal: Goal | null;
+  /** the takeout fake-door runtime flag (app_config.takeout_experiment) */
+  takeoutEnabled: boolean;
 }
 
 /**
@@ -147,6 +151,7 @@ export function useTodayData(viewDate?: string | null): {
       { data: allMeals },
       { data: historyRows },
       { data: adjustmentRows },
+      { data: takeoutFlag },
     ] = await Promise.all([
         supabase
           .from("onboarding_answers")
@@ -188,6 +193,12 @@ export function useTodayData(viewDate?: string | null): {
           .select("date, kcal_delta, source_date")
           .eq("user_id", user.id)
           .or(`date.gte.${weekStart},date.eq.${viewedDate},source_date.eq.${viewedDate}`),
+        // takeout fake-door flag; maybeSingle so a missing row means off
+        supabase
+          .from("app_config")
+          .select("value")
+          .eq("key", "takeout_experiment")
+          .maybeSingle(),
       ]);
 
     if (!onboarding) {
@@ -291,6 +302,7 @@ export function useTodayData(viewDate?: string | null): {
             slotIndex: i,
             slot: e.slot,
             timeHour: e.time_hour ?? 12,
+            mealId: meal.id,
             name: meal.name,
             kcal: Number(meal.kcal),
             proteinG: Number(meal.protein_g),
@@ -369,6 +381,8 @@ export function useTodayData(viewDate?: string | null): {
         existingReductionByDate,
         yesterday: yesterdayInfo,
       },
+      goal: onboarding.goal ?? null,
+      takeoutEnabled: takeoutFlag?.value === true,
     };
     writeSnapshot(snapKey, fresh);
     setData(fresh);

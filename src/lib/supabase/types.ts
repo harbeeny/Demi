@@ -25,6 +25,10 @@ export type MealLogSource = "planned" | "db" | "estimate" | "fdc";
 
 export type PlanEvent = "regenerated" | "swapped" | "rebalanced";
 
+export type TakeoutProvider = "doordash" | "ubereats";
+
+export type TakeoutSurface = "today_screen" | "lazy_empty_state";
+
 export interface MealPlanEntry {
   meal_id: string;
   slot: MealSlot;
@@ -494,6 +498,42 @@ export interface Database {
           output_tokens?: number;
           est_cost_usd?: number;
           created_at?: string;
+        };
+        Relationships: [];
+      };
+      takeout_intent_events: {
+        Row: {
+          id: string;
+          user_id: string;
+          created_at: string;
+          provider: TakeoutProvider;
+          meal_id: string | null;
+          dish_query: string;
+          had_macro_match: boolean;
+          goal: Goal | null;
+          surface: TakeoutSurface;
+        };
+        Insert: {
+          id?: string;
+          user_id: string;
+          created_at?: string;
+          provider: TakeoutProvider;
+          meal_id?: string | null;
+          dish_query: string;
+          had_macro_match: boolean;
+          goal?: Goal | null;
+          surface: TakeoutSurface;
+        };
+        Update: {
+          id?: string;
+          user_id?: string;
+          created_at?: string;
+          provider?: TakeoutProvider;
+          meal_id?: string | null;
+          dish_query?: string;
+          had_macro_match?: boolean;
+          goal?: Goal | null;
+          surface?: TakeoutSurface;
         };
         Relationships: [];
       };

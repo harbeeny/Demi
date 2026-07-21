@@ -62,6 +62,8 @@ export default function TodayPage() {
         streak={data.streak}
         week={data.week}
         balance={data.balance}
+        goal={data.goal}
+        takeoutEnabled={data.takeoutEnabled}
         onSelectDate={selectDate}
         onMutated={reload}
       />

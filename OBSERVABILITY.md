@@ -14,6 +14,7 @@ data-growth plan. Phase 6 increment 5.
 | Queue depth / stuck jobs | `private.queue_health` view | Jobs per status plus the oldest waiting job's age. A growing `queued` count or an old `running` row means workers aren't keeping up (polls self-heal stale runners). |
 | Push delivery | Edge function logs | Every sender tick logs `push tick: {considered,sent,failed,pruned,released,tookMs}`. Read via the Supabase functions log UI or `get_logs(service=edge-function)`. |
 | DB connections / CPU / IO | Supabase dashboard | Built-in; nothing to build. The app uses PostgREST only (no direct Postgres pool to exhaust). |
+| Takeout fake-door demand | `private.takeout_tap_rate` view | The Phase 6.5 experiment's one-screen read: trailing-7-day unique tappers over weekly active users (tap_rate_pct), split by surface plus an `all` rollup, with the macro-match share. Decision thresholds: >15% build toward real integration, 5-15% keep as a light feature, <5% drop it. `private.takeout_taps_daily` breaks the same data down by day and provider. Source of truth: `takeout_intent_events` (one row per tap; no order is placed). Kill switch without a deploy: `update public.app_config set value='false'::jsonb where key='takeout_experiment';` |
 
 ## Automatic responses
 

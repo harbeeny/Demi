@@ -12,7 +12,7 @@ const memory = new Map<string, unknown>();
 
 const PREFIX = "demi:snap:";
 /** Bump when any snapshot's shape changes; old snapshots are discarded. */
-const VERSION = 1;
+const VERSION = 2;
 /** Snapshots older than this only feed the background refresh, not paint. */
 const MAX_AGE_MS = 24 * 60 * 60 * 1000;
 
