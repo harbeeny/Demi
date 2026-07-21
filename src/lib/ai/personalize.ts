@@ -4,7 +4,7 @@ import type { SelectedMeal } from "@/lib/plan/select-meals";
 import type { MacroTargets, ProfileInput } from "@/lib/nutrition";
 import { formatTimeHour } from "@/lib/dates";
 import { getAIProvider } from "./anthropic";
-import { numbersAreGrounded, stripEmDashes } from "./validate";
+import { copyMatchesGoal, numbersAreGrounded, stripEmDashes } from "./validate";
 
 export interface PersonalizedPlan {
   daySummary: string;
@@ -131,19 +131,24 @@ export async function personalize(
       throw new Error("personalize: LLM returned meal ids outside the selected set");
     }
 
-    // SAFETY: any number the model wrote must exist in what we sent it.
+    // SAFETY: any number the model wrote must exist in what we sent it,
+    // and the framing must match the goal (no loss talk to a maintainer).
     const inputText = JSON.stringify(payload);
     const explanations = new Map(
       (parsed.meals as Array<{ mealId: string; why?: unknown }>).map((m) => [
         m.mealId,
-        typeof m.why === "string" && numbersAreGrounded(m.why, inputText)
+        typeof m.why === "string" &&
+        numbersAreGrounded(m.why, inputText) &&
+        copyMatchesGoal(m.why, profile.goal)
           ? stripEmDashes(m.why)
           : "",
       ]),
     );
-    const daySummary = numbersAreGrounded(parsed.daySummary, inputText)
-      ? stripEmDashes(parsed.daySummary)
-      : deterministicFallback(selected, targets, prefers24h).daySummary;
+    const daySummary =
+      numbersAreGrounded(parsed.daySummary, inputText) &&
+      copyMatchesGoal(parsed.daySummary, profile.goal)
+        ? stripEmDashes(parsed.daySummary)
+        : deterministicFallback(selected, targets, prefers24h).daySummary;
 
     return {
       daySummary,
