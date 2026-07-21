@@ -20,7 +20,6 @@ export const CHAINS: Chain[] = [
   { id: "sweetgreen", label: "Sweetgreen", aliases: ["sweetgreen"] },
   { id: "dig", label: "DIG", aliases: ["dig inn", "dig"] },
   { id: "naya", label: "NAYA", aliases: ["naya"] },
-  { id: "this_bowl", label: "This Bowl", aliases: ["this bowl"] },
   { id: "panera", label: "Panera", aliases: ["panera"] },
   { id: "subway", label: "Subway", aliases: ["subway"] },
   { id: "mcdonalds", label: "McDonald's", aliases: ["mcdonald's", "mcdonalds"] },
