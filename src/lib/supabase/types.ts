@@ -74,6 +74,7 @@ export interface Database {
           body_fat_pct: number | null;
           tried_tracking_apps: boolean | null;
           blockers: string[];
+          protein_pref: "low" | "moderate" | "high" | "extra_high" | null;
           goal_rate: number | null;
           activity_level: ActivityLevel;
           dietary_prefs: string[];
@@ -100,6 +101,7 @@ export interface Database {
           body_fat_pct?: number | null;
           tried_tracking_apps?: boolean | null;
           blockers?: string[];
+          protein_pref?: "low" | "moderate" | "high" | "extra_high" | null;
           goal_rate?: number | null;
           activity_level: ActivityLevel;
           dietary_prefs?: string[];
@@ -126,6 +128,7 @@ export interface Database {
           body_fat_pct?: number | null;
           tried_tracking_apps?: boolean | null;
           blockers?: string[];
+          protein_pref?: "low" | "moderate" | "high" | "extra_high" | null;
           goal_rate?: number | null;
           activity_level?: ActivityLevel;
           dietary_prefs?: string[];

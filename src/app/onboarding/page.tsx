@@ -22,6 +22,8 @@ type Answers = {
   triedApps: boolean | null;
   /** obstacles to their goal; at least one required on that step */
   blockers: Blocker[];
+  /** protein tier; preselected so the step always has a valid answer */
+  proteinPref: "low" | "moderate" | "high" | "extra_high";
   sex: Sex | null;
   /** date of birth; age is derived at validation/save time */
   dobMonth: number; // 0-11
@@ -60,6 +62,7 @@ const DEFAULT_DOB_DAY = Math.min(TODAY.getDate(), daysInMonth(DEFAULT_DOB_YEAR, 
 const INITIAL: Answers = {
   triedApps: null,
   blockers: [],
+  proteinPref: "moderate",
   sex: null,
   dobMonth: DEFAULT_DOB_MONTH,
   dobDay: DEFAULT_DOB_DAY,
@@ -108,6 +111,9 @@ const GLYPHS: Record<string, React.ReactNode> = {
   hands: <path d="M12 20 5.5 13.4a3.8 3.8 0 0 1 0-5.3 3.6 3.6 0 0 1 5.2 0L12 9.4l1.3-1.3a3.6 3.6 0 0 1 5.2 0 3.8 3.8 0 0 1 0 5.3L12 20Z" />,
   calendar: <path d="M5 6h14a1 1 0 0 1 1 1v12a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1ZM4 10h16M8 4v4M16 4v4" />,
   apple: <path d="M12 7c-3.5-2-7 .3-7 4.4C5 15.6 8 20 10.2 20c.8 0 1.1-.5 1.8-.5s1 .5 1.8.5C16 20 19 15.6 19 11.4c0-4.1-3.5-6.4-7-4.4ZM12 7c0-2 1.2-3.4 3-4" />,
+  egg: <path d="M12 3.5c3 0 6.5 5.6 6.5 10a6.5 6.5 0 1 1-13 0c0-4.4 3.5-10 6.5-10Z" />,
+  fish: <path d="M3 12c3.5-4 7-5.5 11-4.5 2.4.6 4.6 2.1 7 4.5-2.4 2.4-4.6 3.9-7 4.5-4 1-7.5-.5-11-4.5ZM3 12 5.5 8.5M3 12l2.5 3.5M17.2 10.8v2.4" />,
+  steak: <path d="M4 10c0-2.8 2.6-4.5 6.5-4.5S20 7.5 20 11s-3 7.5-8 7.5c-3.6 0-8-1.7-8-4.5 0-1.6 1.4-2.3 1.4-4Zm10.5.5a2.5 2.5 0 1 1-5 0 2.5 2.5 0 0 1 5 0Z" />,
 };
 
 function Glyph({ name, className }: { name: keyof typeof GLYPHS; className?: string }) {
@@ -126,6 +132,18 @@ const BLOCKERS: Array<{ value: Blocker; label: string; glyph: keyof typeof GLYPH
   { value: "support", label: "Lack of support", glyph: "hands" },
   { value: "schedule", label: "Busy schedule", glyph: "calendar" },
   { value: "meal_inspiration", label: "Lack of meal inspiration", glyph: "apple" },
+];
+
+const PROTEIN_PREFS: Array<{
+  value: "low" | "moderate" | "high" | "extra_high";
+  label: string;
+  hint: string;
+  glyph: keyof typeof GLYPHS;
+}> = [
+  { value: "low", label: "Low", hint: "On the low side of the optimal range.", glyph: "egg" },
+  { value: "moderate", label: "Moderate", hint: "In the middle of the optimal range.", glyph: "burger" },
+  { value: "high", label: "High", hint: "On the high end of the optimal range.", glyph: "fish" },
+  { value: "extra_high", label: "Extra High", hint: "Highest recommended intake.", glyph: "steak" },
 ];
 
 const DIET_OPTIONS = ["vegetarian", "vegan", "pescatarian", "gluten_free"];
@@ -226,8 +244,8 @@ export default function OnboardingPage() {
       return { ...a, dobMonth: month, dobDay: day, dobYear: year };
     });
 
-  // Steps 0..14 are questions; step 15 is the results screen.
-  const TOTAL_QUESTIONS = 15;
+  // Steps 0..15 are questions; step 16 is the results screen.
+  const TOTAL_QUESTIONS = 16;
 
   const stepValid = useMemo(() => {
     switch (step) {
@@ -262,6 +280,7 @@ export default function OnboardingPage() {
           : Number(Number(answers.weight).toFixed(1)),
       goal: answers.goal,
       bodyFatPct: answers.bodyFatPct,
+      proteinPref: answers.proteinPref,
       goalRate: answers.goalRateLb === null ? null : lbPerWeekToKgPerWeek(answers.goalRateLb),
       activityLevel: answers.activityLevel,
       mealsPerDay: answers.mealsPerDay,
@@ -299,6 +318,7 @@ export default function OnboardingPage() {
       user_id: user.id,
       tried_tracking_apps: answers.triedApps,
       blockers: answers.blockers,
+      protein_pref: answers.proteinPref,
       sex: profile.sex,
       age: profile.age,
       height_cm: profile.heightCm,
@@ -671,6 +691,27 @@ export default function OnboardingPage() {
         );
       case 11:
         return (
+          <Question title="What is your preferred protein intake?" hint="Every option sits inside the recommended range; higher is more filling, lower is more flexible.">
+            {PROTEIN_PREFS.map((o) => {
+              const on = answers.proteinPref === o.value;
+              return (
+                <button
+                  key={o.value}
+                  className={`${choiceButton(on)} flex items-center gap-4`}
+                  onClick={() => set("proteinPref", o.value)}
+                >
+                  <Glyph name={o.glyph} className={`h-5 w-5 shrink-0 ${on ? "text-(--ink-contrast)/80" : "text-(--muted)"}`} />
+                  <span>
+                    <span className="font-medium">{o.label}</span>
+                    <span className={`block text-sm ${on ? "text-(--ink-contrast)/70" : "text-(--muted)"}`}>{o.hint}</span>
+                  </span>
+                </button>
+              );
+            })}
+          </Question>
+        );
+      case 12:
+        return (
           <Question title="How many meals a day, and when?" hint="We space them evenly inside your eating window.">
             <div className="flex gap-2">
               {[2, 3, 4, 5].map((n) => (
@@ -699,7 +740,7 @@ export default function OnboardingPage() {
             </div>
           </Question>
         );
-      case 12:
+      case 13:
         return (
           <Question title="Any eating pattern or allergies?" hint="Optional. Allergies are hard rules, never suggested.">
             <div className="flex flex-wrap gap-2">
@@ -720,7 +761,7 @@ export default function OnboardingPage() {
               value={answers.dislikes} onChange={(e) => set("dislikes", e.target.value)} />
           </Question>
         );
-      case 13:
+      case 14:
         return (
           <Question title="Budget and kitchen comfort?" hint="So the plan fits your wallet and your patience.">
             <p className="text-sm font-medium text-(--ink)">Grocery budget / week</p>
@@ -741,7 +782,7 @@ export default function OnboardingPage() {
             </div>
           </Question>
         );
-      case 14:
+      case 15:
         return (
           <Question title="Do you train on set days?" hint="Optional. We'll put more carbs near your sessions.">
             <div className="flex flex-wrap gap-2">
@@ -765,7 +806,7 @@ export default function OnboardingPage() {
             )}
           </Question>
         );
-      case 15:
+      case 16:
         return (
           <div>
             <h1 className="text-2xl font-semibold text-(--ink)">Your numbers</h1>
@@ -831,7 +872,7 @@ export default function OnboardingPage() {
             disabled={!stepValid}
             onClick={() => setStep((s) => s + 1)}
           >
-            {step === 0 || step === 2 || step === 4 || (step >= 11 && step <= 14) ? "Continue" : "Next"}
+            {step === 0 || step === 2 || step === 4 || (step >= 12 && step <= 15) ? "Continue" : "Next"}
           </button>
         ) : (
           <button
