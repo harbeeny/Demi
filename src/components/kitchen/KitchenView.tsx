@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import Link from "next/link";
 
 import { apiFetch, awaitPlanJob } from "@/lib/api";
@@ -44,21 +44,32 @@ export function KitchenView({ data, onMutated }: Props) {
   const today = data.days[0]?.date ?? "";
   const [selectedDate, setSelectedDate] = useState(today);
   const [range, setRange] = useState<"today" | "week">("week");
-  const [maxPrepMin, setMaxPrepMin] = useState<number | undefined>(undefined);
+  // Lazy reads, not mount effects: this view only mounts client-side (behind
+  // the kitchen loading gate), and effect-syncs flashed the defaults for a
+  // frame ("Any" before the stored prep cap) once tabs began painting
+  // instantly from snapshots.
+  const [maxPrepMin, setMaxPrepMin] = useState<number | undefined>(() => {
+    try {
+      const stored = localStorage.getItem(PREP_KEY);
+      return stored ? Number(stored) || undefined : undefined;
+    } catch {
+      return undefined;
+    }
+  });
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [recipe, setRecipe] = useState<RecipeData | null>(null);
   // Recipes added to the list by hand from the recipe sheet, beyond what the
   // plan rollup already covers. Device-local, like the check-offs.
-  const [extras, setExtras] = useState<GroceryExtra[]>([]);
-  useEffect(() => {
+  const [extras, setExtras] = useState<GroceryExtra[]>(() => {
     try {
       const stored = localStorage.getItem(EXTRAS_KEY);
-      if (stored) setExtras(JSON.parse(stored) as GroceryExtra[]);
+      return stored ? (JSON.parse(stored) as GroceryExtra[]) : [];
     } catch {
       // unreadable extras: start clean
+      return [];
     }
-  }, []);
+  });
   const saveExtras = (next: GroceryExtra[]) => {
     setExtras(next);
     try {
@@ -73,15 +84,6 @@ export function KitchenView({ data, onMutated }: Props) {
       { name: r.name, ingredients: r.ingredients, servings: r.servings },
     ]);
 
-
-  useEffect(() => {
-    try {
-      const stored = localStorage.getItem(PREP_KEY);
-      if (stored) setMaxPrepMin(Number(stored) || undefined);
-    } catch {
-      // storage unavailable
-    }
-  }, []);
 
   const setPrep = (value: number | undefined) => {
     setMaxPrepMin(value);
