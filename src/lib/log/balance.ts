@@ -54,26 +54,54 @@ export function planSpread(opts: {
    * forgiven rather than redistributed (gentleness over recovery speed).
    */
   existingReductionByDate?: Record<string, number>;
+  /**
+   * per-date kcal delta from the 'shift' calorie distribution; a day's cap
+   * is computed against its REAL (shifted) target so shift + balance can
+   * never stack past the rails.
+   */
+  shiftByDate?: Record<string, number>;
+  /**
+   * 'even' (default) splits the surplus equally; 'front' fills the nearest
+   * days to their caps first, the fit for users who chose shifted weeks
+   * (fewer days touched, sooner back to normal).
+   */
+  strategy?: "even" | "front";
 }): SpreadPlan {
   const overage = Math.round(opts.overageKcal);
   const dates = remainingWeekDates(opts.sourceDate);
-  const cap = Math.min(
-    Math.round(BALANCE_CAP_FRACTION * opts.targetKcal),
-    Math.max(0, opts.targetKcal - opts.floorKcal),
-    BALANCE_CAP_KCAL,
-  );
-  if (overage <= 0 || dates.length === 0 || cap <= 0) {
+  const capFor = (date: string) => {
+    const dayTarget = opts.targetKcal + (opts.shiftByDate?.[date] ?? 0);
+    const cap = Math.min(
+      Math.round(BALANCE_CAP_FRACTION * dayTarget),
+      Math.max(0, dayTarget - opts.floorKcal),
+      BALANCE_CAP_KCAL,
+    );
+    return Math.max(0, cap - (opts.existingReductionByDate?.[date] ?? 0));
+  };
+  if (overage <= 0 || dates.length === 0) {
     return { days: [], absorbed: 0, forgiven: Math.max(0, overage) };
   }
 
-  const base = Math.floor(overage / dates.length);
-  const remainder = overage % dates.length;
-  const days = dates
-    .map((date, i) => {
-      const capLeft = Math.max(0, cap - (opts.existingReductionByDate?.[date] ?? 0));
-      return { date, deltaKcal: -Math.min(capLeft, base + (i < remainder ? 1 : 0)) };
-    })
-    .filter((d) => d.deltaKcal < 0);
+  let days: SpreadDay[];
+  if (opts.strategy === "front") {
+    let left = overage;
+    days = dates
+      .map((date) => {
+        const take = Math.min(capFor(date), left);
+        left -= take;
+        return { date, deltaKcal: -take };
+      })
+      .filter((d) => d.deltaKcal < 0);
+  } else {
+    const base = Math.floor(overage / dates.length);
+    const remainder = overage % dates.length;
+    days = dates
+      .map((date, i) => ({
+        date,
+        deltaKcal: -Math.min(capFor(date), base + (i < remainder ? 1 : 0)),
+      }))
+      .filter((d) => d.deltaKcal < 0);
+  }
   const absorbed = days.reduce((sum, d) => sum - d.deltaKcal, 0);
   return { days, absorbed, forgiven: overage - absorbed };
 }

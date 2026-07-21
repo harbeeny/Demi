@@ -2,7 +2,10 @@ import { NextResponse } from "next/server";
 
 import { loadContext } from "@/lib/plan/context";
 import { profileFromRow } from "@/lib/plan/generate";
-import { targets } from "@/lib/nutrition";
+import { shiftDeltaFor } from "@/lib/plan/shift";
+import { applyKcalDelta } from "@/lib/log/balance";
+import { fetchDayDelta } from "@/lib/log/adjustments";
+import { calorieFloor, targets } from "@/lib/nutrition";
 import { reflect } from "@/lib/ai/reflect";
 import { sumLogged } from "@/lib/log/remaining";
 import { rollupTotals } from "@/lib/log/rollup";
@@ -99,15 +102,25 @@ async function post(request: Request): Promise<Response> {
     return quotaExceeded("llm");
   }
 
-  const dayTargets = targets(profileFromRow(onboarding));
+  const finishProfile = profileFromRow(onboarding);
+  const baseDayTargets = targets(finishProfile);
+  const finishFloor = calorieFloor(finishProfile);
+  const finishDelta =
+    (await fetchDayDelta(supabase, user.id, ctx.today)) +
+    shiftDeltaFor(finishProfile, ctx.today, baseDayTargets.kcal.value, finishFloor);
+  const adjusted = applyKcalDelta(
+    {
+      kcal: baseDayTargets.kcal.value,
+      proteinG: baseDayTargets.proteinG.value,
+      carbsG: baseDayTargets.carbsG.value,
+      fatG: baseDayTargets.fatG.value,
+    },
+    finishDelta,
+    finishFloor,
+  );
   const reflection = await withUsageMeter({ supabase, userId: user.id, kind: "reflect" }, () =>
     reflect({
-    targets: {
-      kcal: dayTargets.kcal.value,
-      proteinG: dayTargets.proteinG.value,
-      carbsG: dayTargets.carbsG.value,
-      fatG: dayTargets.fatG.value,
-    },
+    targets: adjusted,
     planned,
     actual,
     loggedMeals,

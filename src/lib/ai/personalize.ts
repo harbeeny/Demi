@@ -69,6 +69,7 @@ export function buildPersonalizePayload(
       mealsPerDay: profile.mealsPerDay,
       blockers: profile.blockers ?? [],
       proteinPref: profile.proteinPref ?? "moderate",
+      calorieDistribution: profile.calorieDistribution ?? "even",
     },
     targets: {
       kcal: targets.kcal.value,

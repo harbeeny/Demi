@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { loadContext } from "@/lib/plan/context";
 import { localHour } from "@/lib/dates";
 import { profileFromRow, prefsFromRow } from "@/lib/plan/generate";
+import { shiftDeltaFor } from "@/lib/plan/shift";
 import { scoreMeal, isEligible } from "@/lib/plan/select-meals";
 import { calorieFloor, distribute, targets } from "@/lib/nutrition";
 import { remainingBudget, sumLogged } from "@/lib/log/remaining";
@@ -47,7 +48,9 @@ async function post(request: Request): Promise<Response> {
   const profile = profileFromRow(onboarding);
   const dayTargets = targets(profile);
   // Weekly balancing shrinks the budget the remaining meals must fit.
-  const kcalDelta = await fetchDayDelta(supabase, user.id, date);
+  const kcalDelta =
+    (await fetchDayDelta(supabase, user.id, date)) +
+    shiftDeltaFor(profile, date, dayTargets.kcal.value, calorieFloor(profile));
   const remaining = remainingBudget(
     applyKcalDelta(
       {
