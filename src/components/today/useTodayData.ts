@@ -322,7 +322,11 @@ export function useTodayData(viewDate?: string | null): {
       hasPlan: planRow !== null && mealsData.length > 0,
       daySummary,
       meals: mealsData,
-      targets: applyKcalDelta(baseTotals, deltaByDate.get(viewedDate) ?? 0, floorKcal),
+      targets: applyKcalDelta(
+        baseTotals,
+        (deltaByDate.get(viewedDate) ?? 0) + shiftDeltaFor(profile, viewedDate, baseTotals.kcal, floorKcal),
+        floorKcal,
+      ),
       logs: (logRows ?? []).map((l) => ({
         id: l.id,
         slot: l.slot,

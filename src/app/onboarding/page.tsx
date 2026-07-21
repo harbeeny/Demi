@@ -24,6 +24,8 @@ type Answers = {
   blockers: Blocker[];
   /** protein tier; preselected so the step always has a valid answer */
   proteinPref: "low" | "moderate" | "high" | "extra_high";
+  /** weekly calorie layout; preselected to the current behavior */
+  calorieDistribution: "shift" | "even";
   sex: Sex | null;
   /** date of birth; age is derived at validation/save time */
   dobMonth: number; // 0-11
@@ -63,6 +65,7 @@ const INITIAL: Answers = {
   triedApps: null,
   blockers: [],
   proteinPref: "moderate",
+  calorieDistribution: "even",
   sex: null,
   dobMonth: DEFAULT_DOB_MONTH,
   dobDay: DEFAULT_DOB_DAY,
@@ -114,6 +117,8 @@ const GLYPHS: Record<string, React.ReactNode> = {
   egg: <path d="M12 3.5c3 0 6.5 5.6 6.5 10a6.5 6.5 0 1 1-13 0c0-4.4 3.5-10 6.5-10Z" />,
   fish: <path d="M3 12c3.5-4 7-5.5 11-4.5 2.4.6 4.6 2.1 7 4.5-2.4 2.4-4.6 3.9-7 4.5-4 1-7.5-.5-11-4.5ZM3 12 5.5 8.5M3 12l2.5 3.5M17.2 10.8v2.4" />,
   steak: <path d="M4 10c0-2.8 2.6-4.5 6.5-4.5S20 7.5 20 11s-3 7.5-8 7.5c-3.6 0-8-1.7-8-4.5 0-1.6 1.4-2.3 1.4-4Zm10.5.5a2.5 2.5 0 1 1-5 0 2.5 2.5 0 0 1 5 0Z" />,
+  waves: <path d="M3 8c2.5-2.2 5-2.2 7.5 0S16 10.2 18.5 8 21 8 21 8M3 13c2.5-2.2 5-2.2 7.5 0s5.5 2.2 8 0M3 18c2.5-2.2 5-2.2 7.5 0s5.5 2.2 8 0" />,
+  level: <path d="M4 7h16M4 12h16M4 17h16" />,
 };
 
 function Glyph({ name, className }: { name: keyof typeof GLYPHS; className?: string }) {
@@ -244,8 +249,8 @@ export default function OnboardingPage() {
       return { ...a, dobMonth: month, dobDay: day, dobYear: year };
     });
 
-  // Steps 0..15 are questions; step 16 is the results screen.
-  const TOTAL_QUESTIONS = 16;
+  // Steps 0..16 are questions; step 17 is the results screen.
+  const TOTAL_QUESTIONS = 17;
 
   const stepValid = useMemo(() => {
     switch (step) {
@@ -282,6 +287,7 @@ export default function OnboardingPage() {
       bodyFatPct: answers.bodyFatPct,
       proteinPref: answers.proteinPref,
       blockers: answers.blockers,
+      calorieDistribution: answers.calorieDistribution,
       goalRate: answers.goalRateLb === null ? null : lbPerWeekToKgPerWeek(answers.goalRateLb),
       activityLevel: answers.activityLevel,
       mealsPerDay: answers.mealsPerDay,
@@ -320,6 +326,7 @@ export default function OnboardingPage() {
       tried_tracking_apps: answers.triedApps,
       blockers: answers.blockers,
       protein_pref: answers.proteinPref,
+      calorie_distribution: answers.calorieDistribution,
       sex: profile.sex,
       age: profile.age,
       height_cm: profile.heightCm,
@@ -808,6 +815,35 @@ export default function OnboardingPage() {
           </Question>
         );
       case 16:
+        return (
+          <Question
+            title="How should your calories sit across the week?"
+            hint={answers.trainingDays.length > 0
+              ? "Shift keeps the same weekly total: training days get more, rest days a little less."
+              : "Shift needs training days from the last step; without them, both options behave the same."}
+          >
+            {([
+              { value: "shift", label: "Shift calories", hint: "Higher targets on training days, lighter rest days.", glyph: "waves" as const },
+              { value: "even", label: "Distribute evenly", hint: "The same target every day of the week.", glyph: "level" as const },
+            ] as const).map((o) => {
+              const on = answers.calorieDistribution === o.value;
+              return (
+                <button
+                  key={o.value}
+                  className={`${choiceButton(on)} flex items-center gap-4 py-5`}
+                  onClick={() => set("calorieDistribution", o.value)}
+                >
+                  <Glyph name={o.glyph} className={`h-5 w-5 shrink-0 ${on ? "text-(--ink-contrast)/80" : "text-(--muted)"}`} />
+                  <span>
+                    <span className="font-medium">{o.label}</span>
+                    <span className={`block text-sm ${on ? "text-(--ink-contrast)/70" : "text-(--muted)"}`}>{o.hint}</span>
+                  </span>
+                </button>
+              );
+            })}
+          </Question>
+        );
+      case 17:
         return (
           <div>
             <h1 className="text-2xl font-semibold text-(--ink)">Your numbers</h1>

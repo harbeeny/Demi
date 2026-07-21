@@ -213,3 +213,35 @@ describe("applyKcalDelta", () => {
     expect(adjusted.fatG).toBeGreaterThanOrEqual(0);
   });
 });
+
+describe("planSpread strategies and shift-aware caps", () => {
+  test("front strategy fills nearest days to their caps first", () => {
+    // Wednesday source: Thu/Fri/Sat/Sun remain; cap = 10% of 2000 = 200
+    const plan = planSpread({ overageKcal: 300, sourceDate: "2026-07-22", targetKcal: 2000, floorKcal: 1200, strategy: "front" });
+    expect(plan.days).toEqual([
+      { date: "2026-07-23", deltaKcal: -200 },
+      { date: "2026-07-24", deltaKcal: -100 },
+    ]);
+    expect(plan.absorbed).toBe(300);
+    expect(plan.forgiven).toBe(0);
+  });
+
+  test("shiftByDate lowers a shifted-down day's cap and raises a shifted-up day's", () => {
+    // Thursday shifted -150: its real target is 1850, cap 185; Friday +150: cap 215
+    const plan = planSpread({
+      overageKcal: 400,
+      sourceDate: "2026-07-22",
+      targetKcal: 2000,
+      floorKcal: 1200,
+      strategy: "front",
+      shiftByDate: { "2026-07-23": -150, "2026-07-24": 150 },
+    });
+    expect(plan.days[0]).toEqual({ date: "2026-07-23", deltaKcal: -185 });
+    expect(plan.days[1]).toEqual({ date: "2026-07-24", deltaKcal: -215 });
+  });
+
+  test("even strategy is unchanged by default", () => {
+    const plan = planSpread({ overageKcal: 300, sourceDate: "2026-07-22", targetKcal: 2000, floorKcal: 1200 });
+    expect(plan.days.map((d) => d.deltaKcal)).toEqual([-75, -75, -75, -75]);
+  });
+});
