@@ -477,9 +477,10 @@ export function TakeoutSheet({ meal, goal, surface, remaining, onClose }: Props)
                 key={id}
                 onClick={() => void order(id)}
                 disabled={opening !== null}
-                className="press flex w-full items-center justify-between rounded-2xl border border-(--border) bg-(--surface) px-4 py-3 text-sm font-medium text-(--ink) hover:border-(--accent) disabled:opacity-50"
+                className="press flex w-full items-center gap-3 rounded-2xl border border-(--border) bg-(--surface) px-3 py-2.5 text-sm font-medium text-(--ink) hover:border-(--accent) disabled:opacity-50"
               >
-                <span className="min-w-0 truncate pr-3">
+                <ProviderTile provider={id} />
+                <span className="min-w-0 flex-1 truncate pr-3 text-left">
                   {opening === id
                     ? `Opening ${label}...`
                     : query.kind === "dish"
@@ -552,5 +553,37 @@ export function TakeoutSheet({ meal, goal, surface, remaining, onClose }: Props)
         </div>
       </div>
     </div>
+  );
+}
+
+/**
+ * App-icon-style tile for a provider row, the Apple Maps anatomy (tile,
+ * label, arrow). Deliberately brand-COLORED letter tiles, not vendored
+ * logo artwork: official marks belong to their owners and get dropped in
+ * from a brand kit later if we want them; a hand-approximated trademark
+ * would read as a knockoff. Hexes are the providers' own identity colors,
+ * intentionally fixed and identical in both themes (like real app icons),
+ * so they bypass the token palette; the hairline border keeps the black
+ * tile visible on the dark background.
+ */
+function ProviderTile({ provider }: { provider: TakeoutProvider }) {
+  if (provider === "doordash") {
+    return (
+      <span
+        aria-hidden="true"
+        className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border border-(--border) bg-[#eb1700] text-sm font-bold text-white"
+      >
+        D
+      </span>
+    );
+  }
+  return (
+    <span
+      aria-hidden="true"
+      className="relative flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border border-(--border) bg-black text-sm font-bold text-white"
+    >
+      U
+      <span className="absolute bottom-[4px] left-1/2 h-[2px] w-3 -translate-x-1/2 rounded-full bg-[#06c167]" />
+    </span>
   );
 }
