@@ -25,6 +25,8 @@ export interface ProfileInput {
   bodyFatPct?: number | null;
   /** protein tier preference; null/absent behaves as "moderate" */
   proteinPref?: "low" | "moderate" | "high" | "extra_high" | null;
+  /** onboarding obstacles; surfaced to plan copy, ignored by the math */
+  blockers?: string[];
   /** kg per week; null uses the default rate for the goal */
   goalRate: number | null;
   activityLevel: ActivityLevel;

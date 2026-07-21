@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 
-import { isEligible, scoreMeal, selectMeals, type Meal, type SelectionPrefs } from "./select-meals";
+import { isEligible, prefAdjustments, proteinWeightFor, scoreMeal, selectMeals, type Meal, type SelectionPrefs } from "./select-meals";
 import type { SlotTarget } from "@/lib/nutrition";
 
 function meal(overrides: Partial<Meal> & { id: string; name: string }): Meal {
@@ -214,5 +214,58 @@ describe("isEligible maxPrepMin", () => {
 
   test("cap composes with existing filters", () => {
     expect(isEligible(quick, { ...openPrefs, dislikes: ["bowl"], maxPrepMin: 30 })).toBe(false);
+  });
+});
+
+describe("blocker and protein-pref scoring nudges", () => {
+  test("schedule blocker penalizes slow meals past 20 total minutes", () => {
+    const quick = meal({ id: "q", name: "Quick bowl", prep_min: 5, cook_min: 10 });
+    const slow = meal({ id: "s", name: "Slow roast", prep_min: 20, cook_min: 40 });
+    const prefs = { ...openPrefs, blockers: ["schedule"] };
+    expect(prefAdjustments(quick, prefs, false)).toBe(0);
+    expect(prefAdjustments(slow, prefs, false)).toBeCloseTo(40 * 0.012, 5);
+    // no blocker, no penalty
+    expect(prefAdjustments(slow, openPrefs, false)).toBe(0);
+  });
+
+  test("consistency blocker softens the recent-repeat penalty; inspiration raises it", () => {
+    const m = meal({ id: "m", name: "Chicken rice" });
+    expect(prefAdjustments(m, openPrefs, true)).toBeCloseTo(0.75, 5);
+    expect(prefAdjustments(m, { ...openPrefs, blockers: ["consistency"] }, true)).toBeCloseTo(0.3, 5);
+    expect(prefAdjustments(m, { ...openPrefs, blockers: ["meal_inspiration"] }, true)).toBeCloseTo(1.25, 5);
+    expect(
+      prefAdjustments(m, { ...openPrefs, blockers: ["consistency", "meal_inspiration"] }, true),
+    ).toBeCloseTo(0.8, 5);
+  });
+
+  test("eating_habits blocker rewards fiber-dense meals", () => {
+    // 400 kcal meal needs >= 5.6 g fiber to earn the bonus
+    const fibrous = meal({ id: "f", name: "Lentil bowl", fiber_g: 9 });
+    const refined = meal({ id: "r", name: "White pasta", fiber_g: 2 });
+    const prefs = { ...openPrefs, blockers: ["eating_habits"] };
+    expect(prefAdjustments(fibrous, prefs, false)).toBeCloseTo(-0.15, 5);
+    expect(prefAdjustments(refined, prefs, false)).toBe(0);
+  });
+
+  test("protein preference raises the protein-fit weight", () => {
+    expect(proteinWeightFor(undefined)).toBe(1.5);
+    expect(proteinWeightFor(null)).toBe(1.5);
+    expect(proteinWeightFor("low")).toBe(1.5);
+    expect(proteinWeightFor("high")).toBe(1.75);
+    expect(proteinWeightFor("extra_high")).toBe(2.0);
+    // a protein miss costs more under the higher weight
+    const off = meal({ id: "o", name: "Low protein", protein_g: 20 });
+    const t = slot();
+    expect(scoreMeal(off, t, 2.0)).toBeGreaterThan(scoreMeal(off, t, 1.5));
+  });
+
+  test("selection end to end: busy schedule flips the pick to the quick meal", () => {
+    // Slow meal fits macros slightly better; schedule blocker outweighs that.
+    const slow = meal({ id: "slow", name: "Braised beef", kcal: 500, protein_g: 40, carbs_g: 50, fat_g: 15, prep_min: 20, cook_min: 40, tags: ["lunch"] });
+    const quick = meal({ id: "quick", name: "Turkey wrap", kcal: 490, protein_g: 38, carbs_g: 48, fat_g: 15, prep_min: 5, cook_min: 5, tags: ["lunch"] });
+    const noBlockers = selectMeals([slow, quick], [slot()], openPrefs);
+    expect(noBlockers[0].meal.id).toBe("slow");
+    const busy = selectMeals([slow, quick], [slot()], { ...openPrefs, blockers: ["schedule"] });
+    expect(busy[0].meal.id).toBe("quick");
   });
 });

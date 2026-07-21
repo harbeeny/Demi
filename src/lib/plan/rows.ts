@@ -16,6 +16,7 @@ export function profileFromRow(row: OnboardingRow): ProfileInput {
     goal: row.goal,
     bodyFatPct: row.body_fat_pct,
     proteinPref: row.protein_pref,
+    blockers: row.blockers ?? [],
     goalRate: row.goal_rate === null ? null : Number(row.goal_rate),
     activityLevel: row.activity_level,
     mealsPerDay: row.meals_per_day,
@@ -34,5 +35,7 @@ export function prefsFromRow(row: OnboardingRow): SelectionPrefs {
     dislikes: row.dislikes,
     budget: row.budget,
     cookingSkill: row.cooking_skill,
+    blockers: row.blockers ?? [],
+    proteinPref: row.protein_pref,
   };
 }
