@@ -11,6 +11,10 @@ export interface SelectionPrefs {
   cookingSkill: "minimal" | "basic" | "confident";
   /** hard cap on prep_min + cook_min; undefined = no cap */
   maxPrepMin?: number;
+  /** onboarding obstacles; soft scoring nudges, never hard filters */
+  blockers?: string[];
+  /** protein tier; high tiers weight protein fit harder */
+  proteinPref?: "low" | "moderate" | "high" | "extra_high" | null;
 }
 
 export interface SelectedMeal {
@@ -81,18 +85,59 @@ export function isEligible(meal: Meal, prefs: SelectionPrefs): boolean {
 
 /**
  * Macro-fit score: weighted distance from the slot target, lower is better.
- * Protein misses hurt more than carb/fat misses (protein is the anchor).
+ * Protein misses hurt more than carb/fat misses (protein is the anchor), and
+ * harder still for users who chose a high protein preference.
  */
-export function scoreMeal(meal: Meal, target: SlotTarget): number {
+export function scoreMeal(meal: Meal, target: SlotTarget, proteinWeight = 1.5): number {
   const kcalDiff = Math.abs(Number(meal.kcal) - target.kcal) / Math.max(target.kcal, 1);
   const proteinDiff = Math.abs(Number(meal.protein_g) - target.proteinG) / Math.max(target.proteinG, 1);
   const carbsDiff = Math.abs(Number(meal.carbs_g) - target.carbsG) / Math.max(target.carbsG, 1);
   const fatDiff = Math.abs(Number(meal.fat_g) - target.fatG) / Math.max(target.fatG, 1);
-  return kcalDiff * 1.0 + proteinDiff * 1.5 + carbsDiff * 0.5 + fatDiff * 0.5;
+  return kcalDiff * 1.0 + proteinDiff * proteinWeight + carbsDiff * 0.5 + fatDiff * 0.5;
 }
 
 /** Penalty added to meals used recently, to force variety. */
 const RECENT_USE_PENALTY = 0.75;
+/** Repetition is a feature when consistency is the struggle: familiar food, less friction. */
+const RECENT_USE_PENALTY_CONSISTENCY = 0.3;
+/** Bored eaters get a harder push toward variety. */
+const MEAL_INSPIRATION_EXTRA_PENALTY = 0.5;
+/** Busy users: cost per minute of total time beyond this threshold. */
+const QUICK_MEAL_THRESHOLD_MIN = 20;
+const SLOW_MEAL_PENALTY_PER_MIN = 0.012;
+/** Habits blocker: reward fiber-dense meals (14 g per 1,000 kcal pace or better). */
+const FIBER_DENSITY_BONUS = 0.15;
+
+/** Soft score adjustments from onboarding blockers and protein preference. */
+export function prefAdjustments(meal: Meal, prefs: SelectionPrefs, isRecent: boolean): number {
+  const blockers = prefs.blockers ?? [];
+  let adjust = 0;
+
+  if (isRecent) {
+    let recentPenalty = blockers.includes("consistency")
+      ? RECENT_USE_PENALTY_CONSISTENCY
+      : RECENT_USE_PENALTY;
+    if (blockers.includes("meal_inspiration")) recentPenalty += MEAL_INSPIRATION_EXTRA_PENALTY;
+    adjust += recentPenalty;
+  }
+
+  if (blockers.includes("schedule")) {
+    const totalMin = Number(meal.prep_min) + Number(meal.cook_min);
+    adjust += Math.max(0, totalMin - QUICK_MEAL_THRESHOLD_MIN) * SLOW_MEAL_PENALTY_PER_MIN;
+  }
+
+  if (blockers.includes("eating_habits")) {
+    const fiberPace = (Number(meal.kcal) / 1000) * 14;
+    if (Number(meal.fiber_g) >= fiberPace) adjust -= FIBER_DENSITY_BONUS;
+  }
+
+  return adjust;
+}
+
+/** Protein-fit weight for the user's tier; high tiers care more about hitting protein. */
+export function proteinWeightFor(pref: SelectionPrefs["proteinPref"]): number {
+  return pref === "extra_high" ? 2.0 : pref === "high" ? 1.75 : 1.5;
+}
 
 /** Heavier penalty for repeating a meal within the same day. */
 const SAME_DAY_REUSE_PENALTY = 1.5;
@@ -132,12 +177,13 @@ export function selectMeals(
       pool = slotTaggedUsed.length > 0 ? slotTaggedUsed : eligible;
     }
 
+    const proteinWeight = proteinWeightFor(prefs.proteinPref);
     let best: Meal = pool[0];
     let bestScore = Infinity;
     for (const meal of pool) {
       const score =
-        scoreMeal(meal, target) +
-        (recent.has(meal.id) ? RECENT_USE_PENALTY : 0) +
+        scoreMeal(meal, target, proteinWeight) +
+        prefAdjustments(meal, prefs, recent.has(meal.id)) +
         (usedToday.has(meal.id) ? SAME_DAY_REUSE_PENALTY : 0);
       if (score < bestScore) {
         bestScore = score;

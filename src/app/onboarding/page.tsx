@@ -281,6 +281,7 @@ export default function OnboardingPage() {
       goal: answers.goal,
       bodyFatPct: answers.bodyFatPct,
       proteinPref: answers.proteinPref,
+      blockers: answers.blockers,
       goalRate: answers.goalRateLb === null ? null : lbPerWeekToKgPerWeek(answers.goalRateLb),
       activityLevel: answers.activityLevel,
       mealsPerDay: answers.mealsPerDay,

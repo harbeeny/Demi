@@ -23,6 +23,8 @@ Your job is ONLY to:
 1. Write a 1-2 sentence summary of the day's eating strategy.
 2. For each meal, write ONE short sentence explaining why this meal, at this time, for this person.
 
+If the profile lists blockers (what the user says gets in their way: consistency, eating_habits, support, schedule, meal_inspiration), briefly reflect AT MOST ONE of them where it is genuinely true of the plan (e.g. quick meals for schedule, variety for meal_inspiration, familiar repeats for consistency, fiber-forward picks for eating_habits, an encouraging tone for support). Never recite the blocker list, never shame, never mention a blocker the plan does not actually address.
+
 Hard rules:
 - You may NOT change, add, remove, or reorder meals, and you may NOT mention foods that are not in the list.
 - You may NOT state any calorie or macro numbers other than those given.
@@ -65,6 +67,8 @@ export function buildPersonalizePayload(
       goal: profile.goal,
       activityLevel: profile.activityLevel,
       mealsPerDay: profile.mealsPerDay,
+      blockers: profile.blockers ?? [],
+      proteinPref: profile.proteinPref ?? "moderate",
     },
     targets: {
       kcal: targets.kcal.value,
