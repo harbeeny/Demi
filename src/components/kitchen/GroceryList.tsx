@@ -6,13 +6,25 @@ import type { GrocerySection } from "@/lib/plan/grocery";
 
 /** Checked-off lines live in localStorage keyed by the list's content hash:
  *  replanning changes the hash and stale checks fall away naturally. */
+function readChecked(storageKey: string): Set<string> {
+  try {
+    const raw = localStorage.getItem(storageKey);
+    return new Set(raw ? (JSON.parse(raw) as string[]) : []);
+  } catch {
+    // storage unavailable: checks just don't persist
+    return new Set();
+  }
+}
+
 function useCheckedItems(storageKey: string) {
-  const [checked, setChecked] = useState<Set<string>>(new Set());
+  // Lazy read so the first paint already shows the check-offs (an
+  // effect-sync flashed them unchecked once tabs began painting instantly);
+  // the keyed effect handles the list re-hashing after a replan.
+  const [checked, setChecked] = useState<Set<string>>(() => readChecked(storageKey));
 
   useEffect(() => {
+    setChecked(readChecked(storageKey));
     try {
-      const raw = localStorage.getItem(storageKey);
-      setChecked(new Set(raw ? (JSON.parse(raw) as string[]) : []));
       // prune shopping lists older than two weeks
       const cutoff = Date.now() - 14 * 24 * 60 * 60 * 1000;
       for (const key of Object.keys(localStorage)) {
@@ -20,7 +32,7 @@ function useCheckedItems(storageKey: string) {
         if (m && Date.parse(m[1]) < cutoff) localStorage.removeItem(key);
       }
     } catch {
-      // storage unavailable: checks just don't persist
+      // storage unavailable: nothing to prune
     }
   }, [storageKey]);
 

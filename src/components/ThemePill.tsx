@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 
 import { applyThemeChoice, getThemeChoice, type ThemeChoice } from "@/lib/theme";
 import { tapHaptic } from "@/lib/haptics";
@@ -53,11 +53,10 @@ export function ThemeIcon({ choice, size = 16 }: { choice: ThemeChoice; size?: n
 }
 
 export function ThemePill({ className = "" }: { className?: string }) {
-  // Host pages prerender without a theme attribute, so sync after mount.
-  const [theme, setTheme] = useState<ThemeChoice>("system");
-  useEffect(() => {
-    setTheme(getThemeChoice());
-  }, []);
+  // Lazy read, not a mount effect: the pill only mounts client-side (behind
+  // Profile's loading gate), and an effect-sync would flash the default for
+  // a frame now that tabs paint instantly from snapshots.
+  const [theme, setTheme] = useState<ThemeChoice>(getThemeChoice);
 
   return (
     <div

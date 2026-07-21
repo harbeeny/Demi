@@ -78,18 +78,18 @@ export function TodayView({ hasPlan, daySummary, meals, targets, logs, summary, 
   const [balanceOpen, setBalanceOpen] = useState(false);
   // "plan" auto-builds a meal plan; "track" is the standalone macro tracker;
   // null means the user has never chosen (first no-plan visit shows a choice).
-  const [dayMode, setDayMode] = useState<"plan" | "track" | null>(null);
-  const [modeLoaded, setModeLoaded] = useState(false);
-
-  useEffect(() => {
+  // Lazy read, not a mount effect: this view only mounts client-side (behind
+  // the loading gate), and an effect-sync would flash the wrong mode for a
+  // frame now that the tab paints instantly from its snapshot.
+  const [dayMode, setDayMode] = useState<"plan" | "track" | null>(() => {
     try {
       const stored = localStorage.getItem("demi:mode");
-      if (stored === "plan" || stored === "track") setDayMode(stored);
+      return stored === "plan" || stored === "track" ? stored : null;
     } catch {
       // storage unavailable: behave like a first visit
+      return null;
     }
-    setModeLoaded(true);
-  }, []);
+  });
 
   const chooseMode = (m: "plan" | "track") => {
     setDayMode(m);
@@ -217,13 +217,13 @@ export function TodayView({ hasPlan, daySummary, meals, targets, logs, summary, 
   // from re-renders; router.refresh() flips hasPlan when the plan lands.
   const autoBuildStarted = useRef(false);
   useEffect(() => {
-    if (!isToday || !modeLoaded || dayMode !== "plan") return;
+    if (!isToday || dayMode !== "plan") return;
     if (!hasPlan && !autoBuildStarted.current) {
       autoBuildStarted.current = true;
       generate(false);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [hasPlan, modeLoaded, dayMode, isToday]);
+  }, [hasPlan, dayMode, isToday]);
 
   const planned: MacroTotals = sumLogged(meals);
   const eaten: MacroTotals | null = logs.length > 0 ? sumLogged(logs) : null;
@@ -483,7 +483,7 @@ export function TodayView({ hasPlan, daySummary, meals, targets, logs, summary, 
             Switch to a meal plan
           </button>
         </>
-      ) : isToday && !hasPlan && dayMode === null && modeLoaded && !busy ? (
+      ) : isToday && !hasPlan && dayMode === null && !busy ? (
         <div className="mt-16 space-y-3 text-center">
           <p className="text-(--ink)">How do you want to run today?</p>
           <button
