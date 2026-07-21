@@ -20,8 +20,8 @@ type Blocker = "consistency" | "eating_habits" | "support" | "schedule" | "meal_
 type Answers = {
   /** has the user tried calorie-tracking apps before; null until answered */
   triedApps: boolean | null;
-  /** main obstacle to their goal; null until answered */
-  blocker: Blocker | null;
+  /** obstacles to their goal; at least one required on that step */
+  blockers: Blocker[];
   sex: Sex | null;
   /** date of birth; age is derived at validation/save time */
   dobMonth: number; // 0-11
@@ -59,7 +59,7 @@ const DEFAULT_DOB_DAY = Math.min(TODAY.getDate(), daysInMonth(DEFAULT_DOB_YEAR, 
 
 const INITIAL: Answers = {
   triedApps: null,
-  blocker: null,
+  blockers: [],
   sex: null,
   dobMonth: DEFAULT_DOB_MONTH,
   dobDay: DEFAULT_DOB_DAY,
@@ -243,7 +243,7 @@ export default function OnboardingPage() {
       case 6: return isValidWeight(answers.weight, answers.weightUnit);
       case 7: return answers.bodyFatPct !== null; // the Skip link advances without one
       case 8: return answers.goal !== null;
-      case 9: return answers.blocker !== null;
+      case 9: return answers.blockers.length > 0;
       case 10: return answers.activityLevel !== null;
       default: return true; // remaining steps are optional / have defaults
     }
@@ -298,7 +298,7 @@ export default function OnboardingPage() {
     const { error: insertError } = await supabase.from("onboarding_answers").insert({
       user_id: user.id,
       tried_tracking_apps: answers.triedApps,
-      main_blocker: answers.blocker,
+      blockers: answers.blockers,
       sex: profile.sex,
       age: profile.age,
       height_cm: profile.heightCm,
@@ -636,17 +636,25 @@ export default function OnboardingPage() {
         );
       case 9:
         return (
-          <Question title="What's stopping you from reaching your goals?" hint="Pick the biggest one. We'll shape the plan around it.">
-            {BLOCKERS.map((b) => (
-              <button
-                key={b.value}
-                className={`${choiceButton(answers.blocker === b.value)} flex items-center gap-4`}
-                onClick={() => set("blocker", b.value)}
-              >
-                <Glyph name={b.glyph} className={`h-5 w-5 shrink-0 ${answers.blocker === b.value ? "text-(--ink-contrast)/80" : "text-(--muted)"}`} />
-                <span className="font-medium">{b.label}</span>
-              </button>
-            ))}
+          <Question title="What's stopping you from reaching your goals?" hint="Pick all that apply. We'll shape the plan around them.">
+            {BLOCKERS.map((b) => {
+              const on = answers.blockers.includes(b.value);
+              return (
+                <button
+                  key={b.value}
+                  aria-pressed={on}
+                  className={`${choiceButton(on)} flex items-center gap-4`}
+                  onClick={() =>
+                    set("blockers", on
+                      ? answers.blockers.filter((x) => x !== b.value)
+                      : [...answers.blockers, b.value])
+                  }
+                >
+                  <Glyph name={b.glyph} className={`h-5 w-5 shrink-0 ${on ? "text-(--ink-contrast)/80" : "text-(--muted)"}`} />
+                  <span className="font-medium">{b.label}</span>
+                </button>
+              );
+            })}
           </Question>
         );
       case 10:
