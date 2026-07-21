@@ -70,6 +70,11 @@ describe("copyMatchesGoal", () => {
     expect(copyMatchesGoal("Small deficits add up.", "maintain")).toBe(false);
   });
 
+  test("catches en-dash and em-dash compound spellings", () => {
+    expect(copyMatchesGoal("Your fat–loss day.", "maintain")).toBe(false);
+    expect(copyMatchesGoal("A weight—loss focus.", "improve_health")).toBe(false);
+  });
+
   test("does not flag words that merely resemble loss terms", () => {
     expect(copyMatchesGoal("A heavy weightlifting day deserves real fuel.", "maintain")).toBe(true);
     expect(copyMatchesGoal("Nothing to lose by trying the salmon tonight.", "maintain")).toBe(true);

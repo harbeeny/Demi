@@ -38,10 +38,12 @@ export function stripEmDashes(text: string): string {
  * Loss/deficit framing, in the variants the model actually produces.
  * Word boundaries keep innocents like "weightlifting" or "nothing to lose"
  * from matching; "deficit" is matched as a prefix so plurals count too.
+ * Compound separators include en/em dashes: this check runs before
+ * stripEmDashes, so "fat—loss" must not slip past as a spelling variant.
  */
 const LOSS_PHRASES: RegExp[] = [
-  /\bfat[\s-]loss\b/i,
-  /\bweight[\s-]loss\b/i,
+  /\bfat[\s–—-]loss\b/i,
+  /\bweight[\s–—-]loss\b/i,
   /\blos(?:e|ing)\s+(?:body\s+)?(?:weight|fat)\b/i,
   /\bdeficit/i,
   /\bshed(?:ding)?\s+(?:pounds|kilos|weight|fat)\b/i,
