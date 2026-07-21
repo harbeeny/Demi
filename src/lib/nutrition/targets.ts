@@ -26,6 +26,18 @@ export const PROTEIN_G_PER_KG: Record<Goal, number> = {
   improve_health: 1.6,
 };
 
+/** Preference tiers shift the goal anchor in g/kg; moderate is the anchor itself. */
+export type ProteinPref = "low" | "moderate" | "high" | "extra_high";
+export const PROTEIN_PREF_DELTA: Record<ProteinPref, number> = {
+  low: -0.25,
+  moderate: 0,
+  high: 0.25,
+  extra_high: 0.5,
+};
+/** Evidence band the tiers may not leave, g/kg bodyweight. */
+export const PROTEIN_G_PER_KG_MIN = 1.2;
+export const PROTEIN_G_PER_KG_MAX = 2.4;
+
 /** Energy density of body tissue change; shared with the adaptive engine. */
 export const KCAL_PER_KG_TISSUE = 7700;
 /** SAFETY: one accepted adaptive adjustment never moves TDEE more than this. */
@@ -127,7 +139,13 @@ export function targets(profile: ProfileInput, options: TargetOptions = {}): Mac
             ? `We slowed your pace to ${rateLabel(rate)} (about 1% of your bodyweight). Faster than that tends to cost muscle and rebound, so this is ${Math.abs(dailyDelta)} kcal below your ${adjustedTdee} kcal daily burn.`
             : `A ${rateLabel(rate)} ${direction < 0 ? "loss" : "gain"} works out to ${Math.abs(dailyDelta)} kcal ${direction < 0 ? "below" : "above"} your ${adjustedTdee} kcal daily burn.`;
 
-  const proteinPerKg = PROTEIN_G_PER_KG[profile.goal];
+  const pref: ProteinPref = profile.proteinPref ?? "moderate";
+  const proteinPerKg = Number(
+    Math.min(
+      PROTEIN_G_PER_KG_MAX,
+      Math.max(PROTEIN_G_PER_KG_MIN, PROTEIN_G_PER_KG[profile.goal] + PROTEIN_PREF_DELTA[pref]),
+    ).toFixed(2),
+  );
   const proteinG = Math.round(proteinPerKg * profile.weightKg);
 
   const fatFromBodyweight = FAT_FLOOR_G_PER_KG * profile.weightKg;
@@ -171,8 +189,8 @@ export function targets(profile: ProfileInput, options: TargetOptions = {}): Mac
       value: proteinG,
       reasoning: {
         rule: "protein_per_kg_bodyweight",
-        inputs: { weightKg: profile.weightKg, gPerKg: proteinPerKg, goal: profile.goal },
-        explanation: `${us ? `${Number((proteinPerKg / LBS_PER_KG_DISPLAY).toFixed(1))} g per lb` : `${proteinPerKg} g per kg`} of bodyweight (${proteinG} g) ${profile.goal === "lose_fat" ? "protects your muscle while you lose fat" : profile.goal === "build_muscle" ? "gives your muscles material to grow" : "keeps you strong and satisfied"}.`,
+        inputs: { weightKg: profile.weightKg, gPerKg: proteinPerKg, goal: profile.goal, proteinPref: pref },
+        explanation: `${us ? `${Number((proteinPerKg / LBS_PER_KG_DISPLAY).toFixed(1))} g per lb` : `${proteinPerKg} g per kg`} of bodyweight (${proteinG} g) ${profile.goal === "lose_fat" ? "protects your muscle while you lose fat" : profile.goal === "build_muscle" ? "gives your muscles material to grow" : "keeps you strong and satisfied"}${pref === "moderate" ? "" : pref === "low" ? ", set to the lower end of the range you preferred" : pref === "high" ? ", set higher per your preference" : ", set to the top of the recommended range per your preference"}.`,
       },
     },
     fatG: {

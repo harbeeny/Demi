@@ -175,6 +175,17 @@ describe("targets", () => {
     expect(minor.kcal.reasoning.rule).toBe("minor_maintenance");
   });
 
+  test("protein preference shifts g/kg within the evidence band", () => {
+    // lose_fat anchor 2.0 g/kg at 80kg: moderate 160 g
+    expect(targets({ ...baseProfile, proteinPref: "moderate" }).proteinG.value).toBe(160);
+    expect(targets({ ...baseProfile, proteinPref: null }).proteinG.value).toBe(160);
+    expect(targets({ ...baseProfile, proteinPref: "low" }).proteinG.value).toBe(Math.round(1.75 * 80));
+    expect(targets({ ...baseProfile, proteinPref: "high" }).proteinG.value).toBe(Math.round(2.25 * 80));
+    // 2.0 + 0.5 caps at 2.4 g/kg
+    expect(targets({ ...baseProfile, proteinPref: "extra_high" }).proteinG.value).toBe(Math.round(2.4 * 80));
+    expect(targets({ ...baseProfile, proteinPref: "extra_high" }).proteinG.reasoning.inputs.gPerKg).toBe(2.4);
+  });
+
   test("protein anchored to bodyweight by goal", () => {
     expect(targets(baseProfile).proteinG.value).toBe(160); // 2.0 g/kg cut
     expect(targets({ ...baseProfile, goal: "maintain", goalRate: null }).proteinG.value).toBe(128); // 1.6

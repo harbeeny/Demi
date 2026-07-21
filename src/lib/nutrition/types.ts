@@ -23,6 +23,8 @@ export interface ProfileInput {
   goal: Goal;
   /** self-assessed body fat %, 3-70; null/absent falls back to Mifflin-St Jeor */
   bodyFatPct?: number | null;
+  /** protein tier preference; null/absent behaves as "moderate" */
+  proteinPref?: "low" | "moderate" | "high" | "extra_high" | null;
   /** kg per week; null uses the default rate for the goal */
   goalRate: number | null;
   activityLevel: ActivityLevel;
