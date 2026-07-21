@@ -4,6 +4,7 @@ import type { Database, MealPlanEntry } from "@/lib/supabase/types";
 import { calorieFloor, distribute, targets } from "@/lib/nutrition";
 import { applyKcalDeltaToTargets } from "@/lib/log/balance";
 import { selectMeals, type Meal, type SelectionPrefs } from "./select-meals";
+import { shiftDeltaFor } from "./shift";
 import { createHash } from "node:crypto";
 
 import {
@@ -74,11 +75,11 @@ export async function generatePlan(
   opts: GenerateOptions = {},
 ): Promise<GeneratedPlan> {
   const profile = profileFromRow(row);
-  const dayTargets = applyKcalDeltaToTargets(
-    targets(profile, { displayUnits: "us" }),
-    opts.kcalDelta ?? 0,
-    calorieFloor(profile),
-  );
+  const baseTargets = targets(profile, { displayUnits: "us" });
+  const floorKcal = calorieFloor(profile);
+  const dateISO = today.toISOString().slice(0, 10);
+  const shift = shiftDeltaFor(profile, dateISO, baseTargets.kcal.value, floorKcal);
+  const dayTargets = applyKcalDeltaToTargets(baseTargets, (opts.kcalDelta ?? 0) + shift, floorKcal);
   const slotTargets = distribute(dayTargets, profile, today, opts.prefers24h);
   const prefs = { ...prefsFromRow(row), maxPrepMin: opts.maxPrepMin };
   const selected = selectMeals(allMeals, slotTargets, prefs, recentlyUsedIds);

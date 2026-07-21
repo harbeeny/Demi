@@ -27,6 +27,8 @@ export interface ProfileInput {
   proteinPref?: "low" | "moderate" | "high" | "extra_high" | null;
   /** onboarding obstacles; surfaced to plan copy, ignored by the math */
   blockers?: string[];
+  /** weekly calorie layout; 'shift' raises training days, null/'even' keeps days equal */
+  calorieDistribution?: "shift" | "even" | null;
   /** kg per week; null uses the default rate for the goal */
   goalRate: number | null;
   activityLevel: ActivityLevel;

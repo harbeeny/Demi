@@ -10,6 +10,7 @@ import { loggingStreak, trailingDates } from "@/lib/log/streak";
 import { calorieFloor, targets } from "@/lib/nutrition";
 import { addDaysISO, applyKcalDelta } from "@/lib/log/balance";
 import { profileFromRow, prefsFromRow } from "@/lib/plan/rows";
+import { shiftDeltaFor } from "@/lib/plan/shift";
 import { isEligible, type Meal } from "@/lib/plan/select-meals";
 import { readSnapshot, writeSnapshot } from "@/lib/tab-cache";
 import type { MealPlanEntry } from "@/lib/supabase/types";
@@ -217,7 +218,11 @@ export function useTodayData(viewDate?: string | null): {
       deltaByDate.set(row.date, (deltaByDate.get(row.date) ?? 0) + Number(row.kcal_delta));
     }
     const adjustedKcalFor = (date: string) =>
-      applyKcalDelta(baseTotals, deltaByDate.get(date) ?? 0, floorKcal).kcal;
+      applyKcalDelta(
+        baseTotals,
+        (deltaByDate.get(date) ?? 0) + shiftDeltaFor(profile, date, baseTotals.kcal, floorKcal),
+        floorKcal,
+      ).kcal;
 
     const week = trailingDates(today, 7).map((date) => ({
       date,

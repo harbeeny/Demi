@@ -75,6 +75,7 @@ export interface Database {
           tried_tracking_apps: boolean | null;
           blockers: string[];
           protein_pref: "low" | "moderate" | "high" | "extra_high" | null;
+          calorie_distribution: "shift" | "even" | null;
           goal_rate: number | null;
           activity_level: ActivityLevel;
           dietary_prefs: string[];
@@ -102,6 +103,7 @@ export interface Database {
           tried_tracking_apps?: boolean | null;
           blockers?: string[];
           protein_pref?: "low" | "moderate" | "high" | "extra_high" | null;
+          calorie_distribution?: "shift" | "even" | null;
           goal_rate?: number | null;
           activity_level: ActivityLevel;
           dietary_prefs?: string[];
@@ -129,6 +131,7 @@ export interface Database {
           tried_tracking_apps?: boolean | null;
           blockers?: string[];
           protein_pref?: "low" | "moderate" | "high" | "extra_high" | null;
+          calorie_distribution?: "shift" | "even" | null;
           goal_rate?: number | null;
           activity_level?: ActivityLevel;
           dietary_prefs?: string[];

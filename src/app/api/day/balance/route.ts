@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 
 import { loadContext } from "@/lib/plan/context";
 import { profileFromRow } from "@/lib/plan/generate";
+import { shiftDeltaFor } from "@/lib/plan/shift";
 import { calorieFloor, targets } from "@/lib/nutrition";
 import { addDaysISO, applyKcalDelta, planSpread, remainingWeekDates } from "@/lib/log/balance";
 import { fetchDayDelta } from "@/lib/log/adjustments";
@@ -42,6 +43,7 @@ async function post(request: Request): Promise<Response> {
   // Over is measured against what the user actually sees for the source
   // day: the base target minus any reduction earlier balances put on it.
   const sourceDelta = await fetchDayDelta(supabase, user.id, sourceDate);
+  const sourceShift = shiftDeltaFor(profile, sourceDate, dayTargets.kcal.value, floorKcal);
   const sourceKcal = applyKcalDelta(
     {
       kcal: dayTargets.kcal.value,
@@ -49,7 +51,7 @@ async function post(request: Request): Promise<Response> {
       carbsG: dayTargets.carbsG.value,
       fatG: dayTargets.fatG.value,
     },
-    sourceDelta,
+    sourceDelta + sourceShift,
     floorKcal,
   ).kcal;
 
@@ -84,12 +86,20 @@ async function post(request: Request): Promise<Response> {
     }
   }
 
+  const shiftByDate = Object.fromEntries(
+    remainingWeekDates(sourceDate).map((d) => [
+      d,
+      shiftDeltaFor(profile, d, dayTargets.kcal.value, floorKcal),
+    ]),
+  );
   const plan = planSpread({
     overageKcal: overage,
     sourceDate,
     targetKcal: dayTargets.kcal.value,
     floorKcal,
     existingReductionByDate,
+    shiftByDate,
+    strategy: profile.calorieDistribution === "shift" ? "front" : "even",
   });
 
   const { error: clearError } = await supabase
