@@ -4,6 +4,8 @@
  * rejecting any output number that did not appear in the input payload.
  */
 
+import type { Goal } from "@/lib/supabase/types";
+
 /** All numbers in a string, normalized (commas stripped, decimals kept). */
 export function extractNumbers(text: string): Set<number> {
   const matches = text.replace(/,(?=\d{3}\b)/g, "").match(/\d+(?:\.\d+)?/g) ?? [];
@@ -30,4 +32,31 @@ export function numbersAreGrounded(output: string, input: string): boolean {
  */
 export function stripEmDashes(text: string): string {
   return text.replace(/\s*—\s*/g, ", ");
+}
+
+/**
+ * Loss/deficit framing, in the variants the model actually produces.
+ * Word boundaries keep innocents like "weightlifting" or "nothing to lose"
+ * from matching; "deficit" is matched as a prefix so plurals count too.
+ * Compound separators include en/em dashes: this check runs before
+ * stripEmDashes, so "fat—loss" must not slip past as a spelling variant.
+ */
+const LOSS_PHRASES: RegExp[] = [
+  /\bfat[\s–—-]loss\b/i,
+  /\bweight[\s–—-]loss\b/i,
+  /\blos(?:e|ing)\s+(?:body\s+)?(?:weight|fat)\b/i,
+  /\bdeficit/i,
+  /\bshed(?:ding)?\s+(?:pounds|kilos|weight|fat)\b/i,
+  /\bslim(?:ming)?\s+down\b/i,
+];
+
+/**
+ * True when the copy's framing is consistent with the user's goal. Seen
+ * live: a maintain profile was told "while you work toward fat loss".
+ * Only a lose_fat goal may be described in loss/deficit terms; maintain,
+ * improve_health, and build_muscle copy must never pitch losing.
+ */
+export function copyMatchesGoal(output: string, goal: Goal): boolean {
+  if (goal === "lose_fat") return true;
+  return !LOSS_PHRASES.some((re) => re.test(output));
 }

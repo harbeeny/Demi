@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 
-import { extractNumbers, numbersAreGrounded, stripEmDashes } from "./validate";
+import { copyMatchesGoal, extractNumbers, numbersAreGrounded, stripEmDashes } from "./validate";
 import { containsDisorderedEatingSignal, SUPPORTIVE_RESPONSE } from "./safety-filter";
 
 describe("extractNumbers", () => {
@@ -30,6 +30,54 @@ describe("numbersAreGrounded", () => {
 
   test("accepts output with no numbers at all", () => {
     expect(numbersAreGrounded("A steady, satisfying day of eating.", input)).toBe(true);
+  });
+});
+
+describe("copyMatchesGoal", () => {
+  test("rejects fat-loss framing for a maintain goal", () => {
+    // The live failure this guards against: maintain profile, loss copy.
+    expect(copyMatchesGoal("Steady fuel while you work toward fat loss.", "maintain")).toBe(false);
+    expect(copyMatchesGoal("A small calorie deficit keeps things moving.", "maintain")).toBe(false);
+    expect(copyMatchesGoal("Balanced meals to help you lose weight.", "maintain")).toBe(false);
+  });
+
+  test("rejects loss and deficit framing for improve_health", () => {
+    expect(copyMatchesGoal("This supports your weight loss journey.", "improve_health")).toBe(false);
+    expect(copyMatchesGoal("You will be in a slight deficit today.", "improve_health")).toBe(false);
+  });
+
+  test("rejects loss phrasing for build_muscle", () => {
+    expect(copyMatchesGoal("High protein while losing fat.", "build_muscle")).toBe(false);
+    expect(copyMatchesGoal("Enough carbs to fuel lifts and shed pounds.", "build_muscle")).toBe(false);
+  });
+
+  test("allows loss phrasing when the goal is lose_fat", () => {
+    expect(
+      copyMatchesGoal("A modest deficit built for steady fat loss.", "lose_fat"),
+    ).toBe(true);
+  });
+
+  test("allows goal-neutral copy for every goal", () => {
+    const copy = "Three satisfying meals spaced through your day, protein first.";
+    for (const goal of ["lose_fat", "build_muscle", "maintain", "improve_health"] as const) {
+      expect(copyMatchesGoal(copy, goal)).toBe(true);
+    }
+  });
+
+  test("matches regardless of case, hyphenation, and plurals", () => {
+    expect(copyMatchesGoal("Your Fat-Loss focused day.", "maintain")).toBe(false);
+    expect(copyMatchesGoal("No more Weight-Loss plateaus.", "maintain")).toBe(false);
+    expect(copyMatchesGoal("Small deficits add up.", "maintain")).toBe(false);
+  });
+
+  test("catches en-dash and em-dash compound spellings", () => {
+    expect(copyMatchesGoal("Your fat–loss day.", "maintain")).toBe(false);
+    expect(copyMatchesGoal("A weight—loss focus.", "improve_health")).toBe(false);
+  });
+
+  test("does not flag words that merely resemble loss terms", () => {
+    expect(copyMatchesGoal("A heavy weightlifting day deserves real fuel.", "maintain")).toBe(true);
+    expect(copyMatchesGoal("Nothing to lose by trying the salmon tonight.", "maintain")).toBe(true);
   });
 });
 
