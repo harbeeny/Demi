@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 
 import { createClient } from "@/lib/supabase/client";
+import { readSnapshot, writeSnapshot } from "@/lib/tab-cache";
 import { apiFetch } from "@/lib/api";
 import { targets } from "@/lib/nutrition";
 import { profileFromRow } from "@/lib/plan/rows";
@@ -23,6 +24,16 @@ interface WeighIn {
   weightKg: number;
 }
 
+/** Everything the screen shows, cached for instant repaint on revisit. */
+interface ProgressSnapshot {
+  weighIns: WeighIn[];
+  intakeDays: Array<{ date: string; totalKcal: number }>;
+  targetKcal: number;
+  adjust: AdjustState | null;
+  savedToday: boolean;
+  wheelLbs: number;
+}
+
 export default function ProgressPage() {
   const router = useRouter();
   const [loading, setLoading] = useState(true);
@@ -38,28 +49,44 @@ export default function ProgressPage() {
 
   const reload = useCallback(async () => {
     const supabase = createClient();
+    const apply = (s: ProgressSnapshot) => {
+      setWeighIns(s.weighIns);
+      setIntakeDays(s.intakeDays);
+      setTargetKcal(s.targetKcal);
+      if (s.adjust) setAdjust(s.adjust);
+      setSavedToday(s.savedToday);
+      setWheelLbs(s.wheelLbs);
+      setLoading(false);
+    };
+
+    // Local session read, not the getUser network round trip: the gate only
+    // routes; the API routes verify the token on every real request.
     const {
-      data: { user },
-    } = await supabase.auth.getUser();
+      data: { session },
+    } = await supabase.auth.getSession();
+    const user = session?.user;
     if (!user) {
       router.replace("/login");
       return;
     }
 
-    const { data: onboarding } = await supabase
-      .from("onboarding_answers")
-      .select("*")
-      .eq("user_id", user.id)
-      .order("created_at", { ascending: false })
-      .limit(1)
-      .single();
-    if (!onboarding) {
-      router.replace("/onboarding");
-      return;
-    }
+    // Stale-while-revalidate: paint the last snapshot immediately; the
+    // fresh fetch below replaces it silently.
+    const snapKey = `progress:${user.id}`;
+    const snap = readSnapshot<ProgressSnapshot>(snapKey);
+    if (snap) apply(snap);
 
+    // One round trip: onboarding, intake days, and both API calls together
+    // (un-onboarded visitors just redirect after).
     const since = localDateISO(null, new Date(Date.now() - 30 * 24 * 60 * 60 * 1000));
-    const [{ data: logDays }, weightRes, adjustRes] = await Promise.all([
+    const [{ data: onboarding }, { data: logDays }, weightRes, adjustRes] = await Promise.all([
+      supabase
+        .from("onboarding_answers")
+        .select("*")
+        .eq("user_id", user.id)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .single(),
       supabase
         .from("daily_logs")
         .select("date, total_kcal")
@@ -69,23 +96,27 @@ export default function ProgressPage() {
       apiFetch("/api/weight?days=90"),
       apiFetch("/api/adjust"),
     ]);
+    if (!onboarding) {
+      router.replace("/onboarding");
+      return;
+    }
 
     const weightData = (await weightRes.json().catch(() => ({}))) as { weighIns?: WeighIn[] };
     const adjustData = (await adjustRes.json().catch(() => null)) as AdjustState | null;
 
     const rows = weightData.weighIns ?? [];
-    setWeighIns(rows);
-    setIntakeDays((logDays ?? []).map((d) => ({ date: d.date, totalKcal: Number(d.total_kcal) })));
-    setTargetKcal(targets(profileFromRow(onboarding), { displayUnits: "us" }).kcal.value);
-    if (adjustRes.ok && adjustData) setAdjust(adjustData);
-
     const today = localDateISO();
     const latest = rows[rows.length - 1];
-    setSavedToday(latest?.date === today);
-    setWheelLbs(
-      Math.round(kgToLbs(latest?.weightKg ?? Number(onboarding.weight_kg))),
-    );
-    setLoading(false);
+    const fresh: ProgressSnapshot = {
+      weighIns: rows,
+      intakeDays: (logDays ?? []).map((d) => ({ date: d.date, totalKcal: Number(d.total_kcal) })),
+      targetKcal: targets(profileFromRow(onboarding), { displayUnits: "us" }).kcal.value,
+      adjust: adjustRes.ok && adjustData ? adjustData : null,
+      savedToday: latest?.date === today,
+      wheelLbs: Math.round(kgToLbs(latest?.weightKg ?? Number(onboarding.weight_kg))),
+    };
+    writeSnapshot(snapKey, fresh);
+    apply(fresh);
   }, [router]);
 
   useEffect(() => {

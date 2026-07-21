@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 
 import { createClient } from "@/lib/supabase/client";
+import { clearSnapshots } from "@/lib/tab-cache";
 import { apiFetch } from "@/lib/api";
 import { targets } from "@/lib/nutrition";
 import { profileFromRow, type OnboardingRow } from "@/lib/plan/rows";
@@ -59,9 +60,14 @@ export default function ProfilePage() {
 
   const load = useCallback(async () => {
     const supabase = createClient();
+    // Local session read, not the getUser network round trip: the gate only
+    // routes; /api/profile verifies the token when saving. No snapshot cache
+    // here on purpose: this screen is a form, and swapping values under the
+    // user's edits would be worse than the one fetch.
     const {
-      data: { user },
-    } = await supabase.auth.getUser();
+      data: { session },
+    } = await supabase.auth.getSession();
+    const user = session?.user;
     if (!user) {
       router.replace("/login");
       return;
@@ -171,6 +177,8 @@ export default function ProfilePage() {
     setBusy("signout");
     try {
       await createClient().auth.signOut();
+      // Cached tab snapshots hold personal data; they go with the session.
+      clearSnapshots();
       router.push("/");
       router.refresh();
     } catch {

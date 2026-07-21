@@ -11,6 +11,7 @@ import { calorieFloor, targets } from "@/lib/nutrition";
 import { addDaysISO, applyKcalDelta } from "@/lib/log/balance";
 import { profileFromRow, prefsFromRow } from "@/lib/plan/rows";
 import { isEligible, type Meal } from "@/lib/plan/select-meals";
+import { readSnapshot, writeSnapshot } from "@/lib/tab-cache";
 import type { MealPlanEntry } from "@/lib/supabase/types";
 import type { Ingredient } from "@/lib/plan/grocery";
 import type { MacroTotals } from "@/lib/log/remaining";
@@ -91,25 +92,21 @@ export function useTodayData(viewDate?: string | null): {
       return;
     }
 
-    const { data: onboarding } = await supabase
-      .from("onboarding_answers")
-      .select("*")
-      .eq("user_id", user.id)
-      .order("created_at", { ascending: false })
-      .limit(1)
-      .single();
-
-    if (!onboarding) {
-      router.replace("/onboarding");
-      return;
-    }
-
     const today = localDateISO();
     // A valid past date switches the page into read-only review; anything
     // else (missing, malformed, today, future) views today.
     const viewedDate =
       viewDate && /^\d{4}-\d{2}-\d{2}$/.test(viewDate) && viewDate < today ? viewDate : today;
     const isToday = viewedDate === today;
+
+    // Stale-while-revalidate: paint the last snapshot for this user+day
+    // immediately; the fresh fetch below replaces it silently.
+    const snapKey = `today:${user.id}:${viewedDate}`;
+    const snap = readSnapshot<TodayData>(snapKey);
+    if (snap) {
+      setData(snap);
+      setLoading(false);
+    }
 
     if (isToday) {
       // Signed-in and onboarded: this is the moment to ask for push (native only).
@@ -139,7 +136,10 @@ export function useTodayData(viewDate?: string | null): {
 
     const streakStart = trailingDates(today, 90)[0];
     const weekStart = trailingDates(today, 7)[0];
+    // One round trip: the onboarding row rides in the same batch as the day
+    // data instead of gating it (un-onboarded visitors just redirect after).
     const [
+      { data: onboarding },
       { data: planRow },
       { data: logRows },
       { data: dailyLog },
@@ -147,6 +147,13 @@ export function useTodayData(viewDate?: string | null): {
       { data: historyRows },
       { data: adjustmentRows },
     ] = await Promise.all([
+        supabase
+          .from("onboarding_answers")
+          .select("*")
+          .eq("user_id", user.id)
+          .order("created_at", { ascending: false })
+          .limit(1)
+          .single(),
         supabase
           .from("meal_plans")
           .select("llm_rationale, meals")
@@ -181,6 +188,11 @@ export function useTodayData(viewDate?: string | null): {
           .eq("user_id", user.id)
           .or(`date.gte.${weekStart},date.eq.${viewedDate},source_date.eq.${viewedDate}`),
       ]);
+
+    if (!onboarding) {
+      router.replace("/onboarding");
+      return;
+    }
 
     const kcalByDate = new Map<string, number>();
     for (const row of historyRows ?? []) {
@@ -301,7 +313,7 @@ export function useTodayData(viewDate?: string | null): {
 
     const prefs = prefsFromRow(onboarding);
 
-    setData({
+    const fresh: TodayData = {
       hasPlan: planRow !== null && mealsData.length > 0,
       daySummary,
       meals: mealsData,
@@ -348,7 +360,9 @@ export function useTodayData(viewDate?: string | null): {
         existingReductionByDate,
         yesterday: yesterdayInfo,
       },
-    });
+    };
+    writeSnapshot(snapKey, fresh);
+    setData(fresh);
     setLoading(false);
   }, [router, viewDate]);
 
