@@ -8,32 +8,30 @@
 
 import { AppRedirect } from "@/components/AppRedirect";
 
-const SAMPLE_RINGS = [
-  { label: "kcal", value: 1470, target: 2240, color: "var(--ink)" },
-  { label: "protein", value: 106, target: 164, color: "var(--accent-strong)" },
-  { label: "carbs", value: 160, target: 248, color: "var(--macro-carbs)" },
-  { label: "fat", value: 40, target: 66, color: "var(--flame)" },
+/* Sample day: 1,470 of 2,240 kcal eaten, so 770 left; macros show the
+   same remaining-first reading the hero uses in the product. */
+const SAMPLE_MACROS = [
+  { label: "Protein left", left: 58, had: 106, target: 164, color: "var(--macro-protein)" },
+  { label: "Carbs left", left: 88, had: 160, target: 248, color: "var(--macro-carbs)" },
+  { label: "Fat left", left: 26, had: 40, target: 66, color: "var(--macro-fat)" },
 ];
 
-const SAMPLE_MEALS = [
-  {
-    slot: "BREAKFAST · 8:00 AM",
-    name: "Protein smoothie",
-    macros: "390 kcal · P 32g",
-    why: "Quick protein and carbs to fuel your morning.",
-  },
-  {
-    slot: "LUNCH · 2:00 PM",
-    name: "Chicken and rice",
-    macros: "520 kcal · P 38g",
-    why: "Steady energy that keeps you satisfied through the afternoon.",
-  },
+/* Trailing week for the mini day strip: arcs are eaten/target, W is today,
+   Monday wears the goal-met badge. */
+const SAMPLE_WEEK = [
+  { day: "T", progress: 0.9 },
+  { day: "F", progress: 0.7 },
+  { day: "S", progress: 0.4 },
+  { day: "S", progress: 0.8 },
+  { day: "M", progress: 1, goalMet: true },
+  { day: "T", progress: 0.85 },
+  { day: "W", progress: 0.65, selected: true },
 ];
 
 const STEPS = [
   {
-    title: "Answer ten questions",
-    body: "Height, weight, goal, schedule, and what you like to eat. Two minutes on your phone.",
+    title: "Answer a few questions",
+    body: "Height, weight, goal, schedule, and what you like to eat. A few minutes on your phone.",
   },
   {
     title: "Get your numbers",
@@ -42,6 +40,26 @@ const STEPS = [
   {
     title: "Eat with a why",
     body: "A daily plan of real meals that fit your targets, each with one line explaining why it earns its place.",
+  },
+];
+
+/* Tease the daily texture without explaining the machinery. */
+const FEATURES = [
+  {
+    title: "Log it in seconds",
+    body: "Scan a barcode, snap a nutrition label, or search a verified food database. If it has numbers, Demi finds them.",
+  },
+  {
+    title: "Big night? Balance it.",
+    body: "One tap spreads last night across the rest of your week, inside safe limits. No guilt spiral, no starving it off.",
+  },
+  {
+    title: "Feeling lazy? Order it.",
+    body: "Any meal on your plan hands off to DoorDash or Uber Eats in a tap, so takeout nights stay on plan too.",
+  },
+  {
+    title: "Watch it pay off",
+    body: "Rings fill as you eat, goal days earn their badge, and streaks build. Progress you can feel by Thursday.",
   },
 ];
 
@@ -68,26 +86,60 @@ const GUARDRAILS = [
   },
 ];
 
-function PreviewRing({ label, value, target, color }: (typeof SAMPLE_RINGS)[number]) {
-  const r = 17;
+/* The product's ring: track circle plus a round-capped progress arc. */
+function PreviewRing({
+  progress,
+  size,
+  stroke,
+  color,
+}: {
+  progress: number;
+  size: number;
+  stroke: number;
+  color: string;
+}) {
+  const r = (size - stroke) / 2;
   const c = 2 * Math.PI * r;
-  const pct = Math.min(1, value / target);
+  const pct = Math.min(1, progress);
   return (
-    <div className="flex flex-col items-center">
-      <svg width="44" height="44" viewBox="0 0 44 44" aria-hidden>
-        <circle cx="22" cy="22" r={r} fill="none" stroke="var(--control)" strokeWidth="4" />
+    <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} aria-hidden>
+      <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="var(--track)" strokeWidth={stroke} />
+      <circle
+        cx={size / 2} cy={size / 2} r={r} fill="none"
+        stroke={color} strokeWidth={stroke} strokeLinecap="round"
+        strokeDasharray={`${pct * c} ${c}`}
+        transform={`rotate(-90 ${size / 2} ${size / 2})`}
+      />
+    </svg>
+  );
+}
+
+/* Mini day strip circle, arc and goal badge included. */
+function PreviewDay({ day, progress, selected, goalMet }: (typeof SAMPLE_WEEK)[number]) {
+  const r = 9;
+  const c = 2 * Math.PI * r;
+  return (
+    <span className="relative flex h-6 w-6 items-center justify-center">
+      <svg width="24" height="24" viewBox="0 0 24 24" aria-hidden>
+        <circle cx="12" cy="12" r={r} fill={selected ? "var(--ink)" : goalMet ? "var(--tint)" : "var(--surface)"} stroke="var(--border)" strokeWidth="2" />
         <circle
-          cx="22" cy="22" r={r} fill="none"
-          stroke={color} strokeWidth="4" strokeLinecap="round"
-          strokeDasharray={c} strokeDashoffset={c * (1 - pct)}
-          transform="rotate(-90 22 22)"
+          cx="12" cy="12" r={r} fill="none"
+          stroke={selected ? "var(--accent-tint)" : "var(--accent)"} strokeWidth="2" strokeLinecap="round"
+          strokeDasharray={`${Math.min(1, progress) * c} ${c}`}
+          transform="rotate(-90 12 12)"
         />
-        <text x="22" y="25" textAnchor="middle" fontSize="9" fontWeight="600" fill="var(--ink)">
-          {value}
-        </text>
       </svg>
-      <span className="mt-0.5 text-[8px] text-(--muted)">{label}</span>
-    </div>
+      <span className={`absolute text-[8px] font-medium ${selected ? "text-(--ink-contrast)" : "text-(--ink)"}`}>
+        {day}
+      </span>
+      {goalMet && (
+        <span aria-hidden className="absolute -right-0.5 -top-0.5 flex h-[9px] w-[9px] items-center justify-center rounded-full bg-(--accent-strong) ring-1 ring-(--surface)">
+          <svg width="5" height="5" viewBox="0 0 24 24" fill="none" stroke="var(--surface)" strokeWidth="5" strokeLinecap="round" strokeLinejoin="round">
+            <polyline points="20 6 9 17 4 12" />
+          </svg>
+        </span>
+      )}
+    </span>
   );
 }
 
@@ -118,13 +170,16 @@ export default function LandingPage() {
             className="rise-in text-4xl font-semibold leading-[1.05] tracking-tighter md:text-6xl"
             style={{ "--rise-index": 0 } as React.CSSProperties}
           >
-            Meals planned around your numbers.
+            Results are made in the kitchen.
           </h1>
           <p
             className="rise-in mt-5 max-w-[46ch] text-base leading-relaxed text-(--ink-2) md:text-lg"
             style={{ "--rise-index": 1 } as React.CSSProperties}
           >
-            Demi computes your calories and macros, picks real meals that fit, and explains why each one earns its place.
+            Don&apos;t know where to start? Training hard and seeing nothing change? The answer
+            is usually the plate. Demi is nutrition first: it computes your numbers, plans real
+            meals that fit them, and shows the why behind every one, so you lose weight the
+            right way and keep it off.
           </p>
           <div
             className="rise-in mt-8 flex items-center gap-4"
@@ -150,24 +205,64 @@ export default function LandingPage() {
           className="rise-in mx-auto w-full max-w-[320px]"
           style={{ "--rise-index": 3 } as React.CSSProperties}
         >
-          <div className="rounded-[2rem] border border-(--border) bg-(--surface) p-4 shadow-[0_24px_60px_rgba(44,58,46,0.12)]">
-            <p className="px-1 text-xs font-medium text-(--muted)">Today · sample day</p>
-            <div className="mt-3 grid grid-cols-4 gap-1 rounded-2xl bg-(--bg) p-3">
-              {SAMPLE_RINGS.map((ring) => (
-                <PreviewRing key={ring.label} {...ring} />
+          <div className="rounded-[2rem] border border-(--border) bg-(--bg) p-4 shadow-[0_24px_60px_rgba(44,58,46,0.12)]">
+            <div className="flex items-center justify-between px-1">
+              <p className="text-xs font-medium text-(--muted)">Today · sample day</p>
+              <span className="text-[9px] text-(--muted)">🔥 6 day streak</span>
+            </div>
+
+            {/* Mini day strip, goal badge on Monday, today selected */}
+            <div className="mt-3 flex justify-between px-1">
+              {SAMPLE_WEEK.map((d, i) => (
+                <PreviewDay key={i} {...d} />
               ))}
             </div>
-            <div className="mt-3 space-y-2.5">
-              {SAMPLE_MEALS.map((meal) => (
-                <div key={meal.slot} className="rounded-2xl border border-(--control) p-3">
-                  <p className="text-[9px] font-medium uppercase tracking-wide text-(--muted)">
-                    {meal.slot}
-                  </p>
-                  <p className="mt-0.5 text-sm font-medium">{meal.name}</p>
-                  <p className="mt-0.5 text-[10px] text-(--ink-2)">{meal.macros}</p>
-                  <p className="mt-1 text-[11px] leading-4 text-(--ink-2)">{meal.why}</p>
+
+            {/* Calories-left hero: big number left, one ring right */}
+            <div className="mt-3 flex items-center justify-between rounded-2xl bg-(--surface) p-3.5 shadow-sm">
+              <div>
+                <p className="text-2xl font-semibold tracking-tight">770</p>
+                <p className="mt-0.5 text-[10px] text-(--ink-2)">Calories left</p>
+              </div>
+              <div className="relative flex items-center justify-center">
+                <PreviewRing progress={1470 / 2240} size={52} stroke={5} color="var(--accent-strong)" />
+                <span aria-hidden className="absolute text-[11px]">❋</span>
+              </div>
+            </div>
+
+            {/* Three macro cards, remaining-first like the product */}
+            <div className="mt-2 grid grid-cols-3 gap-2">
+              {SAMPLE_MACROS.map((m) => (
+                <div key={m.label} className="rounded-2xl bg-(--surface) p-2 text-center shadow-sm">
+                  <p className="text-xs font-semibold">{m.left}g</p>
+                  <p className="text-[8px] text-(--muted)">{m.label}</p>
+                  <div className="mt-1 flex justify-center">
+                    <PreviewRing progress={m.had / m.target} size={26} stroke={3.5} color={m.color} />
+                  </div>
                 </div>
               ))}
+            </div>
+
+            {/* One meal section: a suggestion and a logged row */}
+            <p className="mt-3 px-1 text-[8px] font-medium uppercase tracking-wide text-(--muted)">
+              Lunch · 2:00 PM
+            </p>
+            <div className="mt-1.5 space-y-1.5">
+              <div className="rounded-2xl bg-(--surface) p-2.5 shadow-sm">
+                <p className="text-[8px] font-medium uppercase tracking-wide text-(--muted)">Suggested</p>
+                <p className="mt-0.5 text-xs font-medium">Chicken and rice</p>
+                <p className="mt-0.5 text-[9px] text-(--ink-2)">520 kcal · P 38g</p>
+                <div className="mt-1.5 flex justify-end">
+                  <span className="rounded-full border border-(--border) px-2.5 py-1 text-[9px]">I ate this</span>
+                </div>
+              </div>
+              <div className="flex items-center justify-between rounded-2xl bg-(--surface) p-2.5 shadow-sm">
+                <div>
+                  <p className="text-xs font-medium">Greek yogurt bowl</p>
+                  <p className="mt-0.5 text-[9px] text-(--ink-2)">320 kcal · P 21g</p>
+                </div>
+                <span className="text-[9px] text-(--muted)">Undo</span>
+              </div>
             </div>
           </div>
         </div>
@@ -177,7 +272,7 @@ export default function LandingPage() {
       <section id="how" className="border-t border-(--border) bg-(--surface)">
         <div className="mx-auto max-w-6xl px-6 py-20 md:py-28">
           <h2 className="text-3xl font-semibold tracking-tighter md:text-4xl">
-            From ten answers to tonight&apos;s dinner
+            From a few answers to tonight&apos;s dinner
           </h2>
           <div className="mt-12 space-y-10 md:mt-16">
             {STEPS.map((step, i) => (
@@ -190,6 +285,24 @@ export default function LandingPage() {
               </div>
             ))}
           </div>
+        </div>
+      </section>
+
+      {/* Daily texture: four teasers, value shown, mechanics kept back */}
+      <section className="mx-auto max-w-6xl px-6 py-20 md:py-28">
+        <h2 className="text-3xl font-semibold tracking-tighter md:text-4xl">
+          Built for real weeks, not perfect ones
+        </h2>
+        <p className="mt-4 max-w-[52ch] leading-relaxed text-(--ink-2)">
+          The plan is the start. The rest of Demi is for the days that don&apos;t go to plan.
+        </p>
+        <div className="mt-12 grid gap-4 md:grid-cols-2">
+          {FEATURES.map((f) => (
+            <div key={f.title} className="rounded-2xl border border-(--border) bg-(--bg) p-7">
+              <h3 className="text-lg font-semibold tracking-tight">{f.title}</h3>
+              <p className="mt-2 leading-relaxed text-(--ink-2)">{f.body}</p>
+            </div>
+          ))}
         </div>
       </section>
 
