@@ -17,6 +17,22 @@ export function tapHaptic(): void {
   })();
 }
 
+/**
+ * Medium impact for destructive commits (swipe-to-delete). Heavier than
+ * tapHaptic so removing something reads differently from selecting it.
+ */
+export function deleteHaptic(): void {
+  if (!Capacitor.isNativePlatform()) return;
+  void (async () => {
+    try {
+      const { Haptics, ImpactStyle } = await import("@capacitor/haptics");
+      await Haptics.impact({ style: ImpactStyle.Medium });
+    } catch {
+      // haptics unavailable; the row still slides away
+    }
+  })();
+}
+
 /** Success notification haptic for a completed action (e.g. food logged). */
 export function successHaptic(): void {
   if (!Capacitor.isNativePlatform()) return;
