@@ -39,8 +39,15 @@ interface Props {
 }
 
 export function MealCard({ meal, busy, compact = false, onConfirm, onSwap, onRecipe, onOrder }: Props) {
+  // The instant the log request starts, before the network settles and the
+  // morph plays: the whole card dips so the tap visibly took.
+  const logging = busy === `log-${meal.slotIndex}`;
   return (
-    <article className="relative rounded-3xl bg-(--surface) p-4 shadow-sm">
+    <article
+      className={`relative rounded-3xl bg-(--surface) p-4 shadow-sm transition-[opacity,transform] duration-200 ease-out motion-reduce:transition-none ${
+        logging ? "scale-[0.98] opacity-60" : ""
+      }`}
+    >
       <span className="block text-xs font-medium uppercase tracking-wide text-(--muted)">
         {compact ? "Suggested" : `${meal.slot} · ${timeLabel(meal.timeHour)}`}
       </span>

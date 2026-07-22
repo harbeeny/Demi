@@ -35,11 +35,19 @@ function settleEase(): string {
 export function SwipeToDelete({
   onDelete,
   disabled = false,
+  transitionName,
   children,
 }: {
   /** resolves false when the delete failed; the row springs back */
   onDelete: () => Promise<boolean>;
   disabled?: boolean;
+  /**
+   * view-transition-name for the WHOLE row unit. It must live on this
+   * wrapper, not the inner card: a named element is lifted out of normal
+   * paint during a morph, and naming only the card would leave the red
+   * underlay visible in the page while the card animates above it.
+   */
+  transitionName?: string;
   children: React.ReactNode;
 }) {
   const rowRef = useRef<HTMLDivElement>(null);
@@ -218,6 +226,7 @@ export function SwipeToDelete({
     <div
       className="grid transition-[grid-template-rows,opacity,margin] duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] motion-reduce:transition-none"
       style={{
+        viewTransitionName: transitionName,
         gridTemplateRows: committing ? "0fr" : "1fr",
         opacity: committing ? 0 : 1,
         // The list's space-y gap lives on this wrapper as margin (Tailwind
