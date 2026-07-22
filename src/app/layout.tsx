@@ -30,8 +30,9 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Demi | Your fitness starting point",
-  description: "A personal fitness coach for your next healthy habit.",
+  title: "Demi | Results are made in the kitchen",
+  description:
+    "Nutrition-first health: Demi computes your calories and macros, plans real meals that fit, and explains the why behind every one.",
 };
 
 export default function RootLayout({

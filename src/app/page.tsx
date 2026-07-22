@@ -43,6 +43,26 @@ const STEPS = [
   },
 ];
 
+/* Tease the daily texture without explaining the machinery. */
+const FEATURES = [
+  {
+    title: "Log it in seconds",
+    body: "Scan a barcode, snap a nutrition label, or search a verified food database. If it has numbers, Demi finds them.",
+  },
+  {
+    title: "Big night? Balance it.",
+    body: "One tap spreads last night across the rest of your week, inside safe limits. No guilt spiral, no starving it off.",
+  },
+  {
+    title: "Feeling lazy? Order it.",
+    body: "Any meal on your plan hands off to DoorDash or Uber Eats in a tap, so takeout nights stay on plan too.",
+  },
+  {
+    title: "Watch it pay off",
+    body: "Rings fill as you eat, goal days earn their badge, and streaks build. Progress you can feel by Thursday.",
+  },
+];
+
 const GUARDRAILS = [
   {
     title: "Calorie floors, enforced in code",
@@ -150,13 +170,16 @@ export default function LandingPage() {
             className="rise-in text-4xl font-semibold leading-[1.05] tracking-tighter md:text-6xl"
             style={{ "--rise-index": 0 } as React.CSSProperties}
           >
-            Meals planned around your numbers.
+            Results are made in the kitchen.
           </h1>
           <p
             className="rise-in mt-5 max-w-[46ch] text-base leading-relaxed text-(--ink-2) md:text-lg"
             style={{ "--rise-index": 1 } as React.CSSProperties}
           >
-            Demi computes your calories and macros, picks real meals that fit, and explains why each one earns its place.
+            Don&apos;t know where to start? Training hard and seeing nothing change? The answer
+            is usually the plate. Demi is nutrition first: it computes your numbers, plans real
+            meals that fit them, and shows the why behind every one, so you lose weight the
+            right way and keep it off.
           </p>
           <div
             className="rise-in mt-8 flex items-center gap-4"
@@ -249,7 +272,7 @@ export default function LandingPage() {
       <section id="how" className="border-t border-(--border) bg-(--surface)">
         <div className="mx-auto max-w-6xl px-6 py-20 md:py-28">
           <h2 className="text-3xl font-semibold tracking-tighter md:text-4xl">
-            From ten answers to tonight&apos;s dinner
+            From a few answers to tonight&apos;s dinner
           </h2>
           <div className="mt-12 space-y-10 md:mt-16">
             {STEPS.map((step, i) => (
@@ -262,6 +285,24 @@ export default function LandingPage() {
               </div>
             ))}
           </div>
+        </div>
+      </section>
+
+      {/* Daily texture: four teasers, value shown, mechanics kept back */}
+      <section className="mx-auto max-w-6xl px-6 py-20 md:py-28">
+        <h2 className="text-3xl font-semibold tracking-tighter md:text-4xl">
+          Built for real weeks, not perfect ones
+        </h2>
+        <p className="mt-4 max-w-[52ch] leading-relaxed text-(--ink-2)">
+          The plan is the start. The rest of Demi is for the days that don&apos;t go to plan.
+        </p>
+        <div className="mt-12 grid gap-4 md:grid-cols-2">
+          {FEATURES.map((f) => (
+            <div key={f.title} className="rounded-2xl border border-(--border) bg-(--bg) p-7">
+              <h3 className="text-lg font-semibold tracking-tight">{f.title}</h3>
+              <p className="mt-2 leading-relaxed text-(--ink-2)">{f.body}</p>
+            </div>
+          ))}
         </div>
       </section>
 
