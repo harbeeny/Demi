@@ -28,6 +28,7 @@ TEXT = [  # >= 4.5
     ("muted", "surface"), ("muted", "bg"), ("tint-ink", "tint"),
     ("tint-muted", "tint"), ("accent-text", "bg"), ("accent-text", "surface"),
     ("warn-ink", "warn-bg"), ("danger-ink", "danger-bg"), ("ink-contrast", "ink"),
+    ("danger-strong-ink", "danger-strong"),
 ]
 UI = [  # >= 3.0
     ("accent-strong", "surface"), ("over", "surface"), ("macro-carbs", "surface"),

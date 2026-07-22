@@ -12,6 +12,7 @@ import { DaySummaryNote } from "./DaySummaryNote";
 import { MacroSummary } from "./MacroSummary";
 import { MealCard, timeLabel, type TodayMeal } from "./MealCard";
 import { LogSheet, type SearchMeal } from "./LogSheet";
+import { SwipeToDelete } from "./SwipeToDelete";
 import { VerifiedBadge, type FdcLogFields } from "./FoodSearch";
 import { goalHaptic, successHaptic, tapHaptic } from "@/lib/haptics";
 import { kcalGoalMet } from "@/lib/log/goal";
@@ -705,7 +706,7 @@ function MealSection({
   busy: string | null;
   readOnly?: boolean;
   onConfirm: (slotIndex: number) => void;
-  onUndo: (id: string) => void;
+  onUndo: (id: string) => Promise<boolean>;
   onSwap: (slotIndex: number) => void;
   onRecipe: (recipe: NonNullable<TodayMeal["recipe"]>, slotIndex: number) => void;
   onAdd: (slot: MealSlot) => void;
@@ -772,7 +773,7 @@ function OtherSection({
   logs: TodayLog[];
   busy: string | null;
   readOnly?: boolean;
-  onUndo: (id: string) => void;
+  onUndo: (id: string) => Promise<boolean>;
 }) {
   const items = logs.filter((l) => !l.slot || !SLOT_ORDER.includes(l.slot as MealSlot));
   if (items.length === 0) return null;
@@ -797,9 +798,9 @@ function LogRow({
   log: TodayLog;
   busy: string | null;
   readOnly?: boolean;
-  onUndo: (id: string) => void;
+  onUndo: (id: string) => Promise<boolean>;
 }) {
-  return (
+  const card = (
     <div className="flex items-center justify-between rounded-2xl bg-(--surface) p-3 shadow-sm">
       <div className="min-w-0">
         <p className="flex items-center gap-1.5 text-sm font-medium text-(--ink)">
@@ -823,5 +824,14 @@ function LogRow({
         </button>
       )}
     </div>
+  );
+
+  // Review days are read-only, so their rows stay inert; the Undo button
+  // above remains the keyboard and screen-reader path on live days.
+  if (readOnly) return card;
+  return (
+    <SwipeToDelete onDelete={() => onUndo(log.id)} disabled={busy !== null}>
+      {card}
+    </SwipeToDelete>
   );
 }

@@ -36,6 +36,8 @@
   --macro-fat: #5b7fa6;
   --danger-bg: #fdeceb;
   --danger-ink: #8f2318;
+  --danger-strong: #b93221;
+  --danger-strong-ink: #ffffff;
   --ink-contrast: #ffffff;
   --shadow-sheet: 0 -8px 40px rgba(22, 32, 26, 0.18);
 
@@ -84,6 +86,8 @@
   --macro-fat: #88a9cc;
   --danger-bg: #3a2220;
   --danger-ink: #f0a29a;
+  --danger-strong: #c14434;
+  --danger-strong-ink: #ffffff;
   --ink-contrast: #121612;
   --shadow-sheet: 0 -8px 40px rgba(0, 0, 0, 0.5);
   color-scheme: dark;
@@ -123,6 +127,8 @@
     --macro-fat: #88a9cc;
     --danger-bg: #3a2220;
     --danger-ink: #f0a29a;
+    --danger-strong: #c14434;
+    --danger-strong-ink: #ffffff;
     --ink-contrast: #121612;
     --shadow-sheet: 0 -8px 40px rgba(0, 0, 0, 0.5);
     color-scheme: dark;
