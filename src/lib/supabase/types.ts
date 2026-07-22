@@ -87,6 +87,25 @@ export interface Database {
         };
         Relationships: [];
       };
+      notification_kills: {
+        Row: {
+          user_id: string;
+          family: string;
+          created_at: string;
+        };
+        Insert: {
+          user_id: string;
+          family: string;
+          created_at?: string;
+        };
+        // permanent by design: no update or delete grant exists
+        Update: {
+          user_id?: never;
+          family?: never;
+          created_at?: never;
+        };
+        Relationships: [];
+      };
       notification_events: {
         Row: {
           id: string;

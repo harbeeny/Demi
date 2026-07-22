@@ -23,6 +23,15 @@ import type { Goal, MealSlot } from "@/lib/supabase/types";
 import { SummaryCard, type DaySummary } from "./SummaryCard";
 import { RecipeSheet, type RecipeData } from "@/components/kitchen/RecipeSheet";
 import { TakeoutSheet } from "./TakeoutSheet";
+import { PushPrimer } from "./PushPrimer";
+import { pushPermissionStatus } from "@/lib/push";
+import {
+  loadPrimerState,
+  primerDue,
+  savePrimerState,
+  withAsk,
+  withBriefDay,
+} from "@/lib/push-primer";
 
 export type { TodayMeal };
 
@@ -84,6 +93,32 @@ export function TodayView({ hasPlan, daySummary, meals, targets, logs, summary, 
   const [balanceOpen, setBalanceOpen] = useState(false);
   // Takeout fake-door: the meal whose handoff sheet is open (null = closed).
   const [takeoutMeal, setTakeoutMeal] = useState<TodayMeal | null>(null);
+  const [primerOpen, setPrimerOpen] = useState(false);
+
+  // Deferred push ask (Phase 1): today's brief counts toward the value the
+  // user must see first; from the second brief day the primer becomes due,
+  // unless the OS is already settled or an earlier "Not yet" is backing off.
+  useEffect(() => {
+    if (!isToday || !hasPlan) return;
+    const state = withBriefDay(loadPrimerState(), viewedDate);
+    savePrimerState(state);
+    let cancelled = false;
+    void pushPermissionStatus().then((permission) => {
+      if (cancelled || !primerDue(state, viewedDate, permission)) return;
+      window.setTimeout(() => {
+        if (!cancelled) setPrimerOpen(true);
+      }, 600);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [isToday, hasPlan, viewedDate]);
+
+  const closePrimer = () => {
+    // Any close counts as the ask, so the 7-day back-off always holds.
+    savePrimerState(withAsk(loadPrimerState(), viewedDate));
+    setPrimerOpen(false);
+  };
   const openTakeoutFor = takeoutEnabled
     ? (meal: TodayMeal) => {
         tapHaptic();
@@ -661,6 +696,8 @@ export function TodayView({ hasPlan, daySummary, meals, targets, logs, summary, 
         onLogRough={logRough}
         onMutated={onMutated}
       />
+
+      <PushPrimer open={primerOpen} onClose={closePrimer} />
     </main>
   );
 }

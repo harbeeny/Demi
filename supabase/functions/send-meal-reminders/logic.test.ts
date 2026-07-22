@@ -3,13 +3,103 @@ import { describe, expect, test } from "bun:test";
 import {
   backoffMs,
   balanceMorningDecision,
+  inQuietHours,
   isTokenGone,
   isTransient,
+  kindFamily,
   mealReminderDue,
   pool,
+  preferenceFilter,
+  type PreferenceState,
   reflectDecision,
   shouldReleaseClaim,
 } from "./logic";
+
+describe("kindFamily", () => {
+  test("meal reminder kinds collapse to one family", () => {
+    expect(kindFamily("slot-0")).toBe("meal-reminder");
+    expect(kindFamily("slot-2")).toBe("meal-reminder");
+    expect(kindFamily("reflect")).toBe("reflect");
+    expect(kindFamily("balance-morning")).toBe("balance-morning");
+  });
+});
+
+describe("inQuietHours", () => {
+  test("overnight range wraps midnight (default 21:30 to 07:00)", () => {
+    expect(inQuietHours(22, null, null)).toBe(true);
+    expect(inQuietHours(3, null, null)).toBe(true);
+    expect(inQuietHours(21.5, null, null)).toBe(true);
+    expect(inQuietHours(21.4, null, null)).toBe(false);
+    expect(inQuietHours(7, null, null)).toBe(false); // end is exclusive
+    expect(inQuietHours(12, null, null)).toBe(false);
+  });
+
+  test("same-day range and degenerate equal bounds", () => {
+    expect(inQuietHours(12, 9, 17)).toBe(true);
+    expect(inQuietHours(20, 9, 17)).toBe(false);
+    expect(inQuietHours(12, 12, 12)).toBe(false);
+  });
+});
+
+describe("preferenceFilter", () => {
+  const base: PreferenceState = {
+    intensity: null,
+    quietStart: null,
+    quietEnd: null,
+    killedFamilies: new Set(),
+  };
+  const noon = 12;
+
+  test("defaults send everything outside quiet hours", () => {
+    expect(preferenceFilter("slot-1", noon, base)).toEqual({ send: true });
+    expect(preferenceFilter("reflect", noon, base)).toEqual({ send: true });
+  });
+
+  test("a killed family stays dead and wins over everything", () => {
+    const prefs = { ...base, killedFamilies: new Set(["meal-reminder"]) };
+    expect(preferenceFilter("slot-0", noon, prefs)).toEqual({
+      send: false,
+      reason: "slot-killed",
+    });
+    expect(preferenceFilter("reflect", noon, prefs)).toEqual({ send: true });
+  });
+
+  test("checkin allows reflect and balance-morning only", () => {
+    const prefs = { ...base, intensity: "checkin" };
+    expect(preferenceFilter("slot-1", noon, prefs)).toEqual({
+      send: false,
+      reason: "intensity-checkin",
+    });
+    expect(preferenceFilter("reflect", noon, prefs)).toEqual({ send: true });
+    expect(preferenceFilter("balance-morning", 10, prefs)).toEqual({ send: true });
+  });
+
+  test("quiet intensity allows the morning brief family only", () => {
+    const prefs = { ...base, intensity: "quiet" };
+    expect(preferenceFilter("balance-morning", 10, prefs)).toEqual({ send: true });
+    expect(preferenceFilter("reflect", noon, prefs)).toEqual({
+      send: false,
+      reason: "intensity-quiet",
+    });
+  });
+
+  test("quiet hours suppress an otherwise allowed send", () => {
+    expect(preferenceFilter("reflect", 22, base)).toEqual({
+      send: false,
+      reason: "quiet-hours",
+    });
+    expect(preferenceFilter("reflect", 21, { ...base, quietStart: 20.5, quietEnd: 6 })).toEqual({
+      send: false,
+      reason: "quiet-hours",
+    });
+  });
+
+  test("an unknown intensity fails open to coach", () => {
+    expect(preferenceFilter("slot-1", noon, { ...base, intensity: "loud" })).toEqual({
+      send: true,
+    });
+  });
+});
 
 describe("mealReminderDue", () => {
   test("due when the slot is 15-45 minutes out", () => {
