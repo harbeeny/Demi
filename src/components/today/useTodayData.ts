@@ -1,7 +1,10 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { flushSync } from "react-dom";
 import { useRouter } from "next/navigation";
+
+import { withViewTransition } from "@/lib/view-transition";
 
 import { createClient } from "@/lib/supabase/client";
 import { registerPush } from "@/lib/push";
@@ -78,12 +81,12 @@ export interface TodayData {
 export function useTodayData(viewDate?: string | null): {
   loading: boolean;
   data: TodayData | null;
-  reload: () => Promise<void>;
+  reload: (opts?: { animate?: boolean }) => Promise<void>;
 } {
   const router = useRouter();
   const [loading, setLoading] = useState(true);
   const [data, setData] = useState<TodayData | null>(null);
-  const reload = useCallback(async () => {
+  const reload = useCallback(async (opts?: { animate?: boolean }) => {
     const supabase = createClient();
     // getSession reads the locally persisted session; getUser is a network
     // round trip that can race session restoration on a cold shell launch
@@ -385,8 +388,16 @@ export function useTodayData(viewDate?: string | null): {
       takeoutEnabled: takeoutFlag?.value === true,
     };
     writeSnapshot(snapKey, fresh);
-    setData(fresh);
-    setLoading(false);
+    const apply = () => {
+      setData(fresh);
+      setLoading(false);
+    };
+    // Mutation reloads morph the old list into the new one (the card an
+    // "I ate this" collapses into its log row, a deleted row's space
+    // closes); the browser needs the DOM swap inside its snapshot window,
+    // hence the synchronous flush.
+    if (opts?.animate) await withViewTransition(() => flushSync(apply));
+    else apply();
   }, [router, viewDate]);
 
   useEffect(() => {
