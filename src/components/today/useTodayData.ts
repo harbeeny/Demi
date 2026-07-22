@@ -7,7 +7,7 @@ import { useRouter } from "next/navigation";
 import { withViewTransition } from "@/lib/view-transition";
 
 import { createClient } from "@/lib/supabase/client";
-import { registerPush } from "@/lib/push";
+import { ensurePushRegistered } from "@/lib/push";
 import { device24HourClock, deviceTimeZone, localDateISO } from "@/lib/dates";
 import { loggingStreak, trailingDates } from "@/lib/log/streak";
 import { calorieFloor, targets } from "@/lib/nutrition";
@@ -117,8 +117,9 @@ export function useTodayData(viewDate?: string | null): {
     }
 
     if (isToday) {
-      // Signed-in and onboarded: this is the moment to ask for push (native only).
-      void registerPush();
+      // Keep an already-permitted device registered. Asking is deferred:
+      // the pre-permission primer on Today owns the one-shot system modal.
+      void ensurePushRegistered();
 
       // The app's day follows the device clock; keep the profile's timezone
       // and clock format fresh so the server (routes, meal reminders)

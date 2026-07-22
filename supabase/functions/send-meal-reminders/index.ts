@@ -16,6 +16,8 @@ import {
   MAX_SEND_ATTEMPTS,
   mealReminderDue,
   pool,
+  preferenceFilter,
+  type PreferenceState,
   reflectDecision,
   shouldReleaseClaim,
 } from "./logic.ts";
@@ -122,7 +124,12 @@ async function sendApnsOnce(
         "apns-push-type": "alert",
         "apns-priority": "10",
       },
-      body: JSON.stringify({ aps: { alert: { title, body }, sound: "default" }, demi: meta }),
+      // category DEMI_SLOT surfaces the long-press "Stop sending this one"
+      // action the app registers natively.
+      body: JSON.stringify({
+        aps: { alert: { title, body }, sound: "default", category: "DEMI_SLOT" },
+        demi: meta,
+      }),
     });
     if (!res.ok) console.error(`APNs ${res.status} for token ${token.slice(0, 8)}...`, await res.text());
     return res.status;
@@ -215,9 +222,12 @@ Deno.serve(async (req) => {
     return d.toISOString().slice(0, 10);
   };
 
-  const [{ data: tokens }, { data: profiles }] = await Promise.all([
+  const [{ data: tokens }, { data: profiles }, { data: kills }] = await Promise.all([
     db.from("device_tokens").select("user_id, token"),
-    db.from("profiles").select("id, timezone"),
+    db
+      .from("profiles")
+      .select("id, timezone, notification_intensity, quiet_hours_start, quiet_hours_end"),
+    db.from("notification_kills").select("user_id, family"),
   ]);
 
   const tokensByUser = new Map<string, string[]>();
@@ -225,6 +235,30 @@ Deno.serve(async (req) => {
     tokensByUser.set(t.user_id, [...(tokensByUser.get(t.user_id) ?? []), t.token]);
   }
   const tzByUser = new Map((profiles ?? []).map((p) => [p.id, p.timezone as string | null]));
+  // Standing notification preferences per user (Phase 1): intensity, quiet
+  // hours, and permanently killed families.
+  const killedByUser = new Map<string, Set<string>>();
+  for (const k of kills ?? []) {
+    if (!killedByUser.has(k.user_id)) killedByUser.set(k.user_id, new Set());
+    killedByUser.get(k.user_id)!.add(k.family as string);
+  }
+  const prefsByUser = new Map<string, PreferenceState>(
+    (profiles ?? []).map((p) => [
+      p.id,
+      {
+        intensity: (p.notification_intensity as string | null) ?? null,
+        quietStart: (p.quiet_hours_start as number | null) ?? null,
+        quietEnd: (p.quiet_hours_end as number | null) ?? null,
+        killedFamilies: killedByUser.get(p.id) ?? new Set<string>(),
+      },
+    ]),
+  );
+  const defaultPrefs: PreferenceState = {
+    intensity: null,
+    quietStart: null,
+    quietEnd: null,
+    killedFamilies: new Set(),
+  };
   // Per push-capable user: their local date and fractional hour right now.
   const clockByUser = new Map<string, { today: string; nowH: number }>();
   for (const [userId] of tokensByUser) {
@@ -333,6 +367,22 @@ Deno.serve(async (req) => {
   }
   const due: DueNotification[] = [];
 
+  /**
+   * A slot decided to fire; the user's standing preferences get the last
+   * word. Kills, intensity, and quiet hours all land in the decision log
+   * as suppressions, so silence is always accounted for.
+   */
+  async function enqueue(n: DueNotification) {
+    const prefs = prefsByUser.get(n.userId) ?? defaultPrefs;
+    const nowH = clockByUser.get(n.userId)?.nowH ?? now.getUTCHours();
+    const verdict = preferenceFilter(n.kind, nowH, prefs);
+    if (!verdict.send) {
+      await recordSuppressed(n.userId, n.kind, verdict.reason);
+      return;
+    }
+    due.push(n);
+  }
+
   async function dispatch(n: DueNotification) {
     // Claim before sending: overlapping ticks must not double-notify. A
     // fully-transient failure releases the claim so the next tick retries.
@@ -368,7 +418,7 @@ Deno.serve(async (req) => {
     for (let i = 0; i < entries.length; i++) {
       if (!mealReminderDue(entries[i].time_hour, clock.nowH)) continue;
       const name = mealNameById.get(entries[i].meal_id) ?? "Your next meal";
-      due.push({
+      await enqueue({
         userId: plan.user_id,
         kind: `slot-${i}`,
         title: `${name} in about 30 min`,
@@ -391,7 +441,7 @@ Deno.serve(async (req) => {
       await recordSuppressed(userId, "reflect", decision.reason);
       continue;
     }
-    due.push({
+    await enqueue({
       userId,
       kind: "reflect",
       title: "How did today go?",
@@ -425,7 +475,7 @@ Deno.serve(async (req) => {
       await recordSuppressed(userId, "balance-morning", decision.reason);
       continue;
     }
-    due.push({
+    await enqueue({
       userId,
       kind: "balance-morning",
       title: "Today's a normal day",

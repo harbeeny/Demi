@@ -81,6 +81,69 @@ export function balanceMorningDecision(s: {
   return { due: true, fire: true };
 }
 
+// ---------- standing preferences (Phase 1) ----------
+// Applied after a slot decides to fire, ordered by how permanent the choice
+// is: a killed slot stays dead, then the intensity level, then the nightly
+// quiet window. Every non-send is a logged suppression.
+
+/** Notification family a concrete send kind belongs to (slot-2 -> meal-reminder). */
+export function kindFamily(kind: string): string {
+  return kind.startsWith("slot-") ? "meal-reminder" : kind;
+}
+
+/** Spec default quiet hours: 21:30 to 07:00 local. */
+export const DEFAULT_QUIET_START = 21.5;
+export const DEFAULT_QUIET_END = 7;
+
+/**
+ * Families each intensity allows; null allows everything (coach). Unknown
+ * values fail open to coach so a bad write can never silence a user's
+ * pushes wholesale.
+ */
+const INTENSITY_FAMILIES: Record<string, Set<string> | null> = {
+  coach: null,
+  checkin: new Set(["balance-morning", "reflect"]),
+  quiet: new Set(["balance-morning"]),
+};
+
+/** True when the local hour falls inside the quiet range (overnight wraps). */
+export function inQuietHours(
+  nowH: number,
+  start: number | null,
+  end: number | null,
+): boolean {
+  const s = start ?? DEFAULT_QUIET_START;
+  const e = end ?? DEFAULT_QUIET_END;
+  if (s === e) return false;
+  return s < e ? nowH >= s && nowH < e : nowH >= s || nowH < e;
+}
+
+export interface PreferenceState {
+  /** profiles.notification_intensity; null means the coach default */
+  intensity: string | null;
+  quietStart: number | null;
+  quietEnd: number | null;
+  killedFamilies: Set<string>;
+}
+
+export function preferenceFilter(
+  kind: string,
+  nowH: number,
+  prefs: PreferenceState,
+): { send: true } | { send: false; reason: string } {
+  const family = kindFamily(kind);
+  if (prefs.killedFamilies.has(family)) return { send: false, reason: "slot-killed" };
+  const intensity = prefs.intensity ?? "coach";
+  const allowed = INTENSITY_FAMILIES[intensity] ?? null;
+  if (allowed && !allowed.has(family)) {
+    return { send: false, reason: `intensity-${intensity}` };
+  }
+  if (inQuietHours(nowH, prefs.quietStart, prefs.quietEnd)) {
+    return { send: false, reason: "quiet-hours" };
+  }
+  return { send: true };
+}
+
 /** Run tasks with bounded concurrency; rejections never kill the pool. */
 export async function pool<T>(
   items: T[],

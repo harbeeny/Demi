@@ -1,5 +1,6 @@
 import UIKit
 import Capacitor
+import UserNotifications
 
 @UIApplicationMain
 class AppDelegate: UIResponder, UIApplicationDelegate {
@@ -7,7 +8,22 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
     var window: UIWindow?
 
     func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?) -> Bool {
-        // Override point for customization after application launch.
+        // Long-press actions for Demi pushes (aps.category = DEMI_SLOT).
+        // "Stop sending this one" is the permanent per-slot kill switch; it
+        // opens the app (.foreground) so the JS listener that records the
+        // kill reliably runs, and asks for no confirmation on purpose.
+        let stopThis = UNNotificationAction(
+            identifier: "STOP_THIS",
+            title: "Stop sending this one",
+            options: [.foreground, .destructive]
+        )
+        let slotCategory = UNNotificationCategory(
+            identifier: "DEMI_SLOT",
+            actions: [stopThis],
+            intentIdentifiers: [],
+            options: []
+        )
+        UNUserNotificationCenter.current().setNotificationCategories([slotCategory])
         return true
     }
 

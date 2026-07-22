@@ -13,6 +13,7 @@ import { localDateISO } from "@/lib/dates";
 import type { ActivityLevel, Budget, CookingSkill, Goal } from "@/lib/supabase/types";
 import { TabBar } from "@/components/TabBar";
 import { ThemePill } from "@/components/ThemePill";
+import { NotificationSettings } from "@/components/profile/NotificationSettings";
 
 const GOALS: Array<{ value: Goal; label: string }> = [
   { value: "lose_fat", label: "Lose body fat" },
@@ -354,6 +355,8 @@ export default function ProfilePage() {
           {busy === "save" ? "Saving..." : "Save changes"}
         </button>
       </section>
+
+      <NotificationSettings />
 
       <section className="mt-4 rounded-3xl bg-(--surface) p-5 shadow-sm">
         <h2 className="mb-1 text-lg font-semibold text-(--ink)">Your data</h2>
