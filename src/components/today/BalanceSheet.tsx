@@ -20,6 +20,10 @@ import type { BalanceInfo } from "./useTodayData";
  * anywhere in this file; SAFETY.md screens for exactly that framing.
  */
 
+/** Canonical name of the rough big-night log entry; TodayView both writes
+ * it and recognizes it (the rebalance heuristic stands down for the day). */
+export const ROUGH_ENTRY_NAME = "Big night (rough estimate)";
+
 const ROUGH_TIERS = [
   { label: "Drinks and snacks", kcal: 800 },
   { label: "Big dinner out", kcal: 1200 },
@@ -121,8 +125,11 @@ export function BalanceSheet({
   const [busy, setBusy] = useState<string | null>(null);
   const [customKcal, setCustomKcal] = useState("");
   const [error, setError] = useState("");
-  // Before noon, an unlogged big night usually means LAST night; from noon
-  // on it means earlier today. A default, not an inference: the user picks.
+  // Until evening (17:00, the same boundary the morning-after nudge uses
+  // server-side), an unlogged big night usually means LAST night; from the
+  // evening on it means tonight. The old noon cutoff put a lunchtime
+  // "last night" log on TODAY by default, which consumed today's budget
+  // whole. A default, not an inference: the user picks.
   const [whenChoice, setWhenChoice] = useState<SourceDay>("today");
   // Set after a rough log so the sheet can say what happened when the
   // entry fit inside its day's target and there's nothing to spread.
@@ -144,7 +151,7 @@ export function BalanceSheet({
       setBusy(null);
       setCustomKcal("");
       setError("");
-      setWhenChoice(new Date().getHours() < 12 ? "yesterday" : "today");
+      setWhenChoice(new Date().getHours() < 17 ? "yesterday" : "today");
       setRoughLogged(null);
       setShowRough(false);
       setFocus(null);

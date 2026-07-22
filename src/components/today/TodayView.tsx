@@ -5,7 +5,7 @@ import { useEffect, useRef, useState } from "react";
 import { apiFetch, awaitPlanJob } from "@/lib/api";
 import type { MacroTotals } from "@/lib/log/remaining";
 import { remainingBudget, sumLogged } from "@/lib/log/remaining";
-import { shouldOfferRebalance } from "@/lib/log/rebalance";
+import { balanceQuietsRebalance, shouldOfferRebalance } from "@/lib/log/rebalance";
 import type { MealLogSource } from "@/lib/supabase/types";
 import { DayStrip } from "./DayStrip";
 import { DaySummaryNote } from "./DaySummaryNote";
@@ -15,7 +15,7 @@ import { LogSheet, type SearchMeal } from "./LogSheet";
 import { VerifiedBadge, type FdcLogFields } from "./FoodSearch";
 import { goalHaptic, successHaptic, tapHaptic } from "@/lib/haptics";
 import { kcalGoalMet } from "@/lib/log/goal";
-import { BalanceSheet, roughEstimateMacros, ScaleIcon } from "./BalanceSheet";
+import { BalanceSheet, ROUGH_ENTRY_NAME, roughEstimateMacros, ScaleIcon } from "./BalanceSheet";
 import type { BalanceInfo } from "./useTodayData";
 import { SLOT_LABELS, SLOT_ORDER, suggestSlot } from "@/lib/log/slots";
 import type { Goal, MealSlot } from "@/lib/supabase/types";
@@ -270,7 +270,15 @@ export function TodayView({ hasPlan, daySummary, meals, targets, logs, summary, 
   const upcomingMeals = meals.filter(
     (m) => !loggedBySlotIndex.has(m.slotIndex) && m.timeHour >= nowHour,
   );
+  // Days touched by the weekly balance keep the rebalance prompt quiet;
+  // see balanceQuietsRebalance for why the two must never stack.
+  const balanceQuiet = balanceQuietsRebalance({
+    hasBigNightEntry: logs.some((l) => l.source === "estimate" && l.name === ROUGH_ENTRY_NAME),
+    balancedToday: balance.outgoing !== null,
+    trimmedByYesterday: balance.incoming.some((a) => a.sourceDate === balance.yesterday.date),
+  });
   const offerRebalance =
+    !balanceQuiet &&
     eaten !== null &&
     shouldOfferRebalance(remainingBudget(targets, eaten), sumLogged(upcomingMeals), upcomingMeals.length);
 
@@ -281,7 +289,7 @@ export function TodayView({ hasPlan, daySummary, meals, targets, logs, summary, 
   const logRough = (kcal: number, when: "today" | "yesterday") =>
     logEstimate(
       {
-        name: "Big night (rough estimate)",
+        name: ROUGH_ENTRY_NAME,
         kcal,
         ...roughEstimateMacros(kcal),
         slot:

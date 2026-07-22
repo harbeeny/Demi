@@ -12,6 +12,22 @@ const KCAL_GAP_FRACTION = 0.1;
 const PROTEIN_GAP_G = 15;
 
 /**
+ * The weekly-balance flow silences this heuristic for the day: a big-night
+ * entry documents a night that already happened, an applied balance means
+ * the day is settled, and a trim from last night's balance is deliberately
+ * small enough not to notice. Offering to shrink the remaining meals in
+ * response to any of them is the compensatory move the balance feature
+ * exists to prevent (SAFETY.md), so the two systems never stack prompts.
+ */
+export function balanceQuietsRebalance(day: {
+  hasBigNightEntry: boolean;
+  balancedToday: boolean;
+  trimmedByYesterday: boolean;
+}): boolean {
+  return day.hasBigNightEntry || day.balancedToday || day.trimmedByYesterday;
+}
+
+/**
  * Offer a rebalance only when what's left in the budget meaningfully differs
  * from what the remaining planned meals would deliver.
  */
