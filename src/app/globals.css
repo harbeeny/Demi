@@ -143,6 +143,22 @@
   outline-offset: 2px;
 }
 
+/* View transitions (logging and un-logging morph the meal list): a touch
+   quicker than the UA default and on the app's easing. Reduced motion
+   turns them off entirely; the JS wrapper also skips starting them. */
+::view-transition-group(*) {
+  animation-duration: 300ms;
+  animation-timing-function: var(--ease-out);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  ::view-transition-group(*),
+  ::view-transition-old(*),
+  ::view-transition-new(*) {
+    animation: none;
+  }
+}
+
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);

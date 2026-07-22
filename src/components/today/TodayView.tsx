@@ -64,7 +64,7 @@ interface Props {
    */
   onSelectDate: (date: string | null) => void;
   /** re-runs the client data queries after a mutation (replaces router.refresh) */
-  onMutated: () => Promise<void>;
+  onMutated: (opts?: { animate?: boolean }) => Promise<void>;
 }
 
 export function TodayView({ hasPlan, daySummary, meals, targets, logs, summary, searchMeals, viewedDate, isToday, streak, week, balance, goal, takeoutEnabled, onSelectDate, onMutated }: Props) {
@@ -139,11 +139,11 @@ export function TodayView({ hasPlan, daySummary, meals, targets, logs, summary, 
         const job = await awaitPlanJob(data.jobId);
         if (!job.ok) {
           setError(job.error ?? "Something went wrong.");
-          await onMutated();
+          await onMutated({ animate: true });
           return false;
         }
       }
-      await onMutated();
+      await onMutated({ animate: true });
       return true;
     } catch {
       setError("Network hiccup. Try again.");
@@ -728,16 +728,20 @@ function MealSection({
       </div>
       <div className="space-y-2">
         {plannedMeals.map((meal) => (
-          <MealCard
-            key={meal.slotIndex}
-            meal={meal}
-            compact
-            busy={busy}
-            onConfirm={onConfirm}
-            onSwap={onSwap}
-            onRecipe={onRecipe}
-            onOrder={onOrder}
-          />
+          // The name pairs this card with the log row it becomes when eaten
+          // (and back on delete), so the view transition morphs one into
+          // the other instead of swapping them cold.
+          <div key={meal.slotIndex} style={{ viewTransitionName: `slot-${meal.slotIndex}` }}>
+            <MealCard
+              meal={meal}
+              compact
+              busy={busy}
+              onConfirm={onConfirm}
+              onSwap={onSwap}
+              onRecipe={onRecipe}
+              onOrder={onOrder}
+            />
+          </div>
         ))}
         {logs.map((l) => (
           <LogRow key={l.id} log={l} busy={busy} readOnly={readOnly} onUndo={onUndo} />
@@ -800,8 +804,19 @@ function LogRow({
   readOnly?: boolean;
   onUndo: (id: string) => Promise<boolean>;
 }) {
+  // Planned logs share their name with the suggestion card they replaced,
+  // so eating and un-eating morph; other logs get their own name so a
+  // delete's neighbors travel instead of jump-cutting.
   const card = (
-    <div className="flex items-center justify-between rounded-2xl bg-(--surface) p-3 shadow-sm">
+    <div
+      className="flex items-center justify-between rounded-2xl bg-(--surface) p-3 shadow-sm"
+      style={{
+        viewTransitionName:
+          log.source === "planned" && log.planSlotIndex !== null
+            ? `slot-${log.planSlotIndex}`
+            : `log-${log.id}`,
+      }}
+    >
       <div className="min-w-0">
         <p className="flex items-center gap-1.5 text-sm font-medium text-(--ink)">
           <span className="truncate">{log.name}</span>
