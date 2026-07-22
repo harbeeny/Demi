@@ -2,11 +2,83 @@ import { describe, expect, test } from "bun:test";
 
 import {
   backoffMs,
+  balanceMorningDecision,
   isTokenGone,
   isTransient,
+  mealReminderDue,
   pool,
+  reflectDecision,
   shouldReleaseClaim,
 } from "./logic";
+
+describe("mealReminderDue", () => {
+  test("due when the slot is 15-45 minutes out", () => {
+    expect(mealReminderDue(14, 13.5)).toBe(true); // 30 min out
+    expect(mealReminderDue(14, 13.75)).toBe(true); // 15 min out, inclusive
+    expect(mealReminderDue(14, 13.26)).toBe(true); // just inside 45
+  });
+
+  test("not due when too close, past, too far, or unscheduled", () => {
+    expect(mealReminderDue(14, 13.8)).toBe(false); // 12 min out
+    expect(mealReminderDue(14, 14.1)).toBe(false); // already passed
+    expect(mealReminderDue(14, 13.25)).toBe(false); // exactly 45 min, exclusive
+    expect(mealReminderDue(undefined, 13.5)).toBe(false);
+  });
+});
+
+describe("reflectDecision", () => {
+  const base = { nowH: 21.5, windowEnd: 20, finished: false, logged: true };
+
+  test("fires an hour past the window with an open, logged day", () => {
+    expect(reflectDecision(base)).toEqual({ due: true, fire: true });
+  });
+
+  test("not due before the window hour passes or without a window", () => {
+    expect(reflectDecision({ ...base, nowH: 21 })).toEqual({ due: false });
+    expect(reflectDecision({ ...base, windowEnd: undefined })).toEqual({ due: false });
+  });
+
+  test("suppressed with reasons: day closed beats nothing logged", () => {
+    expect(reflectDecision({ ...base, finished: true })).toEqual({
+      due: true,
+      fire: false,
+      reason: "day-already-closed",
+    });
+    expect(reflectDecision({ ...base, logged: false })).toEqual({
+      due: true,
+      fire: false,
+      reason: "nothing-logged",
+    });
+    // both true: closed wins, matching the sender's original precedence
+    expect(reflectDecision({ ...base, finished: true, logged: false })).toEqual({
+      due: true,
+      fire: false,
+      reason: "day-already-closed",
+    });
+  });
+});
+
+describe("balanceMorningDecision", () => {
+  const base = { nowH: 9.5, balancedEvening: true, logged: false };
+
+  test("fires 9-11am local after an evening balance, nothing logged", () => {
+    expect(balanceMorningDecision(base)).toEqual({ due: true, fire: true });
+  });
+
+  test("not due outside 9-11 or without an evening balance", () => {
+    expect(balanceMorningDecision({ ...base, nowH: 8.9 })).toEqual({ due: false });
+    expect(balanceMorningDecision({ ...base, nowH: 11 })).toEqual({ due: false });
+    expect(balanceMorningDecision({ ...base, balancedEvening: false })).toEqual({ due: false });
+  });
+
+  test("suppressed once anything is logged: silence on success", () => {
+    expect(balanceMorningDecision({ ...base, logged: true })).toEqual({
+      due: true,
+      fire: false,
+      reason: "already-logged-today",
+    });
+  });
+});
 
 describe("APNs status policy", () => {
   test("transient: network failure, rate limit, server errors", () => {

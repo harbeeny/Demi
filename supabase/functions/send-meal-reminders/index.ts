@@ -10,10 +10,13 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 import {
   backoffMs,
+  balanceMorningDecision,
   isTokenGone,
   isTransient,
   MAX_SEND_ATTEMPTS,
+  mealReminderDue,
   pool,
+  reflectDecision,
   shouldReleaseClaim,
 } from "./logic.ts";
 
@@ -97,7 +100,19 @@ async function apnsJwt(cfg: ApnsConfig): Promise<string> {
   return cachedJwt.jwt;
 }
 
-async function sendApnsOnce(cfg: ApnsConfig, token: string, title: string, body: string): Promise<number> {
+/** Custom payload keys the app's tap handler reads back. */
+interface PushMeta {
+  kind: string;
+  date: string;
+}
+
+async function sendApnsOnce(
+  cfg: ApnsConfig,
+  token: string,
+  title: string,
+  body: string,
+  meta: PushMeta,
+): Promise<number> {
   try {
     const res = await fetch(`https://${cfg.host}/3/device/${token}`, {
       method: "POST",
@@ -107,7 +122,7 @@ async function sendApnsOnce(cfg: ApnsConfig, token: string, title: string, body:
         "apns-push-type": "alert",
         "apns-priority": "10",
       },
-      body: JSON.stringify({ aps: { alert: { title, body }, sound: "default" } }),
+      body: JSON.stringify({ aps: { alert: { title, body }, sound: "default" }, demi: meta }),
     });
     if (!res.ok) console.error(`APNs ${res.status} for token ${token.slice(0, 8)}...`, await res.text());
     return res.status;
@@ -119,10 +134,16 @@ async function sendApnsOnce(cfg: ApnsConfig, token: string, title: string, body:
 }
 
 /** Final status after up to MAX_SEND_ATTEMPTS tries with backoff. */
-async function sendApns(cfg: ApnsConfig, token: string, title: string, body: string): Promise<number> {
+async function sendApns(
+  cfg: ApnsConfig,
+  token: string,
+  title: string,
+  body: string,
+  meta: PushMeta,
+): Promise<number> {
   let status = 0;
   for (let attempt = 0; attempt < MAX_SEND_ATTEMPTS; attempt++) {
-    status = await sendApnsOnce(cfg, token, title, body);
+    status = await sendApnsOnce(cfg, token, title, body, meta);
     if (!isTransient(status)) return status;
     if (attempt < MAX_SEND_ATTEMPTS - 1) await new Promise((r) => setTimeout(r, backoffMs(attempt)));
   }
@@ -253,6 +274,7 @@ Deno.serve(async (req) => {
   let failed = 0;
   let pruned = 0;
   let released = 0;
+  let suppressed = 0;
 
   /** Claim the dedup row first; an empty result means another tick already sent. */
   async function claim(userId: string, kind: string): Promise<boolean> {
@@ -271,6 +293,35 @@ Deno.serve(async (req) => {
     released++;
   }
 
+  /**
+   * Append to the notification decision log. True when a row was written;
+   * a duplicate (23505) means an earlier tick already recorded this exact
+   * decision, which re-evaluation every 15 minutes makes routine.
+   */
+  async function recordEvent(row: {
+    user_id: string;
+    date: string;
+    kind: string;
+    fired_at?: string;
+    outcome?: string;
+    suppression_reason?: string;
+  }): Promise<boolean> {
+    const { error } = await db.from("notification_events").insert(row);
+    if (!error) return true;
+    if (error.code !== "23505") {
+      console.error("notification_events insert failed:", error.message);
+    }
+    return false;
+  }
+
+  /** A slot was due but a rule kept it quiet; log why, once per reason. */
+  async function recordSuppressed(userId: string, kind: string, reason: string) {
+    const date = clockByUser.get(userId)?.today ?? localDateISO(null);
+    if (await recordEvent({ user_id: userId, date, kind, outcome: "suppressed", suppression_reason: reason })) {
+      suppressed++;
+    }
+  }
+
   // The three nudge passes below only COLLECT what is due; delivery happens
   // in one bounded-concurrency dispatch so a slow APNs or a big user base
   // cannot stretch the tick past its window.
@@ -286,9 +337,10 @@ Deno.serve(async (req) => {
     // Claim before sending: overlapping ticks must not double-notify. A
     // fully-transient failure releases the claim so the next tick retries.
     if (!(await claim(n.userId, n.kind))) return;
+    const date = clockByUser.get(n.userId)?.today ?? localDateISO(null);
     const finalStatuses: number[] = [];
     for (const token of tokensByUser.get(n.userId) ?? []) {
-      const status = await sendApns(cfg, token, n.title, n.body);
+      const status = await sendApns(cfg, token, n.title, n.body, { kind: n.kind, date });
       finalStatuses.push(status);
       if (status === 200) sent++;
       else failed++;
@@ -297,7 +349,15 @@ Deno.serve(async (req) => {
         pruned++;
       }
     }
-    if (shouldReleaseClaim(finalStatuses)) await releaseClaim(n.userId, n.kind);
+    if (shouldReleaseClaim(finalStatuses)) {
+      await releaseClaim(n.userId, n.kind);
+      return;
+    }
+    // Delivered somewhere: the decision log gets its fired row. The app
+    // flips outcome to opened/action_taken from the device on interaction.
+    if (finalStatuses.some((s) => s === 200)) {
+      await recordEvent({ user_id: n.userId, date, kind: n.kind, fired_at: new Date().toISOString() });
+    }
   }
 
   // Meal reminders: slots 15-45 minutes out, on the user's own clock.
@@ -306,8 +366,7 @@ Deno.serve(async (req) => {
     if (!clock || plan.date !== clock.today) continue;
     const entries = plan.meals as MealPlanEntry[];
     for (let i = 0; i < entries.length; i++) {
-      const t = entries[i].time_hour;
-      if (t === undefined || t < clock.nowH + 0.25 || t >= clock.nowH + 0.75) continue;
+      if (!mealReminderDue(entries[i].time_hour, clock.nowH)) continue;
       const name = mealNameById.get(entries[i].meal_id) ?? "Your next meal";
       due.push({
         userId: plan.user_id,
@@ -319,12 +378,19 @@ Deno.serve(async (req) => {
   }
 
   // Reflection nudge: an hour past the eating window (user-local), day not
-  // finished, something logged.
+  // finished, something logged. Suppressions land in the decision log.
   for (const [userId] of tokensByUser) {
-    const windowEnd = windowEndByUser.get(userId);
-    const nowH = clockByUser.get(userId)?.nowH ?? now.getUTCHours();
-    if (windowEnd === undefined || nowH <= windowEnd + 1) continue;
-    if (finishedUsers.has(userId) || !loggedUsers.has(userId)) continue;
+    const decision = reflectDecision({
+      nowH: clockByUser.get(userId)?.nowH ?? now.getUTCHours(),
+      windowEnd: windowEndByUser.get(userId),
+      finished: finishedUsers.has(userId),
+      logged: loggedUsers.has(userId),
+    });
+    if (!decision.due) continue;
+    if (!decision.fire) {
+      await recordSuppressed(userId, "reflect", decision.reason);
+      continue;
+    }
     due.push({
       userId,
       kind: "reflect",
@@ -349,9 +415,16 @@ Deno.serve(async (req) => {
     if (hourIn(tz, new Date(row.created_at)) >= 17) balancedEveningUsers.add(row.user_id);
   }
   for (const userId of balancedEveningUsers) {
-    const nowH = clockByUser.get(userId)?.nowH ?? now.getUTCHours();
-    if (nowH < 9 || nowH >= 11) continue;
-    if (loggedUsers.has(userId)) continue;
+    const decision = balanceMorningDecision({
+      nowH: clockByUser.get(userId)?.nowH ?? now.getUTCHours(),
+      balancedEvening: true,
+      logged: loggedUsers.has(userId),
+    });
+    if (!decision.due) continue;
+    if (!decision.fire) {
+      await recordSuppressed(userId, "balance-morning", decision.reason);
+      continue;
+    }
     due.push({
       userId,
       kind: "balance-morning",
@@ -371,6 +444,7 @@ Deno.serve(async (req) => {
     failed,
     pruned,
     released,
+    suppressed,
     tookMs: Date.now() - startedAt,
   };
   console.log("push tick:", JSON.stringify(result));
