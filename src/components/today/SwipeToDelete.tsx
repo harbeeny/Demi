@@ -216,8 +216,18 @@ export function SwipeToDelete({
 
   return (
     <div
-      className="grid transition-[grid-template-rows,opacity] duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] motion-reduce:transition-none"
-      style={{ gridTemplateRows: committing ? "0fr" : "1fr", opacity: committing ? 0 : 1 }}
+      className="grid transition-[grid-template-rows,opacity,margin] duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] motion-reduce:transition-none"
+      style={{
+        gridTemplateRows: committing ? "0fr" : "1fr",
+        opacity: committing ? 0 : 1,
+        // The list's space-y gap lives on this wrapper as margin (Tailwind
+        // v4 puts it on margin-bottom of non-last children); it must shrink
+        // away with the height, or the eventual unmount after the reload
+        // snaps everything below up by the leftover gap. Both edges zeroed
+        // so the fix survives the utility changing form.
+        marginTop: committing ? 0 : undefined,
+        marginBottom: committing ? 0 : undefined,
+      }}
     >
       <div className="overflow-hidden">
         <div ref={rowRef} className="relative">
