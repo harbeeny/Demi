@@ -36,6 +36,29 @@ export async function registerPush(): Promise<void> {
       );
     });
 
+    // Tapping a push is the outcome the notification decision log is waiting
+    // on: match the sender's payload keys back to the day's event row. RLS
+    // plus a column grant limit this write to outcome/action on own rows.
+    await PushNotifications.addListener("pushNotificationActionPerformed", async ({ notification }) => {
+      const demi = (notification.data as { demi?: { kind?: unknown; date?: unknown } } | undefined)
+        ?.demi;
+      const kind = typeof demi?.kind === "string" ? demi.kind : null;
+      const date = typeof demi?.date === "string" ? demi.date : null;
+      if (!kind || !/^\d{4}-\d{2}-\d{2}$/.test(date ?? "")) return;
+      const supabase = createClient();
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+      if (!session?.user) return;
+      await supabase
+        .from("notification_events")
+        .update({ outcome: "opened" })
+        .eq("user_id", session.user.id)
+        .eq("date", date!)
+        .eq("kind", kind)
+        .eq("outcome", "pending");
+    });
+
     await PushNotifications.register();
   } catch (err) {
     // Push is an enhancement; never let it break the Today screen.

@@ -33,6 +33,54 @@ export function shouldReleaseClaim(finalStatuses: number[]): boolean {
   return !delivered && anyTransient;
 }
 
+// ---------- slot decisions ----------
+// Each pass answers two questions the notification-event log needs kept
+// apart: was the slot due at all (not due = log nothing, the moment just
+// hasn't arrived), and if due, did it fire or get suppressed and why.
+// Reasons are stable strings; analysis groups by them.
+
+export type SlotDecision =
+  | { due: false }
+  | { due: true; fire: true }
+  | { due: true; fire: false; reason: string };
+
+/** Meal reminder window: the slot's time is 15-45 minutes out. */
+export function mealReminderDue(timeHour: number | undefined, nowH: number): boolean {
+  return timeHour !== undefined && timeHour >= nowH + 0.25 && timeHour < nowH + 0.75;
+}
+
+/**
+ * Evening reflection: due an hour past the eating window. Fires only when
+ * the day is still open and something was logged; both suppressions are the
+ * system staying quiet on purpose, so they are logged with reasons.
+ */
+export function reflectDecision(s: {
+  nowH: number;
+  windowEnd: number | undefined;
+  finished: boolean;
+  logged: boolean;
+}): SlotDecision {
+  if (s.windowEnd === undefined || s.nowH <= s.windowEnd + 1) return { due: false };
+  if (s.finished) return { due: true, fire: false, reason: "day-already-closed" };
+  if (!s.logged) return { due: true, fire: false, reason: "nothing-logged" };
+  return { due: true, fire: true };
+}
+
+/**
+ * Morning-after balance nudge: due 9-11am local for users who balanced a
+ * big night the previous evening. Anything already logged means the user
+ * is having a normal day on their own; silence on success.
+ */
+export function balanceMorningDecision(s: {
+  nowH: number;
+  balancedEvening: boolean;
+  logged: boolean;
+}): SlotDecision {
+  if (!s.balancedEvening || s.nowH < 9 || s.nowH >= 11) return { due: false };
+  if (s.logged) return { due: true, fire: false, reason: "already-logged-today" };
+  return { due: true, fire: true };
+}
+
 /** Run tasks with bounded concurrency; rejections never kill the pool. */
 export async function pool<T>(
   items: T[],

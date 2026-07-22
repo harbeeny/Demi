@@ -27,6 +27,15 @@ export type PlanEvent = "regenerated" | "swapped" | "rebalanced";
 
 export type TakeoutProvider = "doordash" | "ubereats";
 
+export type NotificationIntensity = "coach" | "checkin" | "quiet";
+
+export type NotificationOutcome =
+  | "pending"
+  | "opened"
+  | "action_taken"
+  | "ignored"
+  | "suppressed";
+
 export type TakeoutSurface = "today_screen" | "lazy_empty_state";
 
 export interface MealPlanEntry {
@@ -50,6 +59,9 @@ export interface Database {
           timezone: string | null;
           prefers_24h_time: boolean | null;
           takeout_region: Json | null;
+          notification_intensity: NotificationIntensity | null;
+          quiet_hours_start: number | null;
+          quiet_hours_end: number | null;
         };
         Insert: {
           id: string;
@@ -58,6 +70,9 @@ export interface Database {
           timezone?: string | null;
           prefers_24h_time?: boolean | null;
           takeout_region?: Json | null;
+          notification_intensity?: NotificationIntensity | null;
+          quiet_hours_start?: number | null;
+          quiet_hours_end?: number | null;
         };
         Update: {
           id?: string;
@@ -66,6 +81,39 @@ export interface Database {
           timezone?: string | null;
           prefers_24h_time?: boolean | null;
           takeout_region?: Json | null;
+          notification_intensity?: NotificationIntensity | null;
+          quiet_hours_start?: number | null;
+          quiet_hours_end?: number | null;
+        };
+        Relationships: [];
+      };
+      notification_events: {
+        Row: {
+          id: string;
+          user_id: string;
+          date: string;
+          kind: string;
+          fired_at: string | null;
+          outcome: NotificationOutcome;
+          action: string | null;
+          suppression_reason: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          user_id: string;
+          date: string;
+          kind: string;
+          fired_at?: string | null;
+          outcome?: NotificationOutcome;
+          action?: string | null;
+          suppression_reason?: string | null;
+          created_at?: string;
+        };
+        Update: {
+          // device-side updates are column-granted to outcome and action only
+          outcome?: NotificationOutcome;
+          action?: string | null;
         };
         Relationships: [];
       };
