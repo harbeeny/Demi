@@ -147,7 +147,7 @@
    quicker than the UA default and on the app's easing. Reduced motion
    turns them off entirely; the JS wrapper also skips starting them. */
 ::view-transition-group(*) {
-  animation-duration: 300ms;
+  animation-duration: 220ms;
   animation-timing-function: var(--ease-out);
 }
 

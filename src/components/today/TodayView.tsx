@@ -806,17 +806,15 @@ function LogRow({
 }) {
   // Planned logs share their name with the suggestion card they replaced,
   // so eating and un-eating morph; other logs get their own name so a
-  // delete's neighbors travel instead of jump-cutting.
+  // delete's neighbors travel instead of jump-cutting. The name goes on
+  // the swipe wrapper (whole row unit), never the inner card, so the red
+  // delete underlay is inside the snapshot instead of peeking behind it.
+  const transitionName =
+    log.source === "planned" && log.planSlotIndex !== null
+      ? `slot-${log.planSlotIndex}`
+      : `log-${log.id}`;
   const card = (
-    <div
-      className="flex items-center justify-between rounded-2xl bg-(--surface) p-3 shadow-sm"
-      style={{
-        viewTransitionName:
-          log.source === "planned" && log.planSlotIndex !== null
-            ? `slot-${log.planSlotIndex}`
-            : `log-${log.id}`,
-      }}
-    >
+    <div className="flex items-center justify-between rounded-2xl bg-(--surface) p-3 shadow-sm">
       <div className="min-w-0">
         <p className="flex items-center gap-1.5 text-sm font-medium text-(--ink)">
           <span className="truncate">{log.name}</span>
@@ -845,7 +843,7 @@ function LogRow({
   // above remains the keyboard and screen-reader path on live days.
   if (readOnly) return card;
   return (
-    <SwipeToDelete onDelete={() => onUndo(log.id)} disabled={busy !== null}>
+    <SwipeToDelete onDelete={() => onUndo(log.id)} disabled={busy !== null} transitionName={transitionName}>
       {card}
     </SwipeToDelete>
   );
