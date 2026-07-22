@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 
 import type { SlotTarget } from "@/lib/nutrition";
-import { rebalanceSlotTargets, shouldOfferRebalance } from "./rebalance";
+import { balanceQuietsRebalance, rebalanceSlotTargets, shouldOfferRebalance } from "./rebalance";
 
 const totals = (kcal: number, proteinG = 0, carbsG = 0, fatG = 0) => ({
   kcal,
@@ -18,6 +18,26 @@ const slot = (slotName: SlotTarget["slot"], kcal: number, proteinG: number, carb
   carbsG,
   fatG,
   reasoning: { rule: "test", inputs: {}, explanation: "" },
+});
+
+describe("balanceQuietsRebalance", () => {
+  const quiet = { hasBigNightEntry: false, balancedToday: false, trimmedByYesterday: false };
+
+  test("an untouched day leaves the heuristic free to offer", () => {
+    expect(balanceQuietsRebalance(quiet)).toBe(false);
+  });
+
+  test("a big-night entry silences the offer for the day", () => {
+    expect(balanceQuietsRebalance({ ...quiet, hasBigNightEntry: true })).toBe(true);
+  });
+
+  test("a day whose overage is already balanced stays quiet", () => {
+    expect(balanceQuietsRebalance({ ...quiet, balancedToday: true })).toBe(true);
+  });
+
+  test("a trim from last night's balance stays quiet", () => {
+    expect(balanceQuietsRebalance({ ...quiet, trimmedByYesterday: true })).toBe(true);
+  });
 });
 
 describe("shouldOfferRebalance", () => {
