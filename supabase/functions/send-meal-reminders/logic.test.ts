@@ -3,17 +3,129 @@ import { describe, expect, test } from "bun:test";
 import {
   backoffMs,
   balanceMorningDecision,
+  buildMorningBrief,
+  categoryFor,
+  formatHourLabel,
   inQuietHours,
   isTokenGone,
   isTransient,
   kindFamily,
   mealReminderDue,
+  morningBriefDecision,
+  morningBriefHour,
+  parseTimeToHour,
   pool,
   preferenceFilter,
   type PreferenceState,
   reflectDecision,
   shouldReleaseClaim,
 } from "./logic";
+
+describe("parseTimeToHour", () => {
+  test("HH:MM to fractional hours", () => {
+    expect(parseTimeToHour("17:30")).toBe(17.5);
+    expect(parseTimeToHour("05:00")).toBe(5);
+    expect(parseTimeToHour("0:15")).toBe(0.25);
+  });
+
+  test("missing or malformed is null", () => {
+    expect(parseTimeToHour(null)).toBe(null);
+    expect(parseTimeToHour(undefined)).toBe(null);
+    expect(parseTimeToHour("soon")).toBe(null);
+    expect(parseTimeToHour("25:00")).toBe(null);
+  });
+});
+
+describe("formatHourLabel", () => {
+  test("12-hour default, 24-hour on preference", () => {
+    expect(formatHourLabel(17.5)).toBe("5:30 pm");
+    expect(formatHourLabel(17.5, true)).toBe("17:30");
+    expect(formatHourLabel(6, null)).toBe("6:00 am");
+  });
+});
+
+describe("morningBriefHour", () => {
+  const noQuiet = { quietStart: 2, quietEnd: 2.5 }; // out of the way
+
+  test("30 minutes before the eating window opens", () => {
+    expect(morningBriefHour({ windowStart: 8, trainHour: null, ...noQuiet })).toBe(7.5);
+  });
+
+  test("early training pulls the brief earlier; late training does not", () => {
+    expect(morningBriefHour({ windowStart: 8, trainHour: 6, ...noQuiet })).toBe(5);
+    expect(morningBriefHour({ windowStart: 8, trainHour: 18, ...noQuiet })).toBe(7.5);
+  });
+
+  test("a brief inside quiet hours waits for quiet end", () => {
+    // default quiet 21:30-07:00: a 6am lifter's tapered 5:00 brief holds
+    // until 7:00 (quiet hours win over the taper, per the spec)
+    expect(morningBriefHour({ windowStart: 8, trainHour: 6, quietStart: null, quietEnd: null })).toBe(7);
+    expect(morningBriefHour({ windowStart: 8, trainHour: null, quietStart: 21.5, quietEnd: 7.75 })).toBe(7.75);
+  });
+
+  test("never negative", () => {
+    expect(morningBriefHour({ windowStart: 0.25, trainHour: null, ...noQuiet })).toBe(0);
+  });
+});
+
+describe("morningBriefDecision", () => {
+  test("fires inside the 2-hour window when a plan exists", () => {
+    expect(morningBriefDecision({ nowH: 7.6, briefHour: 7.5, hasPlan: true })).toEqual({
+      due: true,
+      fire: true,
+    });
+  });
+
+  test("not due before the hour or after the window closes", () => {
+    expect(morningBriefDecision({ nowH: 7.4, briefHour: 7.5, hasPlan: true })).toEqual({ due: false });
+    expect(morningBriefDecision({ nowH: 9.5, briefHour: 7.5, hasPlan: true })).toEqual({ due: false });
+  });
+
+  test("a day without a plan is a logged suppression, not a push", () => {
+    expect(morningBriefDecision({ nowH: 8, briefHour: 7.5, hasPlan: false })).toEqual({
+      due: true,
+      fire: false,
+      reason: "no-plan",
+    });
+  });
+});
+
+describe("buildMorningBrief", () => {
+  test("training day carries the lifting clause", () => {
+    expect(
+      buildMorningBrief({
+        trainLabel: "5:30 pm",
+        proteinG: 152,
+        kcal: 2200,
+        anchorName: "Chicken burrito bowl",
+        anchorPrepMin: 25,
+      }),
+    ).toEqual({
+      title: "Lifting at 5:30 pm. 152g protein, 2200 cal.",
+      body: "Chicken burrito bowl is the big one: 25 min. Everything else is easy.",
+    });
+  });
+
+  test("rest day drops the clause", () => {
+    const brief = buildMorningBrief({
+      trainLabel: null,
+      proteinG: 120,
+      kcal: 1900,
+      anchorName: "Skillet lasagna",
+      anchorPrepMin: 40,
+    });
+    expect(brief.title).toBe("Today: 120g protein, 1900 cal.");
+    expect(brief.body).toBe("Skillet lasagna is the big one: 40 min. Everything else is easy.");
+  });
+});
+
+describe("categoryFor", () => {
+  test("the brief has its own action set; everything else is a slot", () => {
+    expect(categoryFor("morning-brief")).toBe("DEMI_BRIEF");
+    expect(categoryFor("slot-1")).toBe("DEMI_SLOT");
+    expect(categoryFor("reflect")).toBe("DEMI_SLOT");
+  });
+});
 
 describe("kindFamily", () => {
   test("meal reminder kinds collapse to one family", () => {
@@ -74,12 +186,23 @@ describe("preferenceFilter", () => {
     expect(preferenceFilter("balance-morning", 10, prefs)).toEqual({ send: true });
   });
 
-  test("quiet intensity allows the morning brief family only", () => {
+  test("quiet intensity allows the morning families only", () => {
     const prefs = { ...base, intensity: "quiet" };
+    expect(preferenceFilter("morning-brief", 8, prefs)).toEqual({ send: true });
     expect(preferenceFilter("balance-morning", 10, prefs)).toEqual({ send: true });
     expect(preferenceFilter("reflect", noon, prefs)).toEqual({
       send: false,
       reason: "intensity-quiet",
+    });
+    expect(preferenceFilter("slot-0", noon, prefs)).toEqual({
+      send: false,
+      reason: "intensity-quiet",
+    });
+  });
+
+  test("checkin includes the morning brief", () => {
+    expect(preferenceFilter("morning-brief", 8, { ...base, intensity: "checkin" })).toEqual({
+      send: true,
     });
   });
 
