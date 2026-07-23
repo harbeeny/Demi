@@ -15,6 +15,25 @@ export function isTokenGone(status: number): boolean {
 
 export const MAX_SEND_ATTEMPTS = 3;
 
+// ---------- APNs host selection ----------
+
+/**
+ * Apple runs two push clouds, and a token only works on the one matching
+ * the provisioning that minted it (Xcode dev builds = sandbox, TestFlight
+ * and App Store = production). The host is therefore per-token policy,
+ * not deployment config. Legacy rows without the column all came from
+ * development builds, so anything but an explicit "production" resolves
+ * to the sandbox.
+ */
+export const APNS_HOSTS = {
+  development: "api.sandbox.push.apple.com",
+  production: "api.push.apple.com",
+} as const;
+
+export function apnsHostFor(environment: string | null | undefined): string {
+  return environment === "production" ? APNS_HOSTS.production : APNS_HOSTS.development;
+}
+
 /** 500ms, 1500ms between attempts; APNs recovers fast or not at all. */
 export function backoffMs(attempt: number): number {
   return 500 * Math.pow(3, attempt);

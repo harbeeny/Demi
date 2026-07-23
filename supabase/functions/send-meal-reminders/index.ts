@@ -9,6 +9,7 @@
 
 import { createClient } from "npm:@supabase/supabase-js@2";
 import {
+  apnsHostFor,
   backoffMs,
   balanceMorningDecision,
   isTokenGone,
@@ -71,7 +72,6 @@ interface ApnsConfig {
   keyId: string;
   p8: string;
   bundleId: string;
-  host: string;
 }
 
 async function apnsJwt(cfg: ApnsConfig): Promise<string> {
@@ -110,13 +110,14 @@ interface PushMeta {
 
 async function sendApnsOnce(
   cfg: ApnsConfig,
+  host: string,
   token: string,
   title: string,
   body: string,
   meta: PushMeta,
 ): Promise<number> {
   try {
-    const res = await fetch(`https://${cfg.host}/3/device/${token}`, {
+    const res = await fetch(`https://${host}/3/device/${token}`, {
       method: "POST",
       headers: {
         authorization: `bearer ${await apnsJwt(cfg)}`,
@@ -143,6 +144,7 @@ async function sendApnsOnce(
 /** Final status after up to MAX_SEND_ATTEMPTS tries with backoff. */
 async function sendApns(
   cfg: ApnsConfig,
+  host: string,
   token: string,
   title: string,
   body: string,
@@ -150,7 +152,7 @@ async function sendApns(
 ): Promise<number> {
   let status = 0;
   for (let attempt = 0; attempt < MAX_SEND_ATTEMPTS; attempt++) {
-    status = await sendApnsOnce(cfg, token, title, body, meta);
+    status = await sendApnsOnce(cfg, host, token, title, body, meta);
     if (!isTransient(status)) return status;
     if (attempt < MAX_SEND_ATTEMPTS - 1) await new Promise((r) => setTimeout(r, backoffMs(attempt)));
   }
@@ -171,17 +173,19 @@ Deno.serve(async (req) => {
     return new Response("forbidden", { status: 403 });
   }
 
-  const [teamId, keyId, p8, bundleId, host] = await Promise.all([
+  // The APNs host is no longer config: it is derived per token from the
+  // environment column (dev builds sandbox, TestFlight/App Store prod).
+  // The old push_apns_host vault secret is simply unread.
+  const [teamId, keyId, p8, bundleId] = await Promise.all([
     getConfig(db, "APNS_TEAM_ID"),
     getConfig(db, "APNS_KEY_ID"),
     getConfig(db, "APNS_P8"),
     getConfig(db, "BUNDLE_ID"),
-    getConfig(db, "APNS_HOST"),
   ]);
-  if (!teamId || !keyId || !p8 || !bundleId || !host) {
+  if (!teamId || !keyId || !p8 || !bundleId) {
     return new Response(JSON.stringify({ error: "push config incomplete" }), { status: 500 });
   }
-  const cfg: ApnsConfig = { teamId, keyId, p8, bundleId, host };
+  const cfg: ApnsConfig = { teamId, keyId, p8, bundleId };
 
   const now = new Date();
 
@@ -223,16 +227,19 @@ Deno.serve(async (req) => {
   };
 
   const [{ data: tokens }, { data: profiles }, { data: kills }] = await Promise.all([
-    db.from("device_tokens").select("user_id, token"),
+    db.from("device_tokens").select("user_id, token, environment"),
     db
       .from("profiles")
       .select("id, timezone, notification_intensity, quiet_hours_start, quiet_hours_end"),
     db.from("notification_kills").select("user_id, family"),
   ]);
 
-  const tokensByUser = new Map<string, string[]>();
+  const tokensByUser = new Map<string, Array<{ token: string; environment: string | null }>>();
   for (const t of tokens ?? []) {
-    tokensByUser.set(t.user_id, [...(tokensByUser.get(t.user_id) ?? []), t.token]);
+    tokensByUser.set(t.user_id, [
+      ...(tokensByUser.get(t.user_id) ?? []),
+      { token: t.token as string, environment: (t.environment as string | null) ?? null },
+    ]);
   }
   const tzByUser = new Map((profiles ?? []).map((p) => [p.id, p.timezone as string | null]));
   // Standing notification preferences per user (Phase 1): intensity, quiet
@@ -389,13 +396,16 @@ Deno.serve(async (req) => {
     if (!(await claim(n.userId, n.kind))) return;
     const date = clockByUser.get(n.userId)?.today ?? localDateISO(null);
     const finalStatuses: number[] = [];
-    for (const token of tokensByUser.get(n.userId) ?? []) {
-      const status = await sendApns(cfg, token, n.title, n.body, { kind: n.kind, date });
+    for (const t of tokensByUser.get(n.userId) ?? []) {
+      const status = await sendApns(cfg, apnsHostFor(t.environment), t.token, n.title, n.body, {
+        kind: n.kind,
+        date,
+      });
       finalStatuses.push(status);
       if (status === 200) sent++;
       else failed++;
       if (isTokenGone(status)) {
-        await db.from("device_tokens").delete().eq("token", token);
+        await db.from("device_tokens").delete().eq("token", t.token);
         pruned++;
       }
     }

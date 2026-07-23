@@ -5,6 +5,16 @@ import { createClient } from "@/lib/supabase/client";
 
 let listenersAttached = false;
 
+/**
+ * Which APNs environment this build's tokens live in. Baked at export
+ * time: dev builds default to development (sandbox APNs); the TestFlight
+ * and App Store archive sets NEXT_PUBLIC_APNS_ENV=production (MOBILE.md).
+ * A mismatched flag strands push for the install, so the archive recipe
+ * owns this value, never hands.
+ */
+const APNS_ENVIRONMENT =
+  process.env.NEXT_PUBLIC_APNS_ENV === "production" ? "production" : "development";
+
 /** Mirror of the sender's kindFamily: slot-N kinds are one family. */
 function kindFamily(kind: string): string {
   return kind.startsWith("slot-") ? "meal-reminder" : kind;
@@ -25,7 +35,13 @@ async function attachListeners(push: PushNotificationsPlugin): Promise<void> {
     } = await supabase.auth.getUser();
     if (!user) return;
     await supabase.from("device_tokens").upsert(
-      { user_id: user.id, token, platform: "ios", updated_at: new Date().toISOString() },
+      {
+        user_id: user.id,
+        token,
+        platform: "ios",
+        environment: APNS_ENVIRONMENT,
+        updated_at: new Date().toISOString(),
+      },
       { onConflict: "token" },
     );
   });
