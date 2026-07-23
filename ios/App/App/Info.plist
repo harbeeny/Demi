@@ -28,6 +28,8 @@
 	<true/>
 	<key>NSCameraUsageDescription</key>
 	<string>Demi uses the camera to scan food barcodes and photograph nutrition labels so you can log packaged foods instantly.</string>
+	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+	<string>Demi only uses your location while the app is open, once, to aim delivery search near you. Background location is never used.</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string>Demi uses your location once to aim delivery search near you. Only a rough area is kept, never a trail.</string>
 	<key>NSPhotoLibraryAddUsageDescription</key>
