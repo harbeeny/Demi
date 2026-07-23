@@ -12,22 +12,28 @@ import {
   apnsHostFor,
   backoffMs,
   balanceMorningDecision,
+  buildEveningClose,
   buildMorningBrief,
   categoryFor,
+  eveningCloseDecision,
+  eveningCloseHour,
+  type FiredOutcome,
   formatHourLabel,
+  ignoreDecay,
   isTokenGone,
   isTransient,
+  kindFamily,
   MAX_SEND_ATTEMPTS,
   mealReminderDue,
   morningBriefDecision,
   morningBriefHour,
   parseTimeToHour,
+  pickNoCookSuggestion,
   pool,
   prepAnchorDecision,
   buildPrepAnchor,
   preferenceFilter,
   type PreferenceState,
-  reflectDecision,
   shouldReleaseClaim,
 } from "./logic.ts";
 
@@ -300,20 +306,36 @@ Deno.serve(async (req) => {
   const yesterdaySet = [...new Set([...yesterdayByUser.values()])];
   if (yesterdaySet.length === 0) yesterdaySet.push(addDaysISO(localDateISO(null), -1));
 
-  const [{ data: plans }, { data: meals }, { data: answers }, { data: dailyLogs }, { data: mealLogs }, { data: balances }] =
-    await Promise.all([
-      db.from("meal_plans").select("user_id, meals, date").in("date", dateSet),
-      db.from("meals").select("id, name, protein_g, kcal, prep_min, cook_min, requires_thaw"),
-      db
-        .from("onboarding_answers")
-        .select(
-          "user_id, eating_window_start, eating_window_end, training_days, training_time, created_at",
-        )
-        .order("created_at", { ascending: false }),
-      db.from("daily_logs").select("user_id, finished_at, date").in("date", dateSet),
-      db.from("meal_logs").select("user_id, date, plan_slot_index, protein_g").in("date", dateSet),
-      db.from("day_adjustments").select("user_id, source_date, created_at").in("source_date", yesterdaySet),
-    ]);
+  // Ignore-decay reads the last three weeks of fired history.
+  const decayCutoff = addDaysISO(localDateISO(null), -21);
+  const [
+    { data: plans },
+    { data: meals },
+    { data: answers },
+    { data: dailyLogs },
+    { data: mealLogs },
+    { data: balances },
+    { data: firedEvents },
+  ] = await Promise.all([
+    db.from("meal_plans").select("user_id, meals, date").in("date", dateSet),
+    db.from("meals").select("id, name, protein_g, kcal, prep_min, cook_min, requires_thaw"),
+    db
+      .from("onboarding_answers")
+      .select(
+        "user_id, eating_window_start, eating_window_end, training_days, training_time, created_at",
+      )
+      .order("created_at", { ascending: false }),
+    db.from("daily_logs").select("user_id, finished_at, date").in("date", dateSet),
+    db.from("meal_logs").select("user_id, date, plan_slot_index, protein_g").in("date", dateSet),
+    db.from("day_adjustments").select("user_id, source_date, created_at").in("source_date", yesterdaySet),
+    db
+      .from("notification_events")
+      .select("user_id, kind, date, outcome")
+      .not("fired_at", "is", null)
+      .gte("date", decayCutoff)
+      .order("date", { ascending: true })
+      .order("created_at", { ascending: true }),
+  ]);
 
   const mealNameById = new Map((meals ?? []).map((m) => [m.id, m.name]));
   const mealById = new Map((meals ?? []).map((m) => [m.id, m]));
@@ -335,8 +357,6 @@ Deno.serve(async (req) => {
       });
     }
   }
-  const windowEndByUser = new Map<string, number>();
-  for (const [userId, ob] of onboardingByUser) windowEndByUser.set(userId, ob.windowEnd);
   // Today's plan entries per user, on each user's own calendar.
   const planByUserToday = new Map<string, MealPlanEntry[]>();
   for (const plan of plans ?? []) {
@@ -369,6 +389,23 @@ Deno.serve(async (req) => {
       if (!loggedSlotsByUser.has(l.user_id)) loggedSlotsByUser.set(l.user_id, new Set());
       loggedSlotsByUser.get(l.user_id)!.add(Number(l.plan_slot_index));
     }
+  }
+
+  // Fired-notification history per user and family for ignore-decay.
+  // Today's still-live rows are excluded: a pending push from an hour ago
+  // is not an ignore yet. Past-day pending reads as ignored.
+  const firedByUserFamily = new Map<string, Map<string, FiredOutcome[]>>();
+  for (const ev of firedEvents ?? []) {
+    const today = clockByUser.get(ev.user_id)?.today;
+    if (!today || (ev.date as string) >= today) continue;
+    const family = kindFamily(ev.kind as string);
+    if (!firedByUserFamily.has(ev.user_id)) firedByUserFamily.set(ev.user_id, new Map());
+    const byFamily = firedByUserFamily.get(ev.user_id)!;
+    if (!byFamily.has(family)) byFamily.set(family, []);
+    byFamily.get(family)!.push({
+      date: ev.date as string,
+      ignored: ev.outcome === "pending" || ev.outcome === "ignored",
+    });
   }
 
   // The day's anchor per user: the highest-protein planned meal, with the
@@ -489,6 +526,24 @@ Deno.serve(async (req) => {
     const verdict = preferenceFilter(n.kind, nowH, prefs);
     if (!verdict.send) {
       await recordSuppressed(n.userId, n.kind, verdict.reason);
+      return;
+    }
+    // Ignore-decay (Phase 4.2): the user's thumbs have the final word.
+    // Paused families stay silent with the reason logged; an ignored
+    // probation shot becomes a permanent decay-sourced kill.
+    const family = kindFamily(n.kind);
+    const today = clockByUser.get(n.userId)?.today ?? localDateISO(null);
+    const decay = ignoreDecay(firedByUserFamily.get(n.userId)?.get(family) ?? [], today);
+    if (decay.mode === "paused") {
+      await recordSuppressed(n.userId, n.kind, "ignore-decay");
+      return;
+    }
+    if (decay.mode === "killed") {
+      await db.from("notification_kills").upsert(
+        { user_id: n.userId, family, source: "decay" },
+        { onConflict: "user_id,family", ignoreDuplicates: true },
+      );
+      await recordSuppressed(n.userId, n.kind, "slot-killed");
       return;
     }
     due.push(n);
@@ -625,26 +680,54 @@ Deno.serve(async (req) => {
     }
   }
 
-  // Reflection nudge: an hour past the eating window (user-local), day not
-  // finished, something logged. Suppressions land in the decision log.
+  // Evening close (Phase 4.1): the conditional correction. Replaces the
+  // old reflect push; "How did today go?" lives in the app now. Fires only
+  // on an evidenced protein gap, after the day's planned eating had its
+  // chance, and never inside quiet hours. On-target days get logged
+  // silence: that restraint is what makes the coach credible.
   for (const [userId] of tokensByUser) {
-    const decision = reflectDecision({
-      nowH: clockByUser.get(userId)?.nowH ?? now.getUTCHours(),
-      windowEnd: windowEndByUser.get(userId),
+    const clock = clockByUser.get(userId);
+    if (!clock) continue;
+    const prefs = prefsByUser.get(userId) ?? defaultPrefs;
+    const anchor = anchorByUser.get(userId);
+    const entries = planByUserToday.get(userId) ?? [];
+    let lastMealHour: number | null = null;
+    for (const e of entries) {
+      if (e.time_hour !== undefined && (lastMealHour === null || e.time_hour > lastMealHour)) {
+        lastMealHour = e.time_hour;
+      }
+    }
+    const closeHour = eveningCloseHour({ quietStart: prefs.quietStart, lastMealHour });
+    const decision = eveningCloseDecision({
+      nowH: clock.nowH,
+      closeHour,
+      quietStart: prefs.quietStart,
+      hasPlan: anchor !== undefined,
       finished: finishedUsers.has(userId),
-      logged: loggedUsers.has(userId),
+      loggedAnything: loggedUsers.has(userId),
+      proteinLogged: loggedProteinByUser.get(userId) ?? 0,
+      proteinTarget: anchor?.planProtein ?? 0,
     });
     if (!decision.due) continue;
     if (!decision.fire) {
-      await recordSuppressed(userId, "reflect", decision.reason);
+      await recordSuppressed(userId, "evening-close", decision.reason);
       continue;
     }
-    await enqueue({
-      userId,
-      kind: "reflect",
-      title: "How did today go?",
-      body: "Take 30 seconds to close out your day.",
-    });
+    const gap = Math.max(
+      1,
+      Math.round((anchor?.planProtein ?? 0) - (loggedProteinByUser.get(userId) ?? 0)),
+    );
+    const suggestion = pickNoCookSuggestion(
+      [...mealById.values()].map((m) => ({
+        name: m.name as string,
+        proteinG: Number(m.protein_g) || 0,
+        prepMin: Number(m.prep_min) || 0,
+        cookMin: Number(m.cook_min) || 0,
+      })),
+      gap,
+    );
+    const close = buildEveningClose({ proteinRemaining: gap, suggestion });
+    await enqueue({ userId, kind: "evening-close", title: close.title, body: close.body });
   }
 
   // Morning-after balance nudge: balancing a big night is the moment the

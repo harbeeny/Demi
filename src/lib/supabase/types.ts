@@ -110,11 +110,14 @@ export interface Database {
         Row: {
           user_id: string;
           family: string;
+          /** who turned it off: the user's thumb or the decay machine */
+          source: string;
           created_at: string;
         };
         Insert: {
           user_id: string;
           family: string;
+          source?: string;
           created_at?: string;
         };
         // permanent by design: no update or delete grant exists

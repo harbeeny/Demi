@@ -20,7 +20,11 @@ import {
   type PreferenceState,
   prepAnchorDecision,
   buildPrepAnchor,
-  reflectDecision,
+  buildEveningClose,
+  eveningCloseDecision,
+  eveningCloseHour,
+  ignoreDecay,
+  pickNoCookSuggestion,
   shouldReleaseClaim,
 } from "./logic";
 
@@ -239,13 +243,13 @@ describe("preferenceFilter", () => {
     expect(preferenceFilter("reflect", noon, prefs)).toEqual({ send: true });
   });
 
-  test("checkin allows reflect and balance-morning only", () => {
+  test("checkin allows the brief, the evening close, and balance-morning only", () => {
     const prefs = { ...base, intensity: "checkin" };
     expect(preferenceFilter("slot-1", noon, prefs)).toEqual({
       send: false,
       reason: "intensity-checkin",
     });
-    expect(preferenceFilter("reflect", noon, prefs)).toEqual({ send: true });
+    expect(preferenceFilter("evening-close", 20, prefs)).toEqual({ send: true });
     expect(preferenceFilter("balance-morning", 10, prefs)).toEqual({ send: true });
   });
 
@@ -302,35 +306,163 @@ describe("mealReminderDue", () => {
   });
 });
 
-describe("reflectDecision", () => {
-  const base = { nowH: 21.5, windowEnd: 20, finished: false, logged: true };
+describe("eveningCloseHour", () => {
+  test("two hours before quiet start, but never before dinner had its chance", () => {
+    expect(eveningCloseHour({ quietStart: 21.5, lastMealHour: null })).toBe(19.5);
+    expect(eveningCloseHour({ quietStart: null, lastMealHour: 20 })).toBe(20.5);
+    expect(eveningCloseHour({ quietStart: 23, lastMealHour: 18 })).toBe(21);
+  });
+});
 
-  test("fires an hour past the window with an open, logged day", () => {
-    expect(reflectDecision(base)).toEqual({ due: true, fire: true });
+describe("eveningCloseDecision", () => {
+  const base = {
+    nowH: 20.6,
+    closeHour: 20.5,
+    quietStart: null as number | null,
+    hasPlan: true,
+    finished: false,
+    loggedAnything: true,
+    proteinLogged: 90,
+    proteinTarget: 150,
+  };
+
+  test("fires on an evidenced gap inside the window", () => {
+    expect(eveningCloseDecision(base)).toEqual({ due: true, fire: true });
   });
 
-  test("not due before the window hour passes or without a window", () => {
-    expect(reflectDecision({ ...base, nowH: 21 })).toEqual({ due: false });
-    expect(reflectDecision({ ...base, windowEnd: undefined })).toEqual({ due: false });
+  test("not due before the close hour or once quiet hours begin", () => {
+    expect(eveningCloseDecision({ ...base, nowH: 20.4 })).toEqual({ due: false });
+    expect(eveningCloseDecision({ ...base, nowH: 21.5 })).toEqual({ due: false });
   });
 
-  test("suppressed with reasons: day closed beats nothing logged", () => {
-    expect(reflectDecision({ ...base, finished: true })).toEqual({
+  test("silence on success: within 10% of target sends nothing", () => {
+    expect(eveningCloseDecision({ ...base, proteinLogged: 135 })).toEqual({
       due: true,
       fire: false,
-      reason: "day-already-closed",
+      reason: "on-target",
     });
-    expect(reflectDecision({ ...base, logged: false })).toEqual({
+    expect(eveningCloseDecision({ ...base, proteinLogged: 134.9 })).toEqual({
+      due: true,
+      fire: true,
+    });
+  });
+
+  test("unknowable or closed days are logged silence, not pushes", () => {
+    expect(eveningCloseDecision({ ...base, loggedAnything: false })).toEqual({
       due: true,
       fire: false,
       reason: "nothing-logged",
     });
-    // both true: closed wins, matching the sender's original precedence
-    expect(reflectDecision({ ...base, finished: true, logged: false })).toEqual({
+    expect(eveningCloseDecision({ ...base, finished: true })).toEqual({
       due: true,
       fire: false,
       reason: "day-already-closed",
     });
+    expect(eveningCloseDecision({ ...base, hasPlan: false })).toEqual({
+      due: true,
+      fire: false,
+      reason: "no-plan",
+    });
+  });
+});
+
+describe("pickNoCookSuggestion", () => {
+  const catalog = [
+    { name: "Skillet lasagna", proteinG: 40, prepMin: 10, cookMin: 25 },
+    { name: "Greek yogurt bowl", proteinG: 24, prepMin: 3, cookMin: 0 },
+    { name: "Protein smoothie", proteinG: 32, prepMin: 5, cookMin: 0 },
+    { name: "Cottage cheese and fruit", proteinG: 18, prepMin: 2, cookMin: 0 },
+  ];
+
+  test("smallest no-cook option that covers the gap", () => {
+    expect(pickNoCookSuggestion(catalog, 20)).toBe("Greek yogurt bowl");
+    expect(pickNoCookSuggestion(catalog, 30)).toBe("Protein smoothie");
+  });
+
+  test("gap bigger than anything: biggest no-cook option", () => {
+    expect(pickNoCookSuggestion(catalog, 60)).toBe("Protein smoothie");
+  });
+
+  test("cooking meals never suggested; empty catalog is null", () => {
+    expect(pickNoCookSuggestion([catalog[0]], 20)).toBe(null);
+  });
+});
+
+describe("buildEveningClose", () => {
+  test("spec template with the tilde and a fallback suggestion", () => {
+    expect(buildEveningClose({ proteinRemaining: 38, suggestion: "Greek yogurt bowl" })).toEqual({
+      title: "~38g of protein short",
+      body: "Greek yogurt bowl closes it.",
+    });
+    expect(buildEveningClose({ proteinRemaining: 52, suggestion: null }).body).toBe(
+      "A protein shake closes it.",
+    );
+  });
+});
+
+describe("ignoreDecay", () => {
+  const ignored = (date: string) => ({ date, ignored: true });
+  const opened = (date: string) => ({ date, ignored: false });
+
+  test("under three trailing ignores stays active", () => {
+    expect(ignoreDecay([], "2026-07-24")).toEqual({ mode: "active" });
+    expect(ignoreDecay([ignored("2026-07-22"), ignored("2026-07-23")], "2026-07-24")).toEqual({
+      mode: "active",
+    });
+    expect(
+      ignoreDecay([ignored("2026-07-21"), opened("2026-07-22"), ignored("2026-07-23")], "2026-07-24"),
+    ).toEqual({ mode: "active" });
+  });
+
+  test("the third consecutive ignore pauses for seven days", () => {
+    const hist = [ignored("2026-07-21"), ignored("2026-07-22"), ignored("2026-07-23")];
+    expect(ignoreDecay(hist, "2026-07-24")).toEqual({ mode: "paused", until: "2026-07-30" });
+    expect(ignoreDecay(hist, "2026-07-29")).toEqual({ mode: "paused", until: "2026-07-30" });
+  });
+
+  test("returns once after seven days", () => {
+    const hist = [ignored("2026-07-21"), ignored("2026-07-22"), ignored("2026-07-23")];
+    expect(ignoreDecay(hist, "2026-07-30")).toEqual({ mode: "probation" });
+  });
+
+  test("an ignored probation shot kills permanently", () => {
+    const hist = [
+      ignored("2026-07-21"),
+      ignored("2026-07-22"),
+      ignored("2026-07-23"),
+      ignored("2026-07-31"),
+    ];
+    expect(ignoreDecay(hist, "2026-08-01")).toEqual({ mode: "killed" });
+  });
+
+  test("an interacted probation shot resets to active", () => {
+    const hist = [
+      ignored("2026-07-21"),
+      ignored("2026-07-22"),
+      ignored("2026-07-23"),
+      opened("2026-07-31"),
+    ];
+    expect(ignoreDecay(hist, "2026-08-01")).toEqual({ mode: "active" });
+  });
+
+  test("mid-life adoption: extra pre-decay ignores inside the window pause, not kill", () => {
+    // decay ships after 4 straight ignores landed within days of each other:
+    // the pause runs from the streak's 3rd ignore; the 4th is legacy noise
+    const hist = [
+      ignored("2026-07-22"),
+      ignored("2026-07-23"),
+      ignored("2026-07-23"),
+      ignored("2026-07-23"),
+    ];
+    expect(ignoreDecay(hist, "2026-07-24")).toEqual({ mode: "paused", until: "2026-07-30" });
+    // but a trailing ignore from past the window is a spent probation
+    const spanned = [
+      ignored("2026-07-01"),
+      ignored("2026-07-02"),
+      ignored("2026-07-03"),
+      ignored("2026-07-11"),
+    ];
+    expect(ignoreDecay(spanned, "2026-07-12")).toEqual({ mode: "killed" });
   });
 });
 
