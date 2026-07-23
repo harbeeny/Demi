@@ -112,28 +112,49 @@ To activate once enrolled:
 Known debt: reminder windows use UTC, matching the app's date handling. A
 profile timezone column is the eventual fix.
 
-## TestFlight
+## TestFlight (fully headless)
 
-1. App Store Connect → **My Apps → + → New App**: platform iOS, bundle id
-   `com.hbeeny.demi`, any SKU.
-2. Build the bundle for the production APNs environment, then archive:
+One-time setup, already done on this Mac (redo only on a new machine):
+- App Store Connect record exists (bundle `com.hbeeny.demi`).
+- App Store Connect **API key**, Admin role, at
+  `~/.appstoreconnect/private_keys/AuthKey_<KEYID>.p8` (never in the repo;
+  `*.p8` is gitignored). Current key id: `QG83V7X8ZJ`; issuer
+  `299f02b5-fa71-4221-a43c-cb763a5f8430`.
+- A local **Apple Distribution** certificate (Xcode → Settings → Accounts →
+  Manage Certificates → +) paired with the manual portal profile
+  **"Demi App Store Manual"** (App Store type, `com.hbeeny.demi`, that
+  certificate) installed under `~/Library/MobileDevice/Provisioning
+  Profiles/`. Both renew annually; on "doesn't include signing
+  certificate" errors, re-download the profile after checking it lists the
+  local cert (identify certs by downloading the .cer and fingerprinting;
+  the portal UI hides serials, and identically-named entries lie).
+  Deliberately NOT cloud signing: xcodebuild's CLI cloud path proved
+  unreliable; local cert + manual profile is deterministic.
 
-   ```bash
-   NEXT_PUBLIC_APNS_ENV=production bun run build:ios
-   ```
+Ship a build (N = next build number; App Store Connect requires unique):
 
-   then Xcode → **Product → Archive** (scheme `App`, destination "Any iOS
-   Device"). When it finishes, the Organizer opens. The env flag makes the
-   install register its push token as `production` in `device_tokens`;
-   without it the token lands in the sandbox row and TestFlight push goes
-   nowhere. Dev installs over USB keep using plain `bun run build:ios`.
-3. **Distribute App → App Store Connect → Upload**, automatic signing.
-   Export compliance: the app only uses standard HTTPS, so
-   `ITSAppUsesNonExemptEncryption = NO` is set in `ios/App/App/Info.plist`
-   to skip the questionnaire.
-4. In App Store Connect → TestFlight, add yourself as an internal tester;
-   the build appears after processing (10-30 min). Install via the
-   TestFlight app on your phone.
+```bash
+NEXT_PUBLIC_APNS_ENV=production bun run build:ios
+cd ios/App && xcodebuild archive -project App.xcodeproj -scheme App \
+  -destination 'generic/platform=iOS' -allowProvisioningUpdates \
+  CURRENT_PROJECT_VERSION=N \
+  -archivePath ~/Library/Developer/Xcode/Archives/$(date +%Y-%m-%d)/Demi-N.xcarchive
+xcodebuild -exportArchive \
+  -archivePath ~/Library/Developer/Xcode/Archives/$(date +%Y-%m-%d)/Demi-N.xcarchive \
+  -exportOptionsPlist ../../scripts/ExportOptions.plist \
+  -exportPath /tmp/demi-export-N \
+  -authenticationKeyPath ~/.appstoreconnect/private_keys/AuthKey_QG83V7X8ZJ.p8 \
+  -authenticationKeyID QG83V7X8ZJ \
+  -authenticationKeyIssuerID 299f02b5-fa71-4221-a43c-cb763a5f8430
+```
+
+The `NEXT_PUBLIC_APNS_ENV=production` flag makes the install register its
+push token as `production` in `device_tokens`; without it the token lands
+in the sandbox row and TestFlight push goes nowhere. Dev installs over USB
+keep using plain `bun run build:ios`. Export compliance is pre-answered
+(`ITSAppUsesNonExemptEncryption = NO` in Info.plist), and the Internal
+group has automatic distribution, so a build is installable from the
+TestFlight app ~10-30 min after upload with no console clicks.
 
 ## App Store review, guideline 4.2
 
