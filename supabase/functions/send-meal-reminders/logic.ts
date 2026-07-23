@@ -68,21 +68,84 @@ export function mealReminderDue(timeHour: number | undefined, nowH: number): boo
   return timeHour !== undefined && timeHour >= nowH + 0.25 && timeHour < nowH + 0.75;
 }
 
+// ---------- evening close (Phase 4.1) ----------
+// The conditional correction: silence on a good day is what makes the
+// coach credible on a bad one. Fires only when a real, evidenced gap
+// exists, in the window between the day's planned eating and quiet hours.
+
 /**
- * Evening reflection: due an hour past the eating window. Fires only when
- * the day is still open and something was logged; both suppressions are the
- * system staying quiet on purpose, so they are logged with reasons.
+ * When the close becomes due: two hours before quiet hours per the spec,
+ * but never before the day's planned eating has had its chance (a gap
+ * complained about before dinner is not a gap, it is impatience).
  */
-export function reflectDecision(s: {
+export function eveningCloseHour(s: {
+  quietStart: number | null;
+  lastMealHour: number | null;
+}): number {
+  const quiet = s.quietStart ?? DEFAULT_QUIET_START;
+  const base = quiet - 2;
+  return s.lastMealHour !== null ? Math.max(base, s.lastMealHour + 0.5) : base;
+}
+
+/**
+ * Within 10% of the plan's protein counts as on target, and a day with
+ * nothing logged has an unknowable gap; both are logged silence. The due
+ * window ends where quiet hours begin.
+ */
+export function eveningCloseDecision(s: {
   nowH: number;
-  windowEnd: number | undefined;
+  closeHour: number;
+  quietStart: number | null;
+  hasPlan: boolean;
   finished: boolean;
-  logged: boolean;
+  loggedAnything: boolean;
+  proteinLogged: number;
+  proteinTarget: number;
 }): SlotDecision {
-  if (s.windowEnd === undefined || s.nowH <= s.windowEnd + 1) return { due: false };
+  const quiet = s.quietStart ?? DEFAULT_QUIET_START;
+  if (s.nowH < s.closeHour || s.nowH >= quiet) return { due: false };
+  if (!s.hasPlan) return { due: true, fire: false, reason: "no-plan" };
   if (s.finished) return { due: true, fire: false, reason: "day-already-closed" };
-  if (!s.logged) return { due: true, fire: false, reason: "nothing-logged" };
+  if (!s.loggedAnything) return { due: true, fire: false, reason: "nothing-logged" };
+  if (s.proteinLogged >= 0.9 * s.proteinTarget) return { due: true, fire: false, reason: "on-target" };
   return { due: true, fire: true };
+}
+
+export interface SuggestionMeal {
+  name: string;
+  proteinG: number;
+  prepMin: number;
+  cookMin: number;
+}
+
+/**
+ * A low-friction, no-cook option sized to the gap: nobody cooks at 8pm.
+ * Prefer the smallest no-cook meal that covers the gap; otherwise the
+ * biggest one available. Null when the catalog has no no-cook option.
+ */
+export function pickNoCookSuggestion(
+  meals: SuggestionMeal[],
+  gapProteinG: number,
+): string | null {
+  const noCook = meals.filter((m) => m.prepMin + m.cookMin <= 5 && m.proteinG > 0);
+  if (noCook.length === 0) return null;
+  const covering = noCook.filter((m) => m.proteinG >= gapProteinG);
+  const pick =
+    covering.length > 0
+      ? covering.reduce((a, b) => (b.proteinG < a.proteinG ? b : a))
+      : noCook.reduce((a, b) => (b.proteinG > a.proteinG ? b : a));
+  return pick.name;
+}
+
+/** Spec template: "~{n}g of protein short. {suggestion} closes it." */
+export function buildEveningClose(b: {
+  proteinRemaining: number;
+  suggestion: string | null;
+}): { title: string; body: string } {
+  return {
+    title: `~${b.proteinRemaining}g of protein short`,
+    body: `${b.suggestion ?? "A protein shake"} closes it.`,
+  };
 }
 
 /**
@@ -251,7 +314,7 @@ export const DEFAULT_QUIET_END = 7;
 const INTENSITY_FAMILIES: Record<string, Set<string> | null> = {
   coach: null,
   // checkin = morning brief + evening close per the intensity table
-  checkin: new Set(["morning-brief", "balance-morning", "reflect"]),
+  checkin: new Set(["morning-brief", "balance-morning", "evening-close"]),
   // quiet = morning brief only, PLUS balance-morning: that nudge is a rare,
   // evidence-triggered correction against restriction spirals, and muting
   // it under "quiet" would harm exactly the users it exists to protect.
@@ -294,6 +357,58 @@ export function preferenceFilter(
     return { send: false, reason: "quiet-hours" };
   }
   return { send: true };
+}
+
+// ---------- ignore-decay (Phase 4.2) ----------
+// The user votes with their thumbs: three consecutive ignored fires pause
+// a family for seven days; it returns once, and one more ignore turns it
+// off permanently (a decay-sourced kill row). No re-ask, no "we noticed"
+// prompt. Derived from the event log, so there is no extra state to drift.
+
+export interface FiredOutcome {
+  /** user-local date the notification fired */
+  date: string;
+  /** past-day pending or explicit ignored = true; opened/action = false */
+  ignored: boolean;
+}
+
+export type DecayState =
+  | { mode: "active" }
+  | { mode: "paused"; until: string }
+  | { mode: "probation" }
+  | { mode: "killed" };
+
+function addDays(dateISO: string, n: number): string {
+  const d = new Date(`${dateISO}T12:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + n);
+  return d.toISOString().slice(0, 10);
+}
+
+/**
+ * Walk a family's fired history (oldest to newest; today's still-live
+ * events excluded by the caller). Trailing consecutive ignores decide:
+ * under 3 = active; the 3rd starts a 7-day pause; the first fire after
+ * the pause is the probation shot, and an ignored probation kills.
+ */
+export function ignoreDecay(fired: FiredOutcome[], today: string): DecayState {
+  let trailing = 0;
+  for (let i = fired.length - 1; i >= 0; i--) {
+    if (fired[i].ignored) trailing++;
+    else break;
+  }
+  if (trailing < 3) return { mode: "active" };
+  // The pause is earned by the streak's 3rd ignore and runs 7 days from
+  // its date. Fires inside that window can only predate decay shipping;
+  // they are legacy ignores, not probation shots. Only an ignored fire
+  // from AFTER the window is a spent probation, and that kills.
+  const third = fired[fired.length - trailing + 2];
+  const until = addDays(third.date, 7);
+  const probationSpent = fired
+    .slice(fired.length - trailing + 3)
+    .some((f) => f.date >= until);
+  if (probationSpent) return { mode: "killed" };
+  if (today < until) return { mode: "paused", until };
+  return { mode: "probation" };
 }
 
 /** Run tasks with bounded concurrency; rejections never kill the pool. */
