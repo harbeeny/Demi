@@ -89,13 +89,16 @@ export function TodayView({ hasPlan, daySummary, meals, targets, logs, summary, 
     setSheetSlot(slot);
     setSheetOpen(true);
   };
-  // "+ > Scan a barcode": scanReq counts requests, scanDone counts the ones
-  // the sheet has consumed, and the camera fires only while req > done. Both
-  // live HERE because the sheet's innards unmount on every close; a fired
-  // flag kept down there forgot itself, so a stale request re-fired the
-  // camera on the next open of the sheet, whichever row opened it.
-  const [scanReq, setScanReq] = useState(0);
-  const [scanDone, setScanDone] = useState(0);
+  // + sheet camera rows (scan/label): autoReq counts requests, autoDone the
+  // ones the sheet has consumed, and the camera fires only while req > done.
+  // Both live HERE because the sheet's innards unmount on every close; a
+  // fired flag kept down there forgot itself, so a stale request re-fired
+  // the camera on the next open of the sheet, whichever row opened it.
+  const [autoReq, setAutoReq] = useState<{ action: "scan" | "label"; seq: number }>({
+    action: "scan",
+    seq: 0,
+  });
+  const [autoDone, setAutoDone] = useState(0);
 
   // Intents from the tab bar's + sheet: a demi:add event when this screen is
   // already mounted, or ?add=log|scan when + navigated here. The URL form is
@@ -103,13 +106,15 @@ export function TodayView({ hasPlan, daySummary, meals, targets, logs, summary, 
   const urlIntentRead = useRef(false);
   useEffect(() => {
     const fire = (action: unknown) => {
-      if (action !== "log" && action !== "scan") return;
+      if (action !== "log" && action !== "scan" && action !== "label") return;
       // Reviewing a past day: logging targets today, so snap back first.
       if (!isToday) onSelectDate(null);
       tapHaptic();
       setSheetSlot(null);
       setSheetOpen(true);
-      if (action === "scan") setScanReq((r) => r + 1);
+      if (action === "scan" || action === "label") {
+        setAutoReq((prev) => ({ action, seq: prev.seq + 1 }));
+      }
     };
 
     if (!urlIntentRead.current) {
@@ -690,8 +695,14 @@ export function TodayView({ hasPlan, daySummary, meals, targets, logs, summary, 
         searchMeals={searchMeals}
         busy={busy}
         defaultMode="fdc"
-        autoScan={scanReq > scanDone}
-        onAutoScan={() => setScanDone(scanReq)}
+        autoAction={autoReq.seq > autoDone ? autoReq.action : null}
+        onAutoAction={() => setAutoDone(autoReq.seq)}
+        onAutoCancel={() => {
+          // Dismissed the camera without capturing: hand the user back to
+          // the + sheet they came from instead of stranding them here.
+          setSheetOpen(false);
+          window.dispatchEvent(new CustomEvent("demi:add-reopen"));
+        }}
         forcedSlot={sheetSlot}
         onLogDb={logDb}
         onLogEstimate={logEstimate}

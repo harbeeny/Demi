@@ -5,7 +5,7 @@ import { Capacitor } from "@capacitor/core";
 
 import { useSwipeToDismiss } from "@/components/today/useSwipeToDismiss";
 
-export type AddAction = "log" | "scan" | "kitchen";
+export type AddAction = "log" | "scan" | "label" | "kitchen";
 
 interface Props {
   open: boolean;
@@ -42,6 +42,12 @@ const ICONS: Record<AddAction, React.ReactNode> = {
       <path d="M20 16v2.5a1.5 1.5 0 0 1-1.5 1.5H16" />
       <path d="M8 20H5.5A1.5 1.5 0 0 1 4 18.5V16" />
       <path d="M7 12h10" />
+    </svg>
+  ),
+  label: (
+    <svg width="20" height="20" viewBox="0 0 24 24" {...stroke} aria-hidden="true">
+      <rect x="5" y="3.5" width="14" height="17" rx="2.5" />
+      <path d="M8.5 8.5h7M8.5 12h7M8.5 15.5h4.5" />
     </svg>
   ),
   kitchen: (
@@ -86,6 +92,12 @@ export function AddSheet({ open, onClose, onAction }: Props) {
             title: "Scan a barcode",
             blurb: "Point the camera at a package to log it.",
             icon: ICONS.scan,
+          },
+          {
+            action: "label" as const,
+            title: "Scan nutrition facts",
+            blurb: "Photograph a label and Demi reads the numbers.",
+            icon: ICONS.label,
           },
         ]
       : []),

@@ -169,9 +169,11 @@ interface Props {
   searchMeals: Array<{ id: string; name: string; kcal: number; proteinG: number; carbsG: number; fatG: number }>;
   /** section the sheet was opened from; quick adds skip the slot picker */
   forcedSlot?: MealSlot | null;
-  /** an unconsumed "+ > Scan a barcode" request; acknowledged on fire */
-  autoScan?: boolean;
-  onAutoScan?: () => void;
+  /** an unconsumed "+ sheet" camera request; acknowledged on fire */
+  autoAction?: "scan" | "label" | null;
+  onAutoAction?: () => void;
+  /** the auto-launched camera was dismissed with nothing captured */
+  onAutoCancel?: () => void;
   /** hands a photographed nutrition label to the editable quick-add form */
   onLabelParsed: (reading: LabelReadingFields) => void;
   onLog: (fields: FdcLogFields, note: string, opts?: { keepOpen?: boolean }) => Promise<boolean>;
@@ -200,7 +202,7 @@ const input =
   "w-full rounded-2xl border border-(--border-input) bg-(--field) px-3 py-2 text-sm text-(--ink) outline-none focus:border-(--accent)";
 
 /** USDA FoodData Central search with portion-aware logging. */
-export function FoodSearch({ busy, searchMeals, forcedSlot = null, autoScan = false, onAutoScan, onLabelParsed, onLog, onLogDb, onLogEstimate }: Props) {
+export function FoodSearch({ busy, searchMeals, forcedSlot = null, autoAction = null, onAutoAction, onAutoCancel, onLabelParsed, onLog, onLogDb, onLogEstimate }: Props) {
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<FdcFood[]>([]);
   const [searching, setSearching] = useState(false);
@@ -301,7 +303,8 @@ export function FoodSearch({ busy, searchMeals, forcedSlot = null, autoScan = fa
     setQuery("");
   };
 
-  const scanBarcode = async () => {
+  /** true when a code was captured; false = dismissed or denied */
+  const scanBarcode = async (): Promise<boolean> => {
     try {
       const { CapacitorBarcodeScanner, CapacitorBarcodeScannerTypeHint } = await import(
         "@capacitor/barcode-scanner"
@@ -321,23 +324,13 @@ export function FoodSearch({ busy, searchMeals, forcedSlot = null, autoScan = fa
         flushRef.current = true;
         setFlushTick((t) => t + 1);
         setQuery(code);
+        return true;
       }
     } catch {
       // scanner dismissed or camera permission denied; nothing to log
     }
+    return false;
   };
-
-  // "+ > Scan a barcode" opens the sheet mid-scan: fire the camera once the
-  // native check above settles, acknowledging BEFORE launch so the request
-  // can't outlive this mount and re-fire on a later open or a mode switch.
-  // The ref only absorbs strict mode's doubled dev effects.
-  const autoScanFired = useRef(false);
-  useEffect(() => {
-    if (!autoScan || autoScanFired.current || !canScan) return;
-    autoScanFired.current = true;
-    onAutoScan?.();
-    void scanBarcode();
-  });
 
   // Chooser between the barcode scanner and the label camera, plus the
   // photograph flow itself: the vision route reads the printed per-serving
@@ -346,7 +339,9 @@ export function FoodSearch({ busy, searchMeals, forcedSlot = null, autoScan = fa
   const [labelBusy, setLabelBusy] = useState(false);
   const [labelError, setLabelError] = useState("");
 
-  const captureLabel = async () => {
+  /** true once a photo was captured (parse errors still count: the user is
+   *  mid-task in the sheet); false = camera dismissed or denied */
+  const captureLabel = async (): Promise<boolean> => {
     setLabelError("");
     setScanMiss(null);
     let photo: { base64String?: string; format?: string };
@@ -360,9 +355,9 @@ export function FoodSearch({ busy, searchMeals, forcedSlot = null, autoScan = fa
         saveToGallery: false,
       });
     } catch {
-      return; // camera dismissed or permission denied
+      return false; // camera dismissed or permission denied
     }
-    if (!photo.base64String) return;
+    if (!photo.base64String) return false;
     setLabelBusy(true);
     try {
       const res = await apiFetch("/api/food/label", {
@@ -379,7 +374,7 @@ export function FoodSearch({ busy, searchMeals, forcedSlot = null, autoScan = fa
       };
       if (!res.ok || !data.reading) {
         setLabelError(data.error ?? "Couldn't read that label. Try again.");
-        return;
+        return true;
       }
       onLabelParsed(data.reading);
     } catch {
@@ -387,7 +382,24 @@ export function FoodSearch({ busy, searchMeals, forcedSlot = null, autoScan = fa
     } finally {
       setLabelBusy(false);
     }
+    return true;
   };
+
+  // A + sheet camera row opens this sheet mid-capture: fire once the native
+  // check above settles, acknowledging BEFORE launch so the request can't
+  // outlive this mount and re-fire on a later open or a mode switch. A
+  // dismissed camera reports up so the + sheet can take the user back.
+  // The ref only absorbs strict mode's doubled dev effects.
+  const autoFired = useRef(false);
+  useEffect(() => {
+    if (!autoAction || autoFired.current || !canScan) return;
+    autoFired.current = true;
+    onAutoAction?.();
+    void (autoAction === "label" ? captureLabel() : scanBarcode()).then((captured) => {
+      if (!captured) onAutoCancel?.();
+    });
+  });
+
 
   // Recently logged foods across every source (planned meals, catalog picks,
   // quick-add estimates, searched foods) for one-tap re-logging. Macros were

@@ -67,6 +67,14 @@ export function TabBar() {
   const router = useRouter();
   const [addOpen, setAddOpen] = useState(false);
 
+  // A camera row's dismissed capture asks to come back here (see TodayView's
+  // onAutoCancel): reopen the sheet so cancel returns where the user was.
+  useEffect(() => {
+    const reopen = () => setAddOpen(true);
+    window.addEventListener("demi:add-reopen", reopen);
+    return () => window.removeEventListener("demi:add-reopen", reopen);
+  }, []);
+
   const act = (action: AddAction) => {
     setAddOpen(false);
     if (action === "kitchen") {
