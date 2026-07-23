@@ -89,9 +89,13 @@ export function TodayView({ hasPlan, daySummary, meals, targets, logs, summary, 
     setSheetSlot(slot);
     setSheetOpen(true);
   };
-  // Bumped when a "+ > Scan a barcode" intent arrives; FoodSearch fires the
-  // camera once per bump after its native check settles.
-  const [scanTick, setScanTick] = useState(0);
+  // "+ > Scan a barcode": scanReq counts requests, scanDone counts the ones
+  // the sheet has consumed, and the camera fires only while req > done. Both
+  // live HERE because the sheet's innards unmount on every close; a fired
+  // flag kept down there forgot itself, so a stale request re-fired the
+  // camera on the next open of the sheet, whichever row opened it.
+  const [scanReq, setScanReq] = useState(0);
+  const [scanDone, setScanDone] = useState(0);
 
   // Intents from the tab bar's + sheet: a demi:add event when this screen is
   // already mounted, or ?add=log|scan when + navigated here. The URL form is
@@ -105,7 +109,7 @@ export function TodayView({ hasPlan, daySummary, meals, targets, logs, summary, 
       tapHaptic();
       setSheetSlot(null);
       setSheetOpen(true);
-      if (action === "scan") setScanTick((t) => t + 1);
+      if (action === "scan") setScanReq((r) => r + 1);
     };
 
     if (!urlIntentRead.current) {
@@ -686,7 +690,8 @@ export function TodayView({ hasPlan, daySummary, meals, targets, logs, summary, 
         searchMeals={searchMeals}
         busy={busy}
         defaultMode="fdc"
-        scanTick={scanTick}
+        autoScan={scanReq > scanDone}
+        onAutoScan={() => setScanDone(scanReq)}
         forcedSlot={sheetSlot}
         onLogDb={logDb}
         onLogEstimate={logEstimate}
