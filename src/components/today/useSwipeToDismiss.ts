@@ -40,6 +40,45 @@ export function shouldBeginDrag(
   return pressed && dy > START_THRESHOLD && (fromHandle || atTop);
 }
 
+/**
+ * Sheets can stack (an outer sheet keeps the body scroll lock while an inner
+ * one opens above it), and Escape must dismiss only the topmost open sheet,
+ * never the whole stack. Every open sheet registers a token here in open
+ * order and only the top token's listener acts on a press. Release tolerates
+ * out-of-order closes: an outer sheet may close away under an open inner one.
+ * Exported for tests; the hook uses the single module instance below.
+ */
+export function createSheetStack() {
+  const stack: object[] = [];
+  return {
+    push(token: object): void {
+      stack.push(token);
+    },
+    release(token: object): void {
+      const i = stack.indexOf(token);
+      if (i !== -1) stack.splice(i, 1);
+    },
+    isTop(token: object): boolean {
+      return stack.length > 0 && stack[stack.length - 1] === token;
+    },
+  };
+}
+
+const sheetStack = createSheetStack();
+
+/**
+ * Escape dismisses only on a fresh, unclaimed press aimed at the topmost
+ * sheet: auto-repeat from one held key must not cascade through a stack, an
+ * IME uses Escape to cancel its own composition, and a control that already
+ * handled the key (preventDefault) keeps its sheet open.
+ */
+export function shouldCloseOnEscape(
+  e: Pick<KeyboardEvent, "key" | "repeat" | "isComposing" | "defaultPrevented">,
+  isTop: boolean,
+): boolean {
+  return e.key === "Escape" && !e.repeat && !e.isComposing && !e.defaultPrevented && isTop;
+}
+
 interface DragState {
   pressed: boolean;
   startY: number;
@@ -69,10 +108,11 @@ const IDLE: DragState = {
  * swipe-to-dismiss. A drag starts when the pointer goes down on the grab
  * handle (`data-drag-handle`) or when the scroll content is already at the
  * top; a downward pull translates the sheet 1:1 and releasing past the
- * threshold closes it. Every close path (X, backdrop, swipe) funnels through
- * the same exit transition, which retargets from the sheet's current position.
- * Render while `mounted`; the sheet stays in the DOM through the exit, and
- * `backdropStyle` makes the whole overlay inert to pointers for that window.
+ * threshold closes it. Every close path (X, backdrop, swipe, Escape) funnels
+ * through the same exit transition, which retargets from the sheet's current
+ * position. Render while `mounted`; the sheet stays in the DOM through the
+ * exit, and `backdropStyle` makes the whole overlay inert to pointers for
+ * that window.
  */
 export function useSwipeToDismiss(open: boolean, onClose: () => void) {
   const [mounted, setMounted] = useState(open);
@@ -84,6 +124,7 @@ export function useSwipeToDismiss(open: boolean, onClose: () => void) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const drag = useRef<DragState>({ ...IDLE });
   const exitTimer = useRef<number | null>(null);
+  const onCloseRef = useRef(onClose);
 
   useEffect(() => {
     const mq = window.matchMedia("(prefers-reduced-motion: reduce)");
@@ -153,6 +194,30 @@ export function useSwipeToDismiss(open: boolean, onClose: () => void) {
       window.scrollTo(0, scrollY);
     };
   }, [mounted]);
+
+  // Keep the latest onClose reachable from the stable keydown effect below.
+  useEffect(() => {
+    onCloseRef.current = onClose;
+  });
+
+  // role="dialog" aria-modal sheets must close on Escape for keyboard users.
+  // Registered only while `open`, so a sheet mid-exit leaves the stack at
+  // once and the next press reaches the sheet beneath it. onClose rides in a
+  // ref because a re-run of this effect would re-push the token and reorder
+  // the stack under an open inner sheet.
+  useEffect(() => {
+    if (!open) return;
+    const token = {};
+    sheetStack.push(token);
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (shouldCloseOnEscape(e, sheetStack.isTop(token))) onCloseRef.current();
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => {
+      sheetStack.release(token);
+      window.removeEventListener("keydown", onKeyDown);
+    };
+  }, [open]);
 
   // React's onTouchMove is passive, so cancel the scroll/rubber-band from a
   // native non-passive listener once a dismiss drag owns the gesture.
