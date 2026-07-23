@@ -284,6 +284,7 @@ export interface Database {
           instructions: string[];
           prep_min: number;
           cook_min: number;
+          requires_thaw: boolean;
         };
         Insert: {
           id?: string;
@@ -299,6 +300,7 @@ export interface Database {
           instructions?: string[];
           prep_min?: number;
           cook_min?: number;
+          requires_thaw?: boolean;
         };
         Update: {
           id?: string;
@@ -314,6 +316,7 @@ export interface Database {
           instructions?: string[];
           prep_min?: number;
           cook_min?: number;
+          requires_thaw?: boolean;
         };
         Relationships: [];
       };

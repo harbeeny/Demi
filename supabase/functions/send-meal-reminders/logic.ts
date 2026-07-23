@@ -169,14 +169,55 @@ export function categoryFor(kind: string): string {
   return kind === "morning-brief" ? "DEMI_BRIEF" : "DEMI_SLOT";
 }
 
+// ---------- prep anchor (Phase 3.1) ----------
+// Timed to the action that enables the meal, not the meal itself: an hour
+// before the anchor meal, 90 minutes when it has to thaw first. It stays
+// useful until 15 minutes out; an already-logged anchor is silence on
+// success, with the reason recorded.
+
+export function prepAnchorDecision(s: {
+  nowH: number;
+  anchorHour: number | undefined;
+  requiresThaw: boolean;
+  anchorLogged: boolean;
+}): SlotDecision {
+  if (s.anchorHour === undefined) return { due: false };
+  const lead = s.requiresThaw ? 1.5 : 1;
+  if (s.nowH < s.anchorHour - lead || s.nowH >= s.anchorHour - 0.25) return { due: false };
+  if (s.anchorLogged) return { due: true, fire: false, reason: "anchor-already-logged" };
+  return { due: true, fire: true };
+}
+
+/** Spec template with the em-dash replaced; the deficit line only when real. */
+export function buildPrepAnchor(b: {
+  requiresThaw: boolean;
+  mealName: string;
+  prepMin: number;
+  proteinRemaining: number;
+}): { title: string; body: string } {
+  const title = b.requiresThaw
+    ? `Start thawing: ${b.mealName}`
+    : `Start soon: ${b.mealName} (${b.prepMin} min)`;
+  const body =
+    b.proteinRemaining > 0
+      ? `You're ${b.proteinRemaining}g of protein behind. This meal closes it.`
+      : "Tonight's anchor meal. You're already on track.";
+  return { title, body };
+}
+
 // ---------- standing preferences (Phase 1) ----------
 // Applied after a slot decides to fire, ordered by how permanent the choice
 // is: a killed slot stays dead, then the intensity level, then the nightly
 // quiet window. Every non-send is a logged suppression.
 
-/** Notification family a concrete send kind belongs to (slot-2 -> meal-reminder). */
+/**
+ * Notification family a concrete send kind belongs to. The prep anchor is
+ * the evolved meal reminder, so one kill (and the intensity table) covers
+ * both: slot-N and prep-anchor -> meal-reminder.
+ */
 export function kindFamily(kind: string): string {
-  return kind.startsWith("slot-") ? "meal-reminder" : kind;
+  if (kind.startsWith("slot-") || kind === "prep-anchor") return "meal-reminder";
+  return kind;
 }
 
 /** Spec default quiet hours: 21:30 to 07:00 local. */
