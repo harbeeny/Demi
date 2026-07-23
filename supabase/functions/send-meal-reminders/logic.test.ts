@@ -18,6 +18,8 @@ import {
   pool,
   preferenceFilter,
   type PreferenceState,
+  prepAnchorDecision,
+  buildPrepAnchor,
   reflectDecision,
   shouldReleaseClaim,
 } from "./logic";
@@ -132,8 +134,68 @@ describe("kindFamily", () => {
   test("meal reminder kinds collapse to one family", () => {
     expect(kindFamily("slot-0")).toBe("meal-reminder");
     expect(kindFamily("slot-2")).toBe("meal-reminder");
+    expect(kindFamily("prep-anchor")).toBe("meal-reminder");
     expect(kindFamily("reflect")).toBe("reflect");
     expect(kindFamily("balance-morning")).toBe("balance-morning");
+    expect(kindFamily("morning-brief")).toBe("morning-brief");
+  });
+});
+
+describe("prepAnchorDecision", () => {
+  const base = { nowH: 19, anchorHour: 20, requiresThaw: false, anchorLogged: false };
+
+  test("fires an hour out for a normal meal, 90 minutes for a thaw", () => {
+    expect(prepAnchorDecision(base)).toEqual({ due: true, fire: true });
+    expect(prepAnchorDecision({ ...base, nowH: 18.9 })).toEqual({ due: false });
+    expect(prepAnchorDecision({ ...base, nowH: 18.6, requiresThaw: true })).toEqual({
+      due: true,
+      fire: true,
+    });
+  });
+
+  test("stops being useful 15 minutes before the meal", () => {
+    expect(prepAnchorDecision({ ...base, nowH: 19.7 })).toEqual({ due: true, fire: true });
+    expect(prepAnchorDecision({ ...base, nowH: 19.75 })).toEqual({ due: false });
+    expect(prepAnchorDecision({ ...base, nowH: 20.5 })).toEqual({ due: false });
+  });
+
+  test("an already-logged anchor is silence on success", () => {
+    expect(prepAnchorDecision({ ...base, anchorLogged: true })).toEqual({
+      due: true,
+      fire: false,
+      reason: "anchor-already-logged",
+    });
+  });
+
+  test("no scheduled time means nothing to anchor to", () => {
+    expect(prepAnchorDecision({ ...base, anchorHour: undefined })).toEqual({ due: false });
+  });
+});
+
+describe("buildPrepAnchor", () => {
+  test("thaw and standard variants, with the deficit line", () => {
+    expect(
+      buildPrepAnchor({
+        requiresThaw: true,
+        mealName: "Turkey meatballs with whole-wheat pasta",
+        prepMin: 40,
+        proteinRemaining: 38,
+      }),
+    ).toEqual({
+      title: "Start thawing: Turkey meatballs with whole-wheat pasta",
+      body: "You're 38g of protein behind. This meal closes it.",
+    });
+    expect(
+      buildPrepAnchor({
+        requiresThaw: false,
+        mealName: "Skillet lasagna",
+        prepMin: 35,
+        proteinRemaining: 0,
+      }),
+    ).toEqual({
+      title: "Start soon: Skillet lasagna (35 min)",
+      body: "Tonight's anchor meal. You're already on track.",
+    });
   });
 });
 

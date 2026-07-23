@@ -1,8 +1,8 @@
-// Scheduled push sender: the morning brief, meal-time reminders from
-// today's plans, the end-of-day reflection nudge, and the morning-after
-// balance nudge. Invoked every 15 minutes by pg_cron (see MOBILE.md for
-// the cron SQL); the only caller gate is the x-cron-secret header, since
-// the function is deployed with verify_jwt = false.
+// Scheduled push sender: the morning brief, the prep anchor, meal-time
+// reminders from today's plans, the end-of-day reflection nudge, and the
+// morning-after balance nudge. Invoked every 15 minutes by pg_cron (see
+// MOBILE.md for the cron SQL); the only caller gate is the x-cron-secret
+// header, since the function is deployed with verify_jwt = false.
 //
 // Dates and hours resolve per user from profiles.timezone (UTC fallback),
 // matching the app's local day boundary.
@@ -23,6 +23,8 @@ import {
   morningBriefHour,
   parseTimeToHour,
   pool,
+  prepAnchorDecision,
+  buildPrepAnchor,
   preferenceFilter,
   type PreferenceState,
   reflectDecision,
@@ -301,7 +303,7 @@ Deno.serve(async (req) => {
   const [{ data: plans }, { data: meals }, { data: answers }, { data: dailyLogs }, { data: mealLogs }, { data: balances }] =
     await Promise.all([
       db.from("meal_plans").select("user_id, meals, date").in("date", dateSet),
-      db.from("meals").select("id, name, protein_g, kcal, prep_min, cook_min"),
+      db.from("meals").select("id, name, protein_g, kcal, prep_min, cook_min, requires_thaw"),
       db
         .from("onboarding_answers")
         .select(
@@ -309,7 +311,7 @@ Deno.serve(async (req) => {
         )
         .order("created_at", { ascending: false }),
       db.from("daily_logs").select("user_id, finished_at, date").in("date", dateSet),
-      db.from("meal_logs").select("user_id, date").in("date", dateSet),
+      db.from("meal_logs").select("user_id, date, plan_slot_index, protein_g").in("date", dateSet),
       db.from("day_adjustments").select("user_id, source_date, created_at").in("source_date", yesterdaySet),
     ]);
 
@@ -353,6 +355,64 @@ Deno.serve(async (req) => {
       .filter((l) => l.date === clockByUser.get(l.user_id)?.today)
       .map((l) => l.user_id),
   );
+  // Today's logged protein and logged plan slots per user, for the prep
+  // anchor's deficit line and its silence-on-success suppression.
+  const loggedProteinByUser = new Map<string, number>();
+  const loggedSlotsByUser = new Map<string, Set<number>>();
+  for (const l of mealLogs ?? []) {
+    if (l.date !== clockByUser.get(l.user_id)?.today) continue;
+    loggedProteinByUser.set(
+      l.user_id,
+      (loggedProteinByUser.get(l.user_id) ?? 0) + (Number(l.protein_g) || 0),
+    );
+    if (l.plan_slot_index !== null && l.plan_slot_index !== undefined) {
+      if (!loggedSlotsByUser.has(l.user_id)) loggedSlotsByUser.set(l.user_id, new Set());
+      loggedSlotsByUser.get(l.user_id)!.add(Number(l.plan_slot_index));
+    }
+  }
+
+  // The day's anchor per user: the highest-protein planned meal, with the
+  // plan's own totals riding along for the brief and the prep anchor.
+  interface AnchorInfo {
+    index: number;
+    name: string;
+    prepMin: number;
+    requiresThaw: boolean;
+    timeHour: number | undefined;
+    planProtein: number;
+    planKcal: number;
+  }
+  const anchorByUser = new Map<string, AnchorInfo>();
+  for (const [userId, entries] of planByUserToday) {
+    let planProtein = 0;
+    let planKcal = 0;
+    let best: AnchorInfo | null = null;
+    let bestProtein = -1;
+    for (let i = 0; i < entries.length; i++) {
+      const m = mealById.get(entries[i].meal_id);
+      if (!m) continue;
+      const protein = Number(m.protein_g) || 0;
+      planProtein += protein;
+      planKcal += Number(m.kcal) || 0;
+      if (protein > bestProtein) {
+        bestProtein = protein;
+        best = {
+          index: i,
+          name: m.name as string,
+          prepMin: (Number(m.prep_min) || 0) + (Number(m.cook_min) || 0),
+          requiresThaw: Boolean(m.requires_thaw),
+          timeHour: entries[i].time_hour,
+          planProtein: 0,
+          planKcal: 0,
+        };
+      }
+    }
+    if (best) {
+      best.planProtein = planProtein;
+      best.planKcal = planKcal;
+      anchorByUser.set(userId, best);
+    }
+  }
 
   const startedAt = Date.now();
   let sent = 0;
@@ -500,35 +560,50 @@ Deno.serve(async (req) => {
     }
     // Targets come from the plan itself (what today actually delivers);
     // the anchor is the highest-protein meal, its minutes are prep + cook.
-    let proteinG = 0;
-    let kcal = 0;
-    let anchorName = "";
-    let anchorPrep = 0;
-    let anchorProtein = -1;
-    for (const e of entries) {
-      const m = mealById.get(e.meal_id);
-      if (!m) continue;
-      proteinG += Number(m.protein_g);
-      kcal += Number(m.kcal);
-      if (Number(m.protein_g) > anchorProtein) {
-        anchorProtein = Number(m.protein_g);
-        anchorName = m.name as string;
-        anchorPrep = (Number(m.prep_min) || 0) + (Number(m.cook_min) || 0);
-      }
-    }
-    if (anchorProtein < 0) {
+    const anchor = anchorByUser.get(userId);
+    if (!anchor) {
       await recordSuppressed(userId, "morning-brief", "no-plan");
       continue;
     }
     const brief = buildMorningBrief({
       trainLabel:
         trainHour !== null ? formatHourLabel(trainHour, prefers24hByUser.get(userId) ?? null) : null,
-      proteinG: Math.round(proteinG),
-      kcal: Math.round(kcal),
-      anchorName,
-      anchorPrepMin: Math.round(anchorPrep),
+      proteinG: Math.round(anchor.planProtein),
+      kcal: Math.round(anchor.planKcal),
+      anchorName: anchor.name,
+      anchorPrepMin: Math.round(anchor.prepMin),
     });
     await enqueue({ userId, kind: "morning-brief", title: brief.title, body: brief.body });
+  }
+
+  // Prep anchor: timed to the action that enables the meal. An hour before
+  // the anchor meal (90 minutes when it thaws), suppressed once the anchor
+  // is logged. It supersedes the anchor's plain slot reminder below.
+  for (const [userId, anchor] of anchorByUser) {
+    const clock = clockByUser.get(userId);
+    if (!clock) continue;
+    const decision = prepAnchorDecision({
+      nowH: clock.nowH,
+      anchorHour: anchor.timeHour,
+      requiresThaw: anchor.requiresThaw,
+      anchorLogged: loggedSlotsByUser.get(userId)?.has(anchor.index) ?? false,
+    });
+    if (!decision.due) continue;
+    if (!decision.fire) {
+      await recordSuppressed(userId, "prep-anchor", decision.reason);
+      continue;
+    }
+    const proteinRemaining = Math.max(
+      0,
+      Math.round(anchor.planProtein - (loggedProteinByUser.get(userId) ?? 0)),
+    );
+    const prep = buildPrepAnchor({
+      requiresThaw: anchor.requiresThaw,
+      mealName: anchor.name,
+      prepMin: Math.round(anchor.prepMin),
+      proteinRemaining,
+    });
+    await enqueue({ userId, kind: "prep-anchor", title: prep.title, body: prep.body });
   }
 
   // Meal reminders: slots 15-45 minutes out, on the user's own clock.
@@ -537,6 +612,8 @@ Deno.serve(async (req) => {
     if (!clock || plan.date !== clock.today) continue;
     const entries = plan.meals as MealPlanEntry[];
     for (let i = 0; i < entries.length; i++) {
+      // The anchor meal's reminder is the prep anchor above, not this one.
+      if (i === anchorByUser.get(plan.user_id)?.index) continue;
       if (!mealReminderDue(entries[i].time_hour, clock.nowH)) continue;
       const name = mealNameById.get(entries[i].meal_id) ?? "Your next meal";
       await enqueue({
