@@ -44,8 +44,10 @@ interface Props {
   defaultMode?: "fdc" | "search" | "quick";
   /** meal section the sheet was opened from (section Add); null = unknown */
   forcedSlot?: MealSlot | null;
-  /** bump to fire the barcode scanner once the sheet is open (+ sheet Scan) */
-  scanTick?: number;
+  /** true while a "+ > Scan a barcode" request is unconsumed; the search
+   *  pane fires the camera once and acknowledges through onAutoScan */
+  autoScan?: boolean;
+  onAutoScan?: () => void;
   onLogDb: (
     mealId: string,
     note: string,
@@ -67,7 +69,7 @@ interface Props {
 }
 
 /** Bottom sheet for logging something that wasn't on the plan. */
-export function LogSheet({ open, onClose, searchMeals, busy, defaultMode = "fdc", forcedSlot = null, scanTick = 0, onLogDb, onLogEstimate, onLogFdc }: Props) {
+export function LogSheet({ open, onClose, searchMeals, busy, defaultMode = "fdc", forcedSlot = null, autoScan = false, onAutoScan, onLogDb, onLogEstimate, onLogFdc }: Props) {
   const [mode, setMode] = useState<"fdc" | "search" | "quick">(defaultMode);
   // Meal section for the Meals and Quick add forms: the opening section when
   // known, else a clock-based default.
@@ -242,7 +244,8 @@ export function LogSheet({ open, onClose, searchMeals, busy, defaultMode = "fdc"
                 busy={busy}
                 searchMeals={searchMeals}
                 forcedSlot={forcedSlot}
-                scanTick={scanTick}
+                autoScan={autoScan}
+                onAutoScan={onAutoScan}
                 onLabelParsed={(r) => {
                   // Photographed label: land the printed values in the
                   // editable form so nothing is saved sight-unseen.

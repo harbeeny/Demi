@@ -169,8 +169,9 @@ interface Props {
   searchMeals: Array<{ id: string; name: string; kcal: number; proteinG: number; carbsG: number; fatG: number }>;
   /** section the sheet was opened from; quick adds skip the slot picker */
   forcedSlot?: MealSlot | null;
-  /** bump to fire the barcode scanner once (the + sheet's Scan row) */
-  scanTick?: number;
+  /** an unconsumed "+ > Scan a barcode" request; acknowledged on fire */
+  autoScan?: boolean;
+  onAutoScan?: () => void;
   /** hands a photographed nutrition label to the editable quick-add form */
   onLabelParsed: (reading: LabelReadingFields) => void;
   onLog: (fields: FdcLogFields, note: string, opts?: { keepOpen?: boolean }) => Promise<boolean>;
@@ -199,7 +200,7 @@ const input =
   "w-full rounded-2xl border border-(--border-input) bg-(--field) px-3 py-2 text-sm text-(--ink) outline-none focus:border-(--accent)";
 
 /** USDA FoodData Central search with portion-aware logging. */
-export function FoodSearch({ busy, searchMeals, forcedSlot = null, scanTick = 0, onLabelParsed, onLog, onLogDb, onLogEstimate }: Props) {
+export function FoodSearch({ busy, searchMeals, forcedSlot = null, autoScan = false, onAutoScan, onLabelParsed, onLog, onLogDb, onLogEstimate }: Props) {
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<FdcFood[]>([]);
   const [searching, setSearching] = useState(false);
@@ -326,13 +327,15 @@ export function FoodSearch({ busy, searchMeals, forcedSlot = null, scanTick = 0,
     }
   };
 
-  // "+ > Scan a barcode" opens the sheet mid-scan: fire the camera once per
-  // tick, waiting for the native check above to settle first. On the web the
-  // tick is inert (the + sheet hides the row, and canScan stays false).
-  const firedScanTick = useRef(0);
+  // "+ > Scan a barcode" opens the sheet mid-scan: fire the camera once the
+  // native check above settles, acknowledging BEFORE launch so the request
+  // can't outlive this mount and re-fire on a later open or a mode switch.
+  // The ref only absorbs strict mode's doubled dev effects.
+  const autoScanFired = useRef(false);
   useEffect(() => {
-    if (!scanTick || scanTick === firedScanTick.current || !canScan) return;
-    firedScanTick.current = scanTick;
+    if (!autoScan || autoScanFired.current || !canScan) return;
+    autoScanFired.current = true;
+    onAutoScan?.();
     void scanBarcode();
   });
 
