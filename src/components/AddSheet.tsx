@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { Capacitor } from "@capacitor/core";
 
 import { useSwipeToDismiss } from "@/components/today/useSwipeToDismiss";
+import { tapHaptic } from "@/lib/haptics";
 
 export type AddAction = "log" | "scan" | "label" | "kitchen";
 
@@ -133,7 +134,10 @@ export function AddSheet({ open, onClose, onAction }: Props) {
             {rows.map((row) => (
               <button
                 key={row.action}
-                onClick={() => onAction(row.action)}
+                onClick={() => {
+                  tapHaptic();
+                  onAction(row.action);
+                }}
                 className="press flex w-full items-center gap-4 rounded-[1.25rem] bg-(--surface-2) px-4 py-4 text-left"
               >
                 <span className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-(--accent-tint) text-(--ink)">

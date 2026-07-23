@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { tapHaptic } from "@/lib/haptics";
 import { watchSystemTheme } from "@/lib/theme";
 
 import Link from "next/link";
@@ -164,7 +165,10 @@ export function TabBar() {
           pill's right edge when centered, 1.25rem = the wrapper's px-5 on
           phones. The sheet's z-40 backdrop covers it while open. */}
       <button
-        onClick={() => setAddOpen(true)}
+        onClick={() => {
+          tapHaptic();
+          setAddOpen(true);
+        }}
         aria-label="Add"
         aria-haspopup="dialog"
         aria-expanded={addOpen}
