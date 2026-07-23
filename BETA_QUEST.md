@@ -239,6 +239,56 @@ small waves and direct conversation.
 
 ---
 
+## ACT VIII: The Native Frontier   [LOCKED until Act VII clears]
+
+*The true native rewrite (Expo / React Native). Big, expensive, and only
+worth it once real users prove the loop. Do not let this act tempt you
+while the Beta Gauntlet is open.*
+
+**Unlock conditions (ALL must be true):**
+- [ ] The plan-log-adjust loop is validated by real daily use beyond the
+      developer (Gate 6 finished and reviewed)
+- [ ] Retention feels real: testers still logging in week 2 without nudges
+- [x] Phase 6 backend hardening done (cleared 2026-07-16)
+- [ ] HealthKit auto-sync is wanted by actual users, not just the roadmap
+
+**Scout mission (optional, cheap, run BEFORE committing to the act):**
+wire a Capacitor HealthKit plugin into the existing shell for a week.
+If auto-synced weight, steps, and active energy visibly improve the
+product, the rewrite proceeds on evidence. If not, the biggest project
+on the board just got cancelled for the price of a side quest.
+
+**The campaign (from the Phase 7 spec, amendments noted):**
+1. Expo app in the same repo (monorepo); the existing `lib/nutrition`,
+   `lib/plan`, `lib/ai` engines import unchanged. Only UI is rebuilt.
+   (The pure policy modules port as-is; the plan/AI chains need small
+   seams cut where they import server-only modules.)
+2. HealthKit: read weight, body measurements, steps, active energy, and
+   workouts; pre-fill and continuously update the profile, auto-adjust
+   activity level, feed training-day carb timing. This is the payoff a
+   web view cannot deliver.
+3. Reuse the Supabase backend and Phase 6 scalability work as-is.
+   Push: keep the raw APNs edge-function sender (it already handles
+   per-token environments); register bare APNs tokens from Expo rather
+   than migrating to Expo's push service. (Amended from the spec: less
+   churn, same result.)
+4. Mobile vibe-security audit: no API keys in the JS bundle, tokens in
+   Keychain not AsyncStorage, safe deep links, biometric gating for
+   health data.
+5. Ship to the App Store proper. Retire the Capacitor wrap at parity;
+   keep the web app as a marketing and desktop surface if useful.
+
+**BOSS: The Second System.** Rewrites stall products: the old app rots
+while the new one crawls toward parity. The counter is the monorepo
+engine reuse (the brains never fork) and refusing to start until the
+unlock conditions are literally true.
+
+**DoD: a native iOS app that auto-syncs health data, feels native, runs
+the full loop on the shared engine code, and passes a mobile
+vibe-security audit. XP: 2000.**
+
+---
+
 ## Side Quests (parked, promote deliberately)
 
 | Quest | Notes | XP |
