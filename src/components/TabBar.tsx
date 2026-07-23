@@ -131,12 +131,15 @@ export function TabBar() {
           the only thing that scales on scroll: transform-only and
           interruptible (CSS transition), from its own bottom edge so it
           settles toward the home indicator; reduced motion pins it at full
-          size. The wrapper spans the viewport for centering, so it must not
-          eat taps beside the pill. */}
+          size. An on-screen morph, so ease-in-out, not ease-out
+          (emil-design-eng); will-change keeps the blurred pill on its own
+          compositor layer, otherwise iOS re-renders the backdrop blur every
+          frame of the scale and the motion stutters. The wrapper spans the
+          viewport for centering, so it must not eat taps beside the pill. */}
       <div className="pointer-events-none fixed inset-x-0 bottom-[calc(env(safe-area-inset-bottom)+0.75rem)] z-30 flex justify-center px-5">
         <nav
           aria-label="Main"
-          className={`pointer-events-auto flex w-full max-w-sm origin-bottom items-center justify-around rounded-full border border-(--border)/70 bg-(--surface-2) px-3 py-1.5 shadow-[0_10px_30px_rgba(22,32,26,0.18)] backdrop-blur-xl transition-transform duration-200 ease-(--ease-out) supports-[backdrop-filter]:bg-(--surface-2)/75 motion-reduce:transition-none ${
+          className={`pointer-events-auto flex w-full max-w-sm origin-bottom items-center justify-around rounded-full border border-(--border)/70 bg-(--surface-2) px-3 py-1.5 shadow-[0_10px_30px_rgba(22,32,26,0.18)] backdrop-blur-xl will-change-transform transition-transform duration-300 ease-(--ease-in-out) supports-[backdrop-filter]:bg-(--surface-2)/75 motion-reduce:transition-none ${
             shrunk ? "scale-[0.82]" : ""
           }`}
         >
