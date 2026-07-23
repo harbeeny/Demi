@@ -23,7 +23,26 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
             intentIdentifiers: [],
             options: []
         )
-        UNUserNotificationCenter.current().setNotificationCategories([slotCategory])
+        // The morning brief (aps.category = DEMI_BRIEF) carries its own
+        // actions: open the plan, or flip the day into order mode. Both are
+        // .foreground so the JS handlers that record them reliably run.
+        let seePlan = UNNotificationAction(
+            identifier: "SEE_PLAN",
+            title: "See the plan",
+            options: [.foreground]
+        )
+        let notCooking = UNNotificationAction(
+            identifier: "NOT_COOKING",
+            title: "Not cooking today",
+            options: [.foreground]
+        )
+        let briefCategory = UNNotificationCategory(
+            identifier: "DEMI_BRIEF",
+            actions: [seePlan, notCooking, stopThis],
+            intentIdentifiers: [],
+            options: []
+        )
+        UNUserNotificationCenter.current().setNotificationCategories([slotCategory, briefCategory])
         return true
     }
 
