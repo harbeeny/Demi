@@ -81,6 +81,9 @@ export function PushPrimer({ open, onClose }: Props) {
     >
       <div
         ref={sheetRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="push-primer-title"
         className="flex max-h-[85dvh] w-full max-w-md flex-col overflow-hidden rounded-t-3xl bg-(--bg) shadow-[var(--shadow-sheet)]"
         style={sheetStyle}
         onClick={(e) => e.stopPropagation()}
@@ -96,7 +99,7 @@ export function PushPrimer({ open, onClose }: Props) {
         >
           {step === "ask" ? (
             <>
-              <h2 className="text-lg font-semibold leading-snug text-(--ink)">
+              <h2 id="push-primer-title" className="text-lg font-semibold leading-snug text-(--ink)">
                 Here&apos;s how Demi checks in
               </h2>
               <p className="mt-3 text-[15px] font-medium text-(--ink)">Three a day.</p>
@@ -125,7 +128,7 @@ export function PushPrimer({ open, onClose }: Props) {
             </>
           ) : (
             <>
-              <h2 className="text-lg font-semibold leading-snug text-(--ink)">
+              <h2 id="push-primer-title" className="text-lg font-semibold leading-snug text-(--ink)">
                 How much should Demi say?
               </h2>
               <p className="mt-1 mb-4 text-sm leading-6 text-(--muted)">
