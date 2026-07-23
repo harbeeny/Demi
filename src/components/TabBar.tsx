@@ -86,13 +86,13 @@ function useShrunkOnScroll() {
 }
 
 /**
- * Floating pill tab bar with the + beside it, one detached cluster above the
- * home indicator (the Instagram read: content scrolls behind it, and the
- * whole cluster scales down while scrolling down, back up while scrolling
- * up). Kitchen is a feature behind +, not a tab: + opens the action sheet
- * everywhere, and rows either navigate (kitchen) or hand an intent to the
- * Today screen (log, scan) via a demi:add event when it's already mounted
- * or ?add= when it isn't.
+ * Floating pill tab bar spanning the content column, detached above the home
+ * indicator (the Instagram read: content scrolls behind it, and the pill
+ * scales down while scrolling down, back up while scrolling up), with the +
+ * floating above its right end. Kitchen is a feature behind +, not a tab: +
+ * opens the action sheet everywhere, and rows either navigate (kitchen) or
+ * hand an intent to the Today screen (log, scan) via a demi:add event when
+ * it's already mounted or ?add= when it isn't.
  */
 export function TabBar() {
   // Status bar follows the on-screen theme, including OS flips in system mode.
@@ -126,20 +126,18 @@ export function TabBar() {
 
   return (
     <>
-      {/* One transform scales pill + FAB together from the bottom edge, so
-          the cluster settles toward the home indicator instead of floating
-          off it. Transform-only and interruptible (CSS transition), on the
-          app easing; reduced motion pins it at full size. The wrapper spans
-          the viewport for centering, so it must not eat taps beside the
-          cluster. */}
-      <div
-        className={`pointer-events-none fixed inset-x-0 bottom-[calc(env(safe-area-inset-bottom)+0.75rem)] z-30 flex origin-bottom items-center justify-center gap-3 transition-transform duration-200 ease-(--ease-out) motion-reduce:transition-none ${
-          shrunk ? "scale-[0.82]" : ""
-        }`}
-      >
+      {/* The pill spans the content column (Instagram proportions) and is
+          the only thing that scales on scroll: transform-only and
+          interruptible (CSS transition), from its own bottom edge so it
+          settles toward the home indicator; reduced motion pins it at full
+          size. The wrapper spans the viewport for centering, so it must not
+          eat taps beside the pill. */}
+      <div className="pointer-events-none fixed inset-x-0 bottom-[calc(env(safe-area-inset-bottom)+0.75rem)] z-30 flex justify-center px-5">
         <nav
           aria-label="Main"
-          className="pointer-events-auto flex items-center rounded-full border border-(--border)/70 bg-(--surface-2) px-2 py-1.5 shadow-[0_10px_30px_rgba(22,32,26,0.18)] backdrop-blur-xl supports-[backdrop-filter]:bg-(--surface-2)/75"
+          className={`pointer-events-auto flex w-full max-w-sm origin-bottom items-center justify-around rounded-full border border-(--border)/70 bg-(--surface-2) px-3 py-1.5 shadow-[0_10px_30px_rgba(22,32,26,0.18)] backdrop-blur-xl transition-transform duration-200 ease-(--ease-out) supports-[backdrop-filter]:bg-(--surface-2)/75 motion-reduce:transition-none ${
+            shrunk ? "scale-[0.82]" : ""
+          }`}
         >
           {TABS.map((t) => {
             const active = pathname.startsWith(t.href);
@@ -149,7 +147,7 @@ export function TabBar() {
                 href={t.href}
                 aria-label={t.label}
                 aria-current={active ? "page" : undefined}
-                className={`press flex h-11 w-14 items-center justify-center rounded-full ${
+                className={`press flex h-11 w-16 items-center justify-center rounded-full ${
                   active ? "text-(--ink)" : "text-(--muted)"
                 }`}
               >
@@ -158,30 +156,33 @@ export function TabBar() {
             );
           })}
         </nav>
-
-        {/* Floating add action beside the pill, wallet-app FAB energy; the
-            sheet's z-40 backdrop covers it while open. */}
-        <button
-          onClick={() => setAddOpen(true)}
-          aria-label="Add"
-          aria-haspopup="dialog"
-          aria-expanded={addOpen}
-          className="press pointer-events-auto flex h-14 w-14 items-center justify-center rounded-full bg-(--ink) text-(--ink-contrast) shadow-[0_8px_24px_rgba(22,32,26,0.35)]"
-        >
-          <svg
-            width="26"
-            height="26"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2.25"
-            strokeLinecap="round"
-            aria-hidden="true"
-          >
-            <path d="M12 5v14M5 12h14" />
-          </svg>
-        </button>
       </div>
+
+      {/* Floating add action above the pill's right end, wallet-app FAB
+          energy; static on purpose (the pill alone answers the scroll). The
+          right offset pins it to the pill's edge: 50vw-12rem = the max-w-sm
+          pill's right edge when centered, 1.25rem = the wrapper's px-5 on
+          phones. The sheet's z-40 backdrop covers it while open. */}
+      <button
+        onClick={() => setAddOpen(true)}
+        aria-label="Add"
+        aria-haspopup="dialog"
+        aria-expanded={addOpen}
+        className="press fixed bottom-[calc(env(safe-area-inset-bottom)+5.25rem)] right-[max(1.25rem,calc(50vw-12rem))] z-30 flex h-14 w-14 items-center justify-center rounded-full bg-(--ink) text-(--ink-contrast) shadow-[0_8px_24px_rgba(22,32,26,0.35)]"
+      >
+        <svg
+          width="26"
+          height="26"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2.25"
+          strokeLinecap="round"
+          aria-hidden="true"
+        >
+          <path d="M12 5v14M5 12h14" />
+        </svg>
+      </button>
       <AddSheet open={addOpen} onClose={() => setAddOpen(false)} onAction={act} />
     </>
   );
