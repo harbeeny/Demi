@@ -169,6 +169,8 @@ interface Props {
   searchMeals: Array<{ id: string; name: string; kcal: number; proteinG: number; carbsG: number; fatG: number }>;
   /** section the sheet was opened from; quick adds skip the slot picker */
   forcedSlot?: MealSlot | null;
+  /** bump to fire the barcode scanner once (the + sheet's Scan row) */
+  scanTick?: number;
   /** hands a photographed nutrition label to the editable quick-add form */
   onLabelParsed: (reading: LabelReadingFields) => void;
   onLog: (fields: FdcLogFields, note: string, opts?: { keepOpen?: boolean }) => Promise<boolean>;
@@ -197,7 +199,7 @@ const input =
   "w-full rounded-2xl border border-(--border-input) bg-(--field) px-3 py-2 text-sm text-(--ink) outline-none focus:border-(--accent)";
 
 /** USDA FoodData Central search with portion-aware logging. */
-export function FoodSearch({ busy, searchMeals, forcedSlot = null, onLabelParsed, onLog, onLogDb, onLogEstimate }: Props) {
+export function FoodSearch({ busy, searchMeals, forcedSlot = null, scanTick = 0, onLabelParsed, onLog, onLogDb, onLogEstimate }: Props) {
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<FdcFood[]>([]);
   const [searching, setSearching] = useState(false);
@@ -323,6 +325,16 @@ export function FoodSearch({ busy, searchMeals, forcedSlot = null, onLabelParsed
       // scanner dismissed or camera permission denied; nothing to log
     }
   };
+
+  // "+ > Scan a barcode" opens the sheet mid-scan: fire the camera once per
+  // tick, waiting for the native check above to settle first. On the web the
+  // tick is inert (the + sheet hides the row, and canScan stays false).
+  const firedScanTick = useRef(0);
+  useEffect(() => {
+    if (!scanTick || scanTick === firedScanTick.current || !canScan) return;
+    firedScanTick.current = scanTick;
+    void scanBarcode();
+  });
 
   // Chooser between the barcode scanner and the label camera, plus the
   // photograph flow itself: the vision route reads the printed per-serving
