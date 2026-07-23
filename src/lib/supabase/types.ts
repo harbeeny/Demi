@@ -461,6 +461,7 @@ export interface Database {
           user_id: string;
           token: string;
           platform: "ios" | "android";
+          environment: "development" | "production";
           updated_at: string;
         };
         Insert: {
@@ -468,6 +469,7 @@ export interface Database {
           user_id: string;
           token: string;
           platform?: "ios" | "android";
+          environment?: "development" | "production";
           updated_at?: string;
         };
         Update: {
@@ -475,6 +477,7 @@ export interface Database {
           user_id?: string;
           token?: string;
           platform?: "ios" | "android";
+          environment?: "development" | "production";
           updated_at?: string;
         };
         Relationships: [];

@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 
 import {
+  apnsHostFor,
   backoffMs,
   balanceMorningDecision,
   buildMorningBrief,
@@ -421,5 +422,22 @@ describe("pool", () => {
       done.push(n);
     });
     expect(done.sort()).toEqual([1, 3]);
+  });
+});
+
+describe("apnsHostFor", () => {
+  test("production tokens go to the production cloud", () => {
+    expect(apnsHostFor("production")).toBe("api.push.apple.com");
+  });
+  test("development tokens go to the sandbox", () => {
+    expect(apnsHostFor("development")).toBe("api.sandbox.push.apple.com");
+  });
+  test("legacy rows without the column resolve to the sandbox", () => {
+    expect(apnsHostFor(null)).toBe("api.sandbox.push.apple.com");
+    expect(apnsHostFor(undefined)).toBe("api.sandbox.push.apple.com");
+  });
+  test("garbage never reaches the production cloud", () => {
+    expect(apnsHostFor("prod")).toBe("api.sandbox.push.apple.com");
+    expect(apnsHostFor("")).toBe("api.sandbox.push.apple.com");
   });
 });

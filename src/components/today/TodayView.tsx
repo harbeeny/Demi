@@ -81,14 +81,53 @@ export function TodayView({ hasPlan, daySummary, meals, targets, logs, summary, 
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [sheetOpen, setSheetOpen] = useState(false);
-  // Section the sheet was opened from; null when opened from the FAB, where
-  // the slot picker asks instead.
+  // Section the sheet was opened from; null when opened from the + sheet,
+  // where the slot picker asks instead.
   const [sheetSlot, setSheetSlot] = useState<MealSlot | null>(null);
   const openSheetFor = (slot: MealSlot | null) => {
     tapHaptic();
     setSheetSlot(slot);
     setSheetOpen(true);
   };
+  // Bumped when a "+ > Scan a barcode" intent arrives; FoodSearch fires the
+  // camera once per bump after its native check settles.
+  const [scanTick, setScanTick] = useState(0);
+
+  // Intents from the tab bar's + sheet: a demi:add event when this screen is
+  // already mounted, or ?add=log|scan when + navigated here. The URL form is
+  // read once and stripped so refreshes don't re-open the sheet.
+  const urlIntentRead = useRef(false);
+  useEffect(() => {
+    const fire = (action: unknown) => {
+      if (action !== "log" && action !== "scan") return;
+      // Reviewing a past day: logging targets today, so snap back first.
+      if (!isToday) onSelectDate(null);
+      tapHaptic();
+      setSheetSlot(null);
+      setSheetOpen(true);
+      if (action === "scan") setScanTick((t) => t + 1);
+    };
+
+    if (!urlIntentRead.current) {
+      urlIntentRead.current = true;
+      const params = new URLSearchParams(window.location.search);
+      const fromUrl = params.get("add");
+      if (fromUrl) {
+        params.delete("add");
+        const qs = params.toString();
+        try {
+          window.history.replaceState(null, "", qs ? `/today?${qs}` : "/today");
+        } catch {
+          // history unavailable: worst case a refresh re-opens the sheet
+        }
+        fire(fromUrl);
+      }
+    }
+
+    const onAdd = (e: Event) => fire((e as CustomEvent).detail);
+    window.addEventListener("demi:add", onAdd);
+    return () => window.removeEventListener("demi:add", onAdd);
+  }, [isToday, onSelectDate]);
   const [recipe, setRecipe] = useState<{ data: RecipeData; slotIndex: number | null } | null>(null);
   const [balanceOpen, setBalanceOpen] = useState(false);
   // Takeout fake-door: the meal whose handoff sheet is open (null = closed).
@@ -624,31 +663,6 @@ export function TodayView({ hasPlan, daySummary, meals, targets, logs, summary, 
         Demi offers general wellness guidance, not medical advice.
       </p>
 
-      {/* Floating log action, bottom-right above the tab bar. Rendered in the
-          same states that previously showed an inline log button; the sheet's
-          z-40 backdrop covers it while open. */}
-      {isToday && (hasPlan || dayMode === "track") && (
-        <button
-          onClick={() => openSheetFor(null)}
-          disabled={busy !== null}
-          aria-label="Log a food"
-          className="press fixed bottom-[calc(env(safe-area-inset-bottom)+4.75rem)] right-[max(1.25rem,calc(50vw-14rem+1.25rem))] z-30 flex h-14 w-14 items-center justify-center rounded-full bg-(--ink) text-(--ink-contrast) shadow-[0_8px_24px_rgba(22,32,26,0.35)] hover:bg-(--ink) disabled:opacity-60"
-        >
-          <svg
-            width="26"
-            height="26"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2.25"
-            strokeLinecap="round"
-            aria-hidden="true"
-          >
-            <path d="M12 5v14M5 12h14" />
-          </svg>
-        </button>
-      )}
-
       <RecipeSheet
         recipe={recipe?.data ?? null}
         action={
@@ -672,6 +686,7 @@ export function TodayView({ hasPlan, daySummary, meals, targets, logs, summary, 
         searchMeals={searchMeals}
         busy={busy}
         defaultMode="fdc"
+        scanTick={scanTick}
         forcedSlot={sheetSlot}
         onLogDb={logDb}
         onLogEstimate={logEstimate}

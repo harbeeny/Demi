@@ -74,17 +74,22 @@ To activate once enrolled:
 2. Store the config. The function reads env vars first and falls back to
    Supabase Vault (via the service-role-only `public.get_push_secret()` rpc),
    so either works:
-   - **Vault** (no CLI needed, SQL editor): `select vault.create_secret('<value>', 'push_apns_team_id');` and likewise for `push_apns_key_id`, `push_apns_p8` (base64 of the .p8 file), `push_bundle_id`, `push_apns_host`, `push_cron_secret`.
-   - **Env secrets** (Supabase CLI): `supabase secrets set --project-ref syeoyutnlukrmijuumyt APNS_TEAM_ID=... APNS_KEY_ID=... APNS_P8="$(base64 -i AuthKey_XXXX.p8)" BUNDLE_ID=com.hbeeny.demi APNS_HOST=api.sandbox.push.apple.com CRON_SECRET="$(openssl rand -hex 32)"`
+   - **Vault** (no CLI needed, SQL editor): `select vault.create_secret('<value>', 'push_apns_team_id');` and likewise for `push_apns_key_id`, `push_apns_p8` (base64 of the .p8 file), `push_bundle_id`, `push_cron_secret`.
+   - **Env secrets** (Supabase CLI): `supabase secrets set --project-ref syeoyutnlukrmijuumyt APNS_TEAM_ID=... APNS_KEY_ID=... APNS_P8="$(base64 -i AuthKey_XXXX.p8)" BUNDLE_ID=com.hbeeny.demi CRON_SECRET="$(openssl rand -hex 32)"`
 
-   `APNS_HOST`: `api.sandbox.push.apple.com` for Xcode-run development
-   builds; **TestFlight builds use the production environment**, so switch to
-   `api.push.apple.com` when testing via TestFlight.
+   **APNs host is not config anymore.** The sender derives it per token
+   from `device_tokens.environment`: dev builds register development
+   tokens (sandbox host) and TestFlight/App Store builds register
+   production tokens (production host), so both build types receive push
+   side by side. The client stamps the environment from
+   `NEXT_PUBLIC_APNS_ENV` at export time: leave it unset for dev builds;
+   the archive recipe below sets `NEXT_PUBLIC_APNS_ENV=production`. A
+   legacy `push_apns_host` vault secret is simply unread.
 3. Schedule the cron (Supabase SQL editor; store the same CRON_SECRET value):
    ```sql
    create extension if not exists pg_cron;
    create extension if not exists pg_net;
-   select vault.create_secret('<same CRON_SECRET value>', 'cron_secret');
+   select vault.create_secret('<same CRON_SECRET value>', 'push_cron_secret');
    select cron.schedule(
      'send-meal-reminders', '*/15 * * * *',
      $$
@@ -92,7 +97,7 @@ To activate once enrolled:
        url := 'https://syeoyutnlukrmijuumyt.supabase.co/functions/v1/send-meal-reminders',
        headers := jsonb_build_object(
          'Content-Type', 'application/json',
-         'x-cron-secret', (select decrypted_secret from vault.decrypted_secrets where name = 'cron_secret')
+         'x-cron-secret', (select decrypted_secret from vault.decrypted_secrets where name = 'push_cron_secret')
        ),
        body := '{}'::jsonb,
        timeout_milliseconds := 30000
@@ -111,8 +116,17 @@ profile timezone column is the eventual fix.
 
 1. App Store Connect → **My Apps → + → New App**: platform iOS, bundle id
    `com.hbeeny.demi`, any SKU.
-2. Xcode → **Product → Archive** (scheme `App`, destination "Any iOS
-   Device"). When it finishes, the Organizer opens.
+2. Build the bundle for the production APNs environment, then archive:
+
+   ```bash
+   NEXT_PUBLIC_APNS_ENV=production bun run build:ios
+   ```
+
+   then Xcode → **Product → Archive** (scheme `App`, destination "Any iOS
+   Device"). When it finishes, the Organizer opens. The env flag makes the
+   install register its push token as `production` in `device_tokens`;
+   without it the token lands in the sandbox row and TestFlight push goes
+   nowhere. Dev installs over USB keep using plain `bun run build:ios`.
 3. **Distribute App → App Store Connect → Upload**, automatic signing.
    Export compliance: the app only uses standard HTTPS, so
    `ITSAppUsesNonExemptEncryption = NO` is set in `ios/App/App/Info.plist`
