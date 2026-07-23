@@ -181,6 +181,9 @@ export function LogSheet({ open, onClose, searchMeals, busy, defaultMode = "fdc"
     >
       <div
         ref={sheetRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="log-sheet-title"
         className="flex h-[90dvh] w-full max-w-md flex-col overflow-hidden rounded-t-3xl bg-(--bg) shadow-[var(--shadow-sheet)]"
         style={sheetStyle}
         onClick={(e) => e.stopPropagation()}
@@ -194,7 +197,7 @@ export function LogSheet({ open, onClose, searchMeals, busy, defaultMode = "fdc"
             aria-hidden="true"
           />
           <div className="mb-4 flex items-center justify-between">
-            <h2 className="text-lg font-semibold text-(--ink)">Log something else</h2>
+            <h2 id="log-sheet-title" className="text-lg font-semibold text-(--ink)">Log something else</h2>
             <button
               onClick={onClose}
               aria-label="Close"

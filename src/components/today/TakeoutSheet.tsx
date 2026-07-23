@@ -335,6 +335,9 @@ export function TakeoutSheet({ meal, goal, surface, remaining, onClose }: Props)
     >
       <div
         ref={sheetRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="takeout-sheet-title"
         className="flex max-h-[85dvh] w-full max-w-md flex-col overflow-hidden rounded-t-3xl bg-(--bg) shadow-[var(--shadow-sheet)]"
         style={sheetStyle}
         onClick={(e) => e.stopPropagation()}
@@ -343,7 +346,7 @@ export function TakeoutSheet({ meal, goal, surface, remaining, onClose }: Props)
         <div data-drag-handle className="shrink-0 px-5 pt-3" style={{ touchAction: "none" }}>
           <div className="mx-auto mb-3 h-1.5 w-10 rounded-full bg-(--handle)" aria-hidden="true" />
           <div className="mb-1 flex items-start justify-between gap-3">
-            <h2 className="text-lg font-semibold leading-snug text-(--ink)">Order this meal</h2>
+            <h2 id="takeout-sheet-title" className="text-lg font-semibold leading-snug text-(--ink)">Order this meal</h2>
             <button
               onClick={onClose}
               aria-label="Close"

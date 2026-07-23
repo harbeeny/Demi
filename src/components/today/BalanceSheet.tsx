@@ -274,6 +274,9 @@ export function BalanceSheet({
     >
       <div
         ref={sheetRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="balance-sheet-title"
         className="flex max-h-[80dvh] w-full max-w-md flex-col overflow-hidden rounded-t-3xl bg-(--bg) shadow-[var(--shadow-sheet)]"
         style={sheetStyle}
         onClick={(e) => e.stopPropagation()}
@@ -283,7 +286,7 @@ export function BalanceSheet({
           <div className="mx-auto mb-3 h-1.5 w-10 rounded-full bg-(--handle)" aria-hidden="true" />
           <div className="mb-1 flex items-start justify-between gap-3">
             <div className="flex min-w-0 items-center">
-              <h2 className="flex items-center gap-2 text-lg font-semibold leading-snug text-(--ink)">
+              <h2 id="balance-sheet-title" className="flex items-center gap-2 text-lg font-semibold leading-snug text-(--ink)">
                 <ScaleIcon className="h-[18px] w-[18px] shrink-0 text-(--muted)" />
                 Balance my week
               </h2>
