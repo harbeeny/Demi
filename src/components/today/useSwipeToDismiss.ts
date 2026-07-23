@@ -110,7 +110,9 @@ const IDLE: DragState = {
  * top; a downward pull translates the sheet 1:1 and releasing past the
  * threshold closes it. Every close path (X, backdrop, swipe, Escape) funnels
  * through the same exit transition, which retargets from the sheet's current
- * position. Render while `mounted`; the sheet stays in the DOM through the exit.
+ * position. Render while `mounted`; the sheet stays in the DOM through the
+ * exit, and `backdropStyle` makes the whole overlay inert to pointers for
+ * that window.
  */
 export function useSwipeToDismiss(open: boolean, onClose: () => void) {
   const [mounted, setMounted] = useState(open);
@@ -327,6 +329,10 @@ export function useSwipeToDismiss(open: boolean, onClose: () => void) {
     transition: dragging
       ? "none"
       : `background-color ${entered ? ENTER_MS : EXIT_MS}ms var(--ease-drawer)`,
+    // The overlay outlives `open` by EXIT_MS to play the exit, but a dismissed
+    // sheet is scenery: without this, a tap in that window still lands on the
+    // backdrop or an action row and re-fires onClose or onAction.
+    pointerEvents: open ? undefined : "none",
   };
 
   return {
