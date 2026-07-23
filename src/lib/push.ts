@@ -61,6 +61,15 @@ async function attachListeners(push: PushNotificationsPlugin): Promise<void> {
     } = await supabase.auth.getSession();
     if (!session?.user) return;
 
+    const recordAction = (outcome: "opened" | "action_taken", action?: string) =>
+      supabase
+        .from("notification_events")
+        .update(action ? { outcome, action } : { outcome })
+        .eq("user_id", session.user.id)
+        .eq("date", date!)
+        .eq("kind", kind)
+        .eq("outcome", "pending");
+
     if (actionId === "STOP_THIS") {
       // The permanent per-slot kill switch: one insert, no confirmation,
       // no re-ask. ignoreDuplicates keeps a double-tap a no-op (the table
@@ -69,23 +78,30 @@ async function attachListeners(push: PushNotificationsPlugin): Promise<void> {
         { user_id: session.user.id, family: kindFamily(kind) },
         { onConflict: "user_id,family", ignoreDuplicates: true },
       );
-      await supabase
-        .from("notification_events")
-        .update({ outcome: "action_taken", action: "stop-slot" })
-        .eq("user_id", session.user.id)
-        .eq("date", date!)
-        .eq("kind", kind)
-        .eq("outcome", "pending");
+      await recordAction("action_taken", "stop-slot");
       return;
     }
 
-    await supabase
-      .from("notification_events")
-      .update({ outcome: "opened" })
-      .eq("user_id", session.user.id)
-      .eq("date", date!)
-      .eq("kind", kind)
-      .eq("outcome", "pending");
+    if (actionId === "NOT_COOKING") {
+      // Morning-brief action: order mode for the rest of the day (Phase 5
+      // consumes it). Presence of the row is the flag.
+      await supabase.from("order_mode_days").upsert(
+        { user_id: session.user.id, date: date! },
+        { onConflict: "user_id,date", ignoreDuplicates: true },
+      );
+      await recordAction("action_taken", "order-mode");
+      return;
+    }
+
+    if (actionId === "SEE_PLAN") {
+      await recordAction("action_taken", "see-plan");
+      // The plan lives on Today. A cold start lands there anyway; a warm
+      // app parked elsewhere gets sent over.
+      if (window.location.pathname !== "/today") window.location.href = "/today";
+      return;
+    }
+
+    await recordAction("opened");
   });
 }
 

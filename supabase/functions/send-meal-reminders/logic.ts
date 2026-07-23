@@ -100,6 +100,94 @@ export function balanceMorningDecision(s: {
   return { due: true, fire: true };
 }
 
+// ---------- morning brief (Phase 2) ----------
+// The pre-decision slot: converts an open-ended day into decisions already
+// made. Fires once, in a bounded morning window, and only when there is a
+// plan to brief.
+
+/** "HH:MM" 24h to fractional hours; null when missing or malformed. */
+export function parseTimeToHour(time: string | null | undefined): number | null {
+  if (!time) return null;
+  const m = /^(\d{1,2}):(\d{2})$/.exec(time);
+  if (!m) return null;
+  const h = Number(m[1]) + Number(m[2]) / 60;
+  return h >= 0 && h < 24 ? h : null;
+}
+
+/** Sender-side twin of the app's formatTimeHour: 12-hour default clock. */
+export function formatHourLabel(timeHour: number, prefers24h?: boolean | null): string {
+  let h = Math.floor(timeHour);
+  let m = Math.round((timeHour % 1) * 60);
+  if (m === 60) {
+    h += 1;
+    m = 0;
+  }
+  h %= 24;
+  const mm = String(m).padStart(2, "0");
+  if (prefers24h) return `${h}:${mm}`;
+  const h12 = h % 12 === 0 ? 12 : h % 12;
+  return `${h12}:${mm} ${h >= 12 ? "pm" : "am"}`;
+}
+
+/**
+ * When the brief aims to land: 30 minutes before the eating window opens
+ * (this build's wake-time proxy), pulled earlier on training days with an
+ * early session so prep is possible, and never inside quiet hours: a brief
+ * that would land there waits for quiet end instead.
+ */
+export function morningBriefHour(s: {
+  windowStart: number;
+  trainHour: number | null;
+  quietStart: number | null;
+  quietEnd: number | null;
+}): number {
+  let hour = s.windowStart - 0.5;
+  if (s.trainHour !== null) hour = Math.min(hour, s.trainHour - 1);
+  hour = Math.max(0, hour);
+  if (inQuietHours(hour, s.quietStart, s.quietEnd)) {
+    hour = s.quietEnd ?? DEFAULT_QUIET_END;
+  }
+  return hour;
+}
+
+/**
+ * Due for two hours from the brief hour; after that the morning is gone and
+ * a "morning" brief would read as noise. A day without a plan has nothing
+ * to brief; that silence is logged.
+ */
+export function morningBriefDecision(s: {
+  nowH: number;
+  briefHour: number;
+  hasPlan: boolean;
+}): SlotDecision {
+  if (s.nowH < s.briefHour || s.nowH >= s.briefHour + 2) return { due: false };
+  if (!s.hasPlan) return { due: true, fire: false, reason: "no-plan" };
+  return { due: true, fire: true };
+}
+
+export interface MorningBriefInput {
+  /** formatted local training time; null on rest days drops the clause */
+  trainLabel: string | null;
+  proteinG: number;
+  kcal: number;
+  anchorName: string;
+  anchorPrepMin: number;
+}
+
+/** The spec template, two lines, no em-dashes (app-wide copy rule). */
+export function buildMorningBrief(b: MorningBriefInput): { title: string; body: string } {
+  const targets = `${b.proteinG}g protein, ${b.kcal} cal`;
+  return {
+    title: b.trainLabel ? `Lifting at ${b.trainLabel}. ${targets}.` : `Today: ${targets}.`,
+    body: `${b.anchorName} is the big one: ${b.anchorPrepMin} min. Everything else is easy.`,
+  };
+}
+
+/** APNs category per kind: the brief carries its own action set. */
+export function categoryFor(kind: string): string {
+  return kind === "morning-brief" ? "DEMI_BRIEF" : "DEMI_SLOT";
+}
+
 // ---------- standing preferences (Phase 1) ----------
 // Applied after a slot decides to fire, ordered by how permanent the choice
 // is: a killed slot stays dead, then the intensity level, then the nightly
@@ -121,8 +209,12 @@ export const DEFAULT_QUIET_END = 7;
  */
 const INTENSITY_FAMILIES: Record<string, Set<string> | null> = {
   coach: null,
-  checkin: new Set(["balance-morning", "reflect"]),
-  quiet: new Set(["balance-morning"]),
+  // checkin = morning brief + evening close per the intensity table
+  checkin: new Set(["morning-brief", "balance-morning", "reflect"]),
+  // quiet = morning brief only, PLUS balance-morning: that nudge is a rare,
+  // evidence-triggered correction against restriction spirals, and muting
+  // it under "quiet" would harm exactly the users it exists to protect.
+  quiet: new Set(["morning-brief", "balance-morning"]),
 };
 
 /** True when the local hour falls inside the quiet range (overnight wraps). */

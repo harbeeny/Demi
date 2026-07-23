@@ -237,6 +237,26 @@ export function KitchenView({ data, onMutated }: Props) {
       <header className="mb-6 flex items-center gap-3">
         <span className="flex h-9 w-9 items-center justify-center rounded-full bg-(--accent-tint) font-semibold text-(--ink)">D</span>
         <h1 className="text-lg font-semibold leading-tight text-(--ink)">Kitchen</h1>
+        {/* Kitchen is reached from the + sheet, not a tab, so it carries its
+            own way back; matches the sheets' ghost close button. */}
+        <Link
+          href="/today"
+          aria-label="Back to Today"
+          className="press ml-auto flex h-9 w-9 items-center justify-center rounded-full text-(--muted) hover:bg-(--track) hover:text-(--ink)"
+        >
+          <svg
+            width="18"
+            height="18"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            aria-hidden="true"
+          >
+            <path d="M6 6l12 12M18 6L6 18" />
+          </svg>
+        </Link>
       </header>
 
       {error && <p className="mb-4 rounded-2xl bg-(--danger-bg) p-3 text-sm text-(--danger-ink)">{error}</p>}

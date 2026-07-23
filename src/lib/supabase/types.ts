@@ -87,6 +87,25 @@ export interface Database {
         };
         Relationships: [];
       };
+      order_mode_days: {
+        Row: {
+          user_id: string;
+          date: string;
+          created_at: string;
+        };
+        Insert: {
+          user_id: string;
+          date: string;
+          created_at?: string;
+        };
+        // presence is the flag: rows are inserted and deleted, never updated
+        Update: {
+          user_id?: never;
+          date?: never;
+          created_at?: never;
+        };
+        Relationships: [];
+      };
       notification_kills: {
         Row: {
           user_id: string;

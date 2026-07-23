@@ -1,8 +1,8 @@
-// Scheduled push sender: meal-time reminders from today's plans, the
-// end-of-day reflection nudge, and the morning-after balance nudge.
-// Invoked every 15 minutes by pg_cron (see MOBILE.md for the cron SQL);
-// the only caller gate is the x-cron-secret header, since the function
-// is deployed with verify_jwt = false.
+// Scheduled push sender: the morning brief, meal-time reminders from
+// today's plans, the end-of-day reflection nudge, and the morning-after
+// balance nudge. Invoked every 15 minutes by pg_cron (see MOBILE.md for
+// the cron SQL); the only caller gate is the x-cron-secret header, since
+// the function is deployed with verify_jwt = false.
 //
 // Dates and hours resolve per user from profiles.timezone (UTC fallback),
 // matching the app's local day boundary.
@@ -12,16 +12,24 @@ import {
   apnsHostFor,
   backoffMs,
   balanceMorningDecision,
+  buildMorningBrief,
+  categoryFor,
+  formatHourLabel,
   isTokenGone,
   isTransient,
   MAX_SEND_ATTEMPTS,
   mealReminderDue,
+  morningBriefDecision,
+  morningBriefHour,
+  parseTimeToHour,
   pool,
   preferenceFilter,
   type PreferenceState,
   reflectDecision,
   shouldReleaseClaim,
 } from "./logic.ts";
+
+const WEEKDAYS = ["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"];
 
 // Config resolves from env vars when set, else from Supabase Vault via the
 // service-role-only public.get_push_secret() rpc (PostgREST does not expose
@@ -115,6 +123,7 @@ async function sendApnsOnce(
   title: string,
   body: string,
   meta: PushMeta,
+  category: string,
 ): Promise<number> {
   try {
     const res = await fetch(`https://${host}/3/device/${token}`, {
@@ -125,10 +134,10 @@ async function sendApnsOnce(
         "apns-push-type": "alert",
         "apns-priority": "10",
       },
-      // category DEMI_SLOT surfaces the long-press "Stop sending this one"
-      // action the app registers natively.
+      // The category picks the long-press action set the app registered
+      // natively: DEMI_BRIEF for the morning brief, DEMI_SLOT otherwise.
       body: JSON.stringify({
-        aps: { alert: { title, body }, sound: "default", category: "DEMI_SLOT" },
+        aps: { alert: { title, body }, sound: "default", category },
         demi: meta,
       }),
     });
@@ -149,10 +158,11 @@ async function sendApns(
   title: string,
   body: string,
   meta: PushMeta,
+  category: string,
 ): Promise<number> {
   let status = 0;
   for (let attempt = 0; attempt < MAX_SEND_ATTEMPTS; attempt++) {
-    status = await sendApnsOnce(cfg, host, token, title, body, meta);
+    status = await sendApnsOnce(cfg, host, token, title, body, meta, category);
     if (!isTransient(status)) return status;
     if (attempt < MAX_SEND_ATTEMPTS - 1) await new Promise((r) => setTimeout(r, backoffMs(attempt)));
   }
@@ -230,7 +240,9 @@ Deno.serve(async (req) => {
     db.from("device_tokens").select("user_id, token, environment"),
     db
       .from("profiles")
-      .select("id, timezone, notification_intensity, quiet_hours_start, quiet_hours_end"),
+      .select(
+        "id, timezone, prefers_24h_time, notification_intensity, quiet_hours_start, quiet_hours_end",
+      ),
     db.from("notification_kills").select("user_id, family"),
   ]);
 
@@ -242,6 +254,9 @@ Deno.serve(async (req) => {
     ]);
   }
   const tzByUser = new Map((profiles ?? []).map((p) => [p.id, p.timezone as string | null]));
+  const prefers24hByUser = new Map(
+    (profiles ?? []).map((p) => [p.id, (p.prefers_24h_time as boolean | null) ?? null]),
+  );
   // Standing notification preferences per user (Phase 1): intensity, quiet
   // hours, and permanently killed families.
   const killedByUser = new Map<string, Set<string>>();
@@ -286,17 +301,46 @@ Deno.serve(async (req) => {
   const [{ data: plans }, { data: meals }, { data: answers }, { data: dailyLogs }, { data: mealLogs }, { data: balances }] =
     await Promise.all([
       db.from("meal_plans").select("user_id, meals, date").in("date", dateSet),
-      db.from("meals").select("id, name"),
-      db.from("onboarding_answers").select("user_id, eating_window_end, created_at").order("created_at", { ascending: false }),
+      db.from("meals").select("id, name, protein_g, kcal, prep_min, cook_min"),
+      db
+        .from("onboarding_answers")
+        .select(
+          "user_id, eating_window_start, eating_window_end, training_days, training_time, created_at",
+        )
+        .order("created_at", { ascending: false }),
       db.from("daily_logs").select("user_id, finished_at, date").in("date", dateSet),
       db.from("meal_logs").select("user_id, date").in("date", dateSet),
       db.from("day_adjustments").select("user_id, source_date, created_at").in("source_date", yesterdaySet),
     ]);
 
   const mealNameById = new Map((meals ?? []).map((m) => [m.id, m.name]));
-  const windowEndByUser = new Map<string, number>();
+  const mealById = new Map((meals ?? []).map((m) => [m.id, m]));
+  // Latest onboarding row per user (the query is newest-first).
+  interface OnboardingInfo {
+    windowStart: number;
+    windowEnd: number;
+    trainingDays: string[];
+    trainingTime: string | null;
+  }
+  const onboardingByUser = new Map<string, OnboardingInfo>();
   for (const a of answers ?? []) {
-    if (!windowEndByUser.has(a.user_id)) windowEndByUser.set(a.user_id, a.eating_window_end);
+    if (!onboardingByUser.has(a.user_id)) {
+      onboardingByUser.set(a.user_id, {
+        windowStart: a.eating_window_start as number,
+        windowEnd: a.eating_window_end as number,
+        trainingDays: (a.training_days as string[] | null) ?? [],
+        trainingTime: (a.training_time as string | null) ?? null,
+      });
+    }
+  }
+  const windowEndByUser = new Map<string, number>();
+  for (const [userId, ob] of onboardingByUser) windowEndByUser.set(userId, ob.windowEnd);
+  // Today's plan entries per user, on each user's own calendar.
+  const planByUserToday = new Map<string, MealPlanEntry[]>();
+  for (const plan of plans ?? []) {
+    if (plan.date === clockByUser.get(plan.user_id)?.today) {
+      planByUserToday.set(plan.user_id, plan.meals as MealPlanEntry[]);
+    }
   }
   // Only rows matching that user's own local date count.
   const finishedUsers = new Set(
@@ -395,12 +439,18 @@ Deno.serve(async (req) => {
     // fully-transient failure releases the claim so the next tick retries.
     if (!(await claim(n.userId, n.kind))) return;
     const date = clockByUser.get(n.userId)?.today ?? localDateISO(null);
+    const category = categoryFor(n.kind);
     const finalStatuses: number[] = [];
     for (const t of tokensByUser.get(n.userId) ?? []) {
-      const status = await sendApns(cfg, apnsHostFor(t.environment), t.token, n.title, n.body, {
-        kind: n.kind,
-        date,
-      });
+      const status = await sendApns(
+        cfg,
+        apnsHostFor(t.environment),
+        t.token,
+        n.title,
+        n.body,
+        { kind: n.kind, date },
+        category,
+      );
       finalStatuses.push(status);
       if (status === 200) sent++;
       else failed++;
@@ -418,6 +468,67 @@ Deno.serve(async (req) => {
     if (finalStatuses.some((s) => s === 200)) {
       await recordEvent({ user_id: n.userId, date, kind: n.kind, fired_at: new Date().toISOString() });
     }
+  }
+
+  // Morning brief: the day's pre-decision. 30 minutes before the eating
+  // window opens (this build's wake proxy), pulled earlier on early-training
+  // days, deferred past quiet hours, once per day inside a 2-hour window.
+  for (const [userId] of tokensByUser) {
+    const ob = onboardingByUser.get(userId);
+    const clock = clockByUser.get(userId);
+    if (!ob || !clock || typeof ob.windowStart !== "number") continue;
+    const prefs = prefsByUser.get(userId) ?? defaultPrefs;
+    const weekday = WEEKDAYS[new Date(`${clock.today}T12:00:00Z`).getUTCDay()];
+    const training = ob.trainingDays.map((d) => d.toLowerCase()).includes(weekday);
+    const trainHour = training ? parseTimeToHour(ob.trainingTime) : null;
+    const briefHour = morningBriefHour({
+      windowStart: ob.windowStart,
+      trainHour,
+      quietStart: prefs.quietStart,
+      quietEnd: prefs.quietEnd,
+    });
+    const entries = planByUserToday.get(userId) ?? [];
+    const decision = morningBriefDecision({
+      nowH: clock.nowH,
+      briefHour,
+      hasPlan: entries.length > 0,
+    });
+    if (!decision.due) continue;
+    if (!decision.fire) {
+      await recordSuppressed(userId, "morning-brief", decision.reason);
+      continue;
+    }
+    // Targets come from the plan itself (what today actually delivers);
+    // the anchor is the highest-protein meal, its minutes are prep + cook.
+    let proteinG = 0;
+    let kcal = 0;
+    let anchorName = "";
+    let anchorPrep = 0;
+    let anchorProtein = -1;
+    for (const e of entries) {
+      const m = mealById.get(e.meal_id);
+      if (!m) continue;
+      proteinG += Number(m.protein_g);
+      kcal += Number(m.kcal);
+      if (Number(m.protein_g) > anchorProtein) {
+        anchorProtein = Number(m.protein_g);
+        anchorName = m.name as string;
+        anchorPrep = (Number(m.prep_min) || 0) + (Number(m.cook_min) || 0);
+      }
+    }
+    if (anchorProtein < 0) {
+      await recordSuppressed(userId, "morning-brief", "no-plan");
+      continue;
+    }
+    const brief = buildMorningBrief({
+      trainLabel:
+        trainHour !== null ? formatHourLabel(trainHour, prefers24hByUser.get(userId) ?? null) : null,
+      proteinG: Math.round(proteinG),
+      kcal: Math.round(kcal),
+      anchorName,
+      anchorPrepMin: Math.round(anchorPrep),
+    });
+    await enqueue({ userId, kind: "morning-brief", title: brief.title, body: brief.body });
   }
 
   // Meal reminders: slots 15-45 minutes out, on the user's own clock.
